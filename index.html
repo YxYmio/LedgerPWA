@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LedgerPWA</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2382/2382533.png">
+  <meta name="theme-color" content="#1e293b">
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' }
+  </script>
+  <!-- PWA Service Worker 自動註冊 (防護與設定 4) -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then(reg => {
+          console.log('Service Worker 註冊成功:', reg.scope);
+        }).catch(err => {
+          console.log('Service Worker 註冊失敗:', err);
+        });
+      });
+    }
+  </script>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 select-none">
+  <div id="app" class="max-w-md mx-auto min-h-screen bg-white dark:bg-slate-800 shadow-xl relative pb-20">
+    
+    <!-- 1. 畫面防窺 (PIN 碼解鎖) -->
+    <div v-if="settings.pinEnabled && !isUnlocked" class="absolute inset-0 z-50 bg-slate-900 flex flex-col items-center justify-center p-6 text-white">
+      <i data-lucide="lock" class="w-16 h-16 mb-4 text-blue-500"></i>
+      <h2 class="text-2xl font-bold mb-6">輸入 PIN 碼解鎖</h2>
+      <input type="password" v-model="pinInput" maxlength="4" pattern="[0-9]*" inputmode="numeric" 
+             class="text-center text-3xl tracking-[1em] w-48 p-2 rounded-lg text-black mb-4 outline-none"
+             placeholder="••••">
+      <button @click="unlockApp" class="bg-blue-600 px-6 py-2 rounded-full font-bold w-48">解鎖</button>
+      <p v-if="pinError" class="text-red-400 mt-4">{{ pinError }}</p>
+    </div>
+
+    <!-- 頂部導航 -->
+    <header v-if="isUnlocked" class="p-4 bg-blue-600 text-white flex justify-between items-center sticky top-0 z-40">
+      <h1 class="text-xl font-bold flex items-center gap-2">
+        <i data-lucide="book-open"></i> LedgerPWA
+      </h1>
+      <div class="flex gap-4">
+        <!-- 同步狀態指示燈 -->
+        <button @click="syncWithGitHub" title="同步至 GitHub" class="relative">
+          <i data-lucide="refresh-cw" :class="{'animate-spin': isSyncing}"></i>
+          <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full" 
+                :class="syncStatus === 'ok' ? 'bg-green-400' : (syncStatus === 'offline' ? 'bg-yellow-400' : 'bg-red-500')"></span>
+        </button>
+      </div>
+    </header>
+
+    <!-- 內容區域 -->
+    <main v-if="isUnlocked" class="p-4">
+      
+      <!-- 儀表板 Tab -->
+      <div v-show="activeTab === 'dashboard'" class="space-y-6">
+        <div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
+          <p class="text-sm opacity-80">真實淨資產 (Net Worth)</p>
+          <h2 class="text-4xl font-bold mt-1">$ {{ formatNumber(netWorth) }}</h2>
+          <div class="mt-4 flex justify-between text-sm">
+            <div><span class="opacity-80">總資產:</span> $ {{ formatNumber(totalAssets) }}</div>
+            <div><span class="opacity-80">總負債:</span> $ {{ formatNumber(totalLiabilities) }}</div>
+          </div>
+        </div>
+        <div>
+          <h3 class="font-bold mb-2">本月收支結構</h3>
+          <canvas id="expenseChart" class="w-full max-h-64"></canvas>
+        </div>
+      </div>
+
+      <!-- 記帳 Tab -->
+      <div v-show="activeTab === 'entry'" class="space-y-4">
+        <h2 class="text-xl font-bold border-b pb-2">新增交易</h2>
+        <div class="flex flex-col gap-3">
+          <input type="date" v-model="newTx.date" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600">
+          <input type="text" v-model="newTx.desc" placeholder="摘要說明" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600">
+          <select v-model="newTx.scope" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600">
+            <option value="personal">個人支出</option>
+            <option value="family">家庭支出</option>
+          </select>
+          <div class="flex gap-2">
+            <select v-model="newTx.debit" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600">
+              <option value="" disabled>選擇借方 (入帳/費用)</option>
+              <option v-for="acc in accounts" :value="acc.id">{{ acc.name }}</option>
+            </select>
+            <select v-model="newTx.credit" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600">
+              <option value="" disabled>選擇貸方 (扣款/收入)</option>
+              <option v-for="acc in accounts" :value="acc.id">{{ acc.name }}</option>
+            </select>
+          </div>
+          <input type="number" v-model.number="newTx.amount" placeholder="金額" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600">
+          <button @click="submitTransaction" class="bg-blue-600 text-white p-3 rounded-lg font-bold">記一筆</button>
+          <p v-if="txError" class="text-red-500 text-sm font-bold">{{ txError }}</p>
+        </div>
+        
+        <h3 class="font-bold mt-6 mb-2">近期明細 (Top 5)</h3>
+        <div v-for="tx in sortedTransactions.slice(0,5)" :key="tx.id" class="p-3 border rounded-lg flex justify-between items-center mb-2 dark:border-slate-700">
+          <div>
+            <div class="font-bold">{{ tx.description }}</div>
+            <div class="text-xs text-slate-500">{{ tx.date }} | 借:{{ getAccName(tx.debits[0].account_id) }} / 貸:{{ getAccName(tx.credits[0].account_id) }}</div>
+          </div>
+          <div class="font-bold text-red-500">${{ formatNumber(tx.debits[0].amount) }}</div>
+          <button @click="deleteTransaction(tx.id)" class="text-red-400 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+        </div>
+      </div>
+
+      <!-- 資產與股票 Tab -->
+      <div v-show="activeTab === 'assets'" class="space-y-6">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xl font-bold">股票庫存與即時估值</h2>
+          <button @click="updateStockPrices" class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full"><i data-lucide="refresh-cw" class="w-4 h-4 inline"></i> 更新股價</button>
+        </div>
+        <div v-for="inv in data.investments" :key="inv.id" class="p-4 border rounded-xl dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+          <div class="flex justify-between font-bold mb-2">
+            <span>{{ inv.name }} ({{ inv.symbol }})</span>
+            <!-- 防呆機制 3：加入 (inv.last_price || 0) 避免未抓取股價時顯示 NaN -->
+            <span>市值: $ {{ formatNumber(inv.shares * (inv.last_price || 0) * (inv.currency==='USD'? fxRate : 1)) }}</span>
+          </div>
+          <div class="text-sm flex justify-between text-slate-500">
+            <span>持有: {{ inv.shares }} 股 | 成本: $ {{ formatNumber(inv.total_cost) }}</span>
+            <span :class="(inv.shares * (inv.last_price || 0) * (inv.currency==='USD'? fxRate : 1) - inv.total_cost) >= 0 ? 'text-green-500' : 'text-red-500'">
+              未實現: $ {{ formatNumber((inv.shares * (inv.last_price || 0) * (inv.currency==='USD'? fxRate : 1)) - inv.total_cost) }}
+            </span>
+          </div>
+        </div>
+
+        <h2 class="text-xl font-bold mt-6">固定資產與折舊</h2>
+        <div v-for="fa in data.fixed_assets" :key="fa.id" class="p-4 border rounded-xl dark:border-slate-700">
+          <div class="font-bold">{{ fa.name }}</div>
+          <div class="text-sm text-slate-500">原價: ${{ formatNumber(fa.original_cost) }} | 月折舊: ${{ formatNumber(fa.monthly_depreciation) }}</div>
+          <div class="text-xs mt-1">最後折舊: {{ fa.last_depreciation_date || '尚未提列' }}</div>
+        </div>
+      </div>
+
+      <!-- 設定與備份 Tab -->
+      <div v-show="activeTab === 'settings'" class="space-y-6">
+        <h2 class="text-xl font-bold">同步設定 (雙 Repo 架構)</h2>
+        <div class="space-y-3">
+          <input type="text" v-model="settings.githubUser" placeholder="GitHub 帳號 (擁有 Private Repo)" class="w-full border p-2 rounded dark:bg-slate-700">
+          <input type="text" v-model="settings.githubRepo" placeholder="存放資料的 Private Repo 名稱" class="w-full border p-2 rounded dark:bg-slate-700">
+          <!-- 防窺 Token -->
+          <input type="password" v-model="settings.githubToken" placeholder="GitHub PAT Token (需勾選 repo 權限)" class="w-full border p-2 rounded dark:bg-slate-700">
+          <button @click="saveSettings" class="w-full bg-slate-800 text-white p-2 rounded font-bold dark:bg-slate-600">儲存並測試連線</button>
+        </div>
+
+        <h2 class="text-xl font-bold mt-8 border-t pt-6">安全與備份 (萬能導出/導入)</h2>
+        <div class="flex items-center justify-between border p-3 rounded-lg">
+          <span class="font-bold">App PIN 碼防窺鎖</span>
+          <input type="checkbox" v-model="settings.pinEnabled" @change="saveSettings" class="w-5 h-5">
+        </div>
+        <div v-if="settings.pinEnabled">
+          <input type="password" v-model="settings.pinCode" placeholder="設定 4 位數新 PIN 碼" maxlength="4" class="w-full border p-2 rounded mt-2 dark:bg-slate-700">
+        </div>
+        <div class="flex gap-2">
+          <button @click="exportData" class="flex-1 bg-green-600 text-white p-2 rounded font-bold"><i data-lucide="download" class="inline w-4 h-4"></i> 匯出 JSON</button>
+          <label class="flex-1 bg-yellow-600 text-white p-2 rounded font-bold text-center cursor-pointer">
+            <i data-lucide="upload" class="inline w-4 h-4"></i> 匯入備份
+            <input type="file" @change="importData" class="hidden" accept=".json">
+          </label>
+        </div>
+        <button @click="initOpeningBalance" class="w-full bg-purple-600 text-white p-2 rounded font-bold mt-2">設定期初餘額 (引導分錄)</button>
+      </div>
+
+    </main>
+
+    <!-- 底部導覽列 -->
+    <nav v-if="isUnlocked" class="fixed bottom-0 w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-around p-3 z-40">
+      <button @click="activeTab='dashboard'" :class="{'text-blue-600': activeTab==='dashboard', 'text-slate-400': activeTab!=='dashboard'}" class="flex flex-col items-center"><i data-lucide="layout-dashboard"></i><span class="text-[10px]">總覽</span></button>
+      <button @click="activeTab='entry'" :class="{'text-blue-600': activeTab==='entry', 'text-slate-400': activeTab!=='entry'}" class="flex flex-col items-center"><i data-lucide="edit-3"></i><span class="text-[10px]">記帳</span></button>
+      <button @click="activeTab='assets'" :class="{'text-blue-600': activeTab==='assets', 'text-slate-400': activeTab!=='assets'}" class="flex flex-col items-center"><i data-lucide="pie-chart"></i><span class="text-[10px]">資產</span></button>
+      <button @click="activeTab='settings'" :class="{'text-blue-600': activeTab==='settings', 'text-slate-400': activeTab!=='settings'}" class="flex flex-col items-center"><i data-lucide="settings"></i><span class="text-[10px]">設定</span></button>
+    </nav>
+  </div>
+
+  <script type="module">
+    import { createApp, ref, reactive, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
+
+    // 輔助：Base64 中文處理 (加入 GitHub 換行符號過濾修復)
+    const b64EncodeUnicode = (str) => btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
+    const b64DecodeUnicode = (str) => {
+      // 修復 Bug 2：移除 GitHub API 回傳的 \n 換行符號，防止 atob 觸發 Invalid character 錯誤
+      const cleanStr = str.replace(/\n/g, '');
+      return decodeURIComponent(Array.prototype.map.call(atob(cleanStr), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    };
+
+    createApp({
+      setup() {
+        // --- 狀態管理 ---
+        const activeTab = ref('dashboard');
+        const isUnlocked = ref(false);
+        const pinInput = ref('');
+        const pinError = ref('');
+        const syncStatus = ref('offline'); // offline, ok, error
+        const isSyncing = ref(false);
+        const fxRate = ref(32.5); // USD/TWD 預設
+        const chartInstance = ref(null);
+
+        const settings = reactive({
+          githubUser: '', githubRepo: '', githubToken: '', pinEnabled: false, pinCode: '0000', fileSha: ''
+        });
+
+        // 資料庫 Schema
+        const data = reactive({
+          version: "1.0.0",
+          accounts: [
+            { id: "1101", name: "現金", type: "Asset" },
+            { id: "1102", name: "交割戶", type: "Asset" },
+            { id: "1201", name: "汽車", type: "Asset" },
+            { id: "1201-DEP", name: "汽車累計折舊", type: "Asset", is_contra: true },
+            { id: "2101", name: "信用卡", type: "Liability" },
+            { id: "3101", name: "期初權益", type: "Equity" },
+            { id: "4101", name: "薪資收入", type: "Income" },
+            { id: "5101", name: "餐飲", type: "Expense" },
+            { id: "5102", name: "折舊費用", type: "Expense" }
+          ],
+          transactions: [],
+          fixed_assets: [],
+          investments: []
+        });
+
+        const newTx = reactive({ date: new Date().toISOString().split('T')[0], desc: '', scope: 'personal', debit: '', credit: '', amount: null });
+        const txError = ref('');
+
+        // --- 防呆與解鎖邏輯 ---
+        const loadSettings = () => {
+          const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}');
+          Object.assign(settings, s);
+          if (!settings.pinEnabled) isUnlocked.value = true;
+        };
+
+        const unlockApp = () => {
+          if (pinInput.value === settings.pinCode) {
+            isUnlocked.value = true;
+            initData();
+          } else {
+            pinError.value = "PIN 碼錯誤";
+          }
+        };
+
+        const saveSettings = () => {
+          localStorage.setItem('ledger_settings', JSON.stringify(settings));
+          alert('設定已儲存');
+          if (settings.githubToken) syncWithGitHub();
+        };
+
+        // --- 會計計算與試算表邏輯 ---
+        const calculateBalance = (accountId) => {
+          let balance = 0;
+          data.transactions.forEach(tx => {
+            tx.debits.forEach(d => { if (d.account_id === accountId) balance += d.amount; });
+            tx.credits.forEach(c => { if (c.account_id === accountId) balance -= c.amount; });
+          });
+          const acc = data.accounts.find(a => a.id === accountId);
+          // 資產/費用 借方增加；負債/權益/收入 貸方增加
+          // (貸方備抵科目 1201-DEP 是 Asset 型態，這裡算出來本來就會是負值)
+          return (acc.type === 'Asset' || acc.type === 'Expense') ? balance : -balance;
+        };
+
+        const totalAssets = computed(() => {
+          let sum = 0;
+          data.accounts.filter(a => a.type === 'Asset').forEach(a => {
+            // 修復 Bug 1：直接累加，不需要再乘 -1，否則負數餘額的折舊科目會變成正數導致資產暴增
+            sum += calculateBalance(a.id);
+          });
+          // 加上股票未實現損益 (現值 - 歷史成本)
+          data.investments.forEach(inv => {
+            // 防呆 3: 若無股價則以 0 計算
+            const currentVal = inv.shares * (inv.last_price || 0) * (inv.currency === 'USD' ? fxRate.value : 1);
+            sum += (currentVal - inv.total_cost);
+          });
+          return sum;
+        });
+
+        const totalLiabilities = computed(() => {
+          return data.accounts.filter(a => a.type === 'Liability').reduce((sum, a) => sum + calculateBalance(a.id), 0);
+        });
+
+        const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
+
+        const sortedTransactions = computed(() => data.transactions.slice().sort((a,b) => new Date(b.date) - new Date(a.date)));
+        const getAccName = (id) => data.accounts.find(a => a.id === id)?.name || id;
+        const formatNumber = (num) => Math.round(num).toLocaleString('en-US');
+
+        // --- 核心防呆：記帳與自動折舊 ---
+        const submitTransaction = () => {
+          txError.value = '';
+          if (!newTx.debit || !newTx.credit || !newTx.amount) return txError.value = '欄位不完整';
+          if (newTx.debit === newTx.credit) return txError.value = '借貸科目不可相同 (防呆機制 1)';
+          
+          // 資產負數預警
+          const creditAcc = data.accounts.find(a=>a.id===newTx.credit);
+          if (creditAcc.type === 'Asset' && !creditAcc.is_contra && (calculateBalance(creditAcc.id) - newTx.amount < 0)) {
+            if(!confirm(`警告：此筆支出將導致【${creditAcc.name}】餘額為負數，確定要繼續嗎？`)) return;
+          }
+
+          data.transactions.push({
+            id: 'tx_' + Date.now(),
+            date: newTx.date,
+            description: newTx.desc,
+            scope: newTx.scope,
+            debits: [{ account_id: newTx.debit, amount: newTx.amount }],
+            credits: [{ account_id: newTx.credit, amount: newTx.amount }]
+          });
+          
+          newTx.desc = ''; newTx.amount = null;
+          autoBackup();
+          updateCharts();
+        };
+
+        const deleteTransaction = (id) => {
+          const txIndex = data.transactions.findIndex(t => t.id === id);
+          if (txIndex === -1) return;
+          const tx = data.transactions[txIndex];
+          
+          // 折舊防呆：若刪除自動折舊，重置 last_depreciation_date
+          if (tx.auto_generated && tx.asset_id) {
+            const asset = data.fixed_assets.find(a => a.id === tx.asset_id);
+            if(asset) asset.last_depreciation_date = null; // 簡化處理
+          }
+          data.transactions.splice(txIndex, 1);
+          autoBackup();
+          updateCharts();
+        };
+
+        const runAutoDepreciation = () => {
+          const today = new Date();
+          const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+          let generated = 0;
+
+          data.fixed_assets.forEach(fa => {
+            const lastDate = fa.last_depreciation_date || fa.purchase_date;
+            if (lastDate.substring(0,7) !== currentMonthStr) {
+              data.transactions.push({
+                id: 'tx_dep_' + Date.now() + Math.random(),
+                date: today.toISOString().split('T')[0],
+                description: `${fa.name} 自動提列折舊`,
+                scope: 'family',
+                auto_generated: true,
+                asset_id: fa.id,
+                debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }],
+                credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }]
+              });
+              fa.last_depreciation_date = today.toISOString().split('T')[0];
+              generated++;
+            }
+          });
+          if(generated > 0) {
+            alert(`已自動產生 ${generated} 筆折舊分錄`);
+            autoBackup();
+          }
+        };
+
+        // --- API 對接：GitHub 雙 Repo 讀寫 ---
+        const getGitHubUrl = () => `https://api.github.com/repos/${settings.githubUser}/${settings.githubRepo}/contents/transactions.json`;
+
+        const autoBackup = () => {
+          // 資料安全：同步前先存 LocalStorage
+          localStorage.setItem('ledger_backup', JSON.stringify(data));
+        };
+
+        const syncWithGitHub = async () => {
+          if (!settings.githubToken || !settings.githubRepo) return;
+          isSyncing.value = true;
+          try {
+            // 1. Fetch Latest SHA (避免 409 Conflict)
+            const res = await fetch(getGitHubUrl(), {
+              headers: { 'Authorization': `token ${settings.githubToken}`, 'Accept': 'application/vnd.github.v3+json' }
+            });
+            if (res.ok) {
+              const fileData = await res.json();
+              settings.fileSha = fileData.sha;
+              
+              // 合併邏輯 (此處採覆蓋策略，實務可加入雙向 Merge)
+              autoBackup(); 
+              
+              // 2. 寫入 GitHub
+              const content = b64EncodeUnicode(JSON.stringify(data, null, 2));
+              const putRes = await fetch(getGitHubUrl(), {
+                method: 'PUT',
+                headers: { 'Authorization': `token ${settings.githubToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  message: 'LedgerPWA Auto Sync',
+                  content: content,
+                  sha: settings.fileSha
+                })
+              });
+              
+              if(putRes.ok) {
+                const putData = await putRes.json();
+                settings.fileSha = putData.content.sha;
+                syncStatus.value = 'ok';
+              } else {
+                throw new Error('Write failed (可能發生 409 SHA 衝突)');
+              }
+            } else if (res.status === 404) {
+              // 首次建立檔案
+              const content = b64EncodeUnicode(JSON.stringify(data, null, 2));
+              const putRes = await fetch(getGitHubUrl(), {
+                method: 'PUT',
+                headers: { 'Authorization': `token ${settings.githubToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: 'Initial Commit', content: content })
+              });
+              settings.fileSha = (await putRes.json()).content.sha;
+              syncStatus.value = 'ok';
+            }
+          } catch (err) {
+            console.error(err);
+            syncStatus.value = 'error';
+            alert(`同步失敗: ${err.message}。資料已存於本地快取。`);
+          } finally {
+            isSyncing.value = false;
+          }
+        };
+
+        // --- API 對接：股市與匯率 ---
+        const fetchExchangeRate = async () => {
+          try {
+            const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+            const fx = await res.json();
+            fxRate.value = fx.rates.TWD;
+          } catch(e) { console.warn("匯率獲取失敗", e); }
+        };
+
+        const updateStockPrices = async () => {
+          // TWSE 台股 (無 CORS 限制 API)
+          try {
+            const res = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL');
+            const twseData = await res.json();
+            
+            data.investments.forEach(inv => {
+              if(inv.currency !== 'USD') {
+                const stock = twseData.find(s => s.Code === inv.symbol.replace('.TW', ''));
+                if(stock) {
+                  inv.last_price = parseFloat(stock.ClosingPrice); // 更新最新價
+                }
+              }
+            });
+            alert('股價更新完成');
+            autoBackup();
+          } catch (e) {
+             // 股票防呆：抓取失敗時，自動使用 last_price，避免淨值暴跌
+            console.error("TWSE API 失敗，使用本地快取股價", e);
+            alert('無法連線證交所，目前使用快取股價估值。');
+          }
+        };
+
+        // --- 災難復原與匯入匯出 ---
+        const exportData = () => {
+          const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `LedgerBackup_${new Date().toISOString().split('T')[0]}.json`;
+          a.click();
+        };
+
+        const importData = (e) => {
+          const file = e.target.files[0];
+          if(!file) return;
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            try {
+              const imported = JSON.parse(event.target.result);
+              if(!imported.transactions || !imported.accounts) throw new Error("Schema Error");
+              Object.assign(data, imported);
+              autoBackup();
+              alert("匯入成功");
+              updateCharts();
+            } catch (err) {
+              alert("檔案防呆啟動：JSON 格式錯誤或損毀。");
+            }
+          };
+          reader.readAsText(file);
+        };
+
+        const initOpeningBalance = () => {
+          newTx.desc = '期初餘額設定';
+          newTx.credit = '3101'; // 貸方設為期初權益
+          alert('請選擇您要初始化的資產帳戶，並輸入金額。這將會借記資產，貸記期初權益，避免影響當月收入損益。');
+          activeTab.value = 'entry';
+        };
+
+        // --- Chart.js 渲染 ---
+        const updateCharts = () => {
+          if (activeTab.value !== 'dashboard') return;
+          nextTick(() => {
+            const ctx = document.getElementById('expenseChart');
+            if(!ctx) return;
+            
+            // 計算本月費用
+            const currentMonth = new Date().toISOString().substring(0,7);
+            const expenses = {};
+            data.transactions.filter(t => t.date.startsWith(currentMonth)).forEach(tx => {
+              tx.debits.forEach(d => {
+                const acc = data.accounts.find(a=>a.id===d.account_id);
+                if(acc && acc.type === 'Expense') {
+                  expenses[acc.name] = (expenses[acc.name] || 0) + d.amount;
+                }
+              });
+            });
+
+            if (chartInstance.value) chartInstance.value.destroy();
+            
+            chartInstance.value = new Chart(ctx, {
+              type: 'doughnut',
+              data: {
+                labels: Object.keys(expenses),
+                datasets: [{
+                  data: Object.values(expenses),
+                  backgroundColor: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'],
+                  borderWidth: 0
+                }]
+              },
+              options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
+            });
+          });
+        };
+
+        watch(activeTab, () => {
+          if(activeTab.value === 'dashboard') updateCharts();
+          nextTick(() => lucide.createIcons());
+        });
+
+        // --- 初始化 ---
+        const initData = async () => {
+          // 檔案防呆：Try Catch 載入備份
+          try {
+            const backup = localStorage.getItem('ledger_backup');
+            if (backup) Object.assign(data, JSON.parse(backup));
+          } catch(e) { console.error("本地快取損毀"); }
+          
+          await fetchExchangeRate();
+          
+          // 如果有 Token，嘗試從 GitHub 拉取最新
+          if (settings.githubToken) {
+            try {
+              const res = await fetch(getGitHubUrl(), { headers: { 'Authorization': `token ${settings.githubToken}` } });
+              if (res.ok) {
+                const fileData = await res.json();
+                settings.fileSha = fileData.sha;
+                // 這裡會通過剛才修復過的新 b64DecodeUnicode 解碼，防止換行符號報錯
+                Object.assign(data, JSON.parse(b64DecodeUnicode(fileData.content)));
+                syncStatus.value = 'ok';
+              }
+            } catch(e) { syncStatus.value = 'offline'; }
+          }
+          
+          runAutoDepreciation();
+          if (activeTab.value === 'dashboard') updateCharts();
+          nextTick(() => lucide.createIcons());
+        };
+
+        onMounted(() => {
+          loadSettings();
+          if(isUnlocked.value) initData();
+        });
+
+        return {
+          accounts: data.accounts,
+          activeTab, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGitHub,
+          data, newTx, txError, submitTransaction, deleteTransaction, getAccName, formatNumber,
+          netWorth, totalAssets, totalLiabilities, updateStockPrices, fxRate,
+          exportData, importData, initOpeningBalance, sortedTransactions
+        };
+      }
+    }).mount('#app')
+  </script>
+</body>
+</html>
