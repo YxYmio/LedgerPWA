@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>LedgerPWA</title>
   <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2382/2382533.png">
   <meta name="theme-color" content="#1e293b">
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -16,7 +15,7 @@
   <script>
     tailwind.config = { darkMode: 'class' }
   </script>
-  <!-- PWA Service Worker 自動註冊 (防護與設定 4) -->
+  <!-- PWA Service Worker 自動註冊 -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -32,7 +31,7 @@
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 select-none">
   <div id="app" class="max-w-md mx-auto min-h-screen bg-white dark:bg-slate-800 shadow-xl relative pb-20">
     
-    <!-- 1. 畫面防窺 (PIN 碼解鎖) -->
+    <!-- 畫面防窺 (PIN 碼解鎖) -->
     <div v-if="settings.pinEnabled && !isUnlocked" class="absolute inset-0 z-50 bg-slate-900 flex flex-col items-center justify-center p-6 text-white">
       <i data-lucide="lock" class="w-16 h-16 mb-4 text-blue-500"></i>
       <h2 class="text-2xl font-bold mb-6">輸入 PIN 碼解鎖</h2>
@@ -44,9 +43,9 @@
     </div>
 
     <!-- 頂部導航 -->
-    <header v-if="isUnlocked" class="p-4 bg-blue-600 text-white flex justify-between items-center sticky top-0 z-40">
+    <header v-if="isUnlocked" class="p-4 bg-blue-600 text-white flex justify-between items-center sticky top-0 z-40 shadow-md">
       <h1 class="text-xl font-bold flex items-center gap-2">
-        <i data-lucide="book-open"></i> LedgerPWA
+        <i data-lucide="book-open"></i> {{ settings.appName || '我的複式帳本' }}
       </h1>
       <div class="flex gap-4">
         <!-- 同步狀態指示燈 -->
@@ -61,7 +60,12 @@
     <!-- 內容區域 -->
     <main v-if="isUnlocked" class="p-4">
       
-      <!-- 儀表板 Tab -->
+      <!-- 未綁定 Banner 提示 -->
+      <div v-if="!settings.githubToken" @click="activeTab = 'settings'" class="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded-lg mb-4 flex items-center cursor-pointer hover:bg-yellow-100 transition shadow-sm dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-300">
+        <span class="text-sm font-bold">⚠️ 目前為單機模式（資料存於本地）。點此前往設定 GitHub Token 以開啟雲端同步</span>
+      </div>
+
+      <!-- 總覽 Tab -->
       <div v-show="activeTab === 'dashboard'" class="space-y-6">
         <div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
           <p class="text-sm opacity-80">真實淨資產 (Net Worth)</p>
@@ -73,7 +77,13 @@
         </div>
         <div>
           <h3 class="font-bold mb-2">本月收支結構</h3>
-          <canvas id="expenseChart" class="w-full max-h-64"></canvas>
+          <!-- 總覽頁空白狀態 -->
+          <div v-show="!hasExpensesThisMonth" class="w-full h-48 flex items-center justify-center bg-slate-50 dark:bg-slate-800 rounded-xl border dark:border-slate-700 text-slate-400 text-sm">
+            本月尚無支出資料
+          </div>
+          <div v-show="hasExpensesThisMonth" class="relative w-full h-64">
+            <canvas id="expenseChart" class="w-full h-full"></canvas>
+          </div>
         </div>
       </div>
 
@@ -81,48 +91,93 @@
       <div v-show="activeTab === 'entry'" class="space-y-4">
         <h2 class="text-xl font-bold border-b pb-2">新增交易</h2>
         <div class="flex flex-col gap-3">
-          <input type="date" v-model="newTx.date" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600">
-          <input type="text" v-model="newTx.desc" placeholder="摘要說明" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600">
-          <select v-model="newTx.scope" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600">
+          <input type="date" v-model="newTx.date" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none focus:border-blue-500">
+          
+          <!-- 摘要輸入框與快捷標籤 -->
+          <input type="text" v-model="newTx.desc" placeholder="摘要說明 (可輸入或點選下方標籤)" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none focus:border-blue-500">
+          <div class="flex flex-wrap gap-2">
+            <button v-for="p in data.desc_presets" :key="p" @click="newTx.desc = p" class="bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-sm px-3 py-1 rounded-full transition border dark:border-slate-600 shadow-sm">
+              {{ p }}
+            </button>
+          </div>
+
+          <select v-model="newTx.scope" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none focus:border-blue-500">
             <option value="personal">個人支出</option>
             <option value="family">家庭支出</option>
           </select>
           <div class="flex gap-2">
-            <select v-model="newTx.debit" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600">
-              <option value="" disabled>選擇借方 (入帳/費用)</option>
-              <option v-for="acc in accounts" :value="acc.id">{{ acc.name }}</option>
+            <select v-model="newTx.debit" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none focus:border-blue-500">
+              <option value="" disabled>請選擇借方科目</option>
+              <option v-for="acc in visibleAccounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
             </select>
-            <select v-model="newTx.credit" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600">
-              <option value="" disabled>選擇貸方 (扣款/收入)</option>
-              <option v-for="acc in accounts" :value="acc.id">{{ acc.name }}</option>
+            <select v-model="newTx.credit" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none focus:border-blue-500">
+              <option value="" disabled>請選擇貸方科目</option>
+              <option v-for="acc in visibleAccounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
             </select>
           </div>
-          <input type="number" v-model.number="newTx.amount" placeholder="金額" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600">
-          <button @click="submitTransaction" class="bg-blue-600 text-white p-3 rounded-lg font-bold">記一筆</button>
+          <input type="number" v-model.number="newTx.amount" placeholder="金額" class="border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none focus:border-blue-500">
+          <button @click="submitTransaction" class="bg-blue-600 hover:bg-blue-700 transition text-white p-3 rounded-lg font-bold">記一筆</button>
           <p v-if="txError" class="text-red-500 text-sm font-bold">{{ txError }}</p>
-        </div>
-        
-        <h3 class="font-bold mt-6 mb-2">近期明細 (Top 5)</h3>
-        <div v-for="tx in sortedTransactions.slice(0,5)" :key="tx.id" class="p-3 border rounded-lg flex justify-between items-center mb-2 dark:border-slate-700">
-          <div>
-            <div class="font-bold">{{ tx.description }}</div>
-            <div class="text-xs text-slate-500">{{ tx.date }} | 借:{{ getAccName(tx.debits[0].account_id) }} / 貸:{{ getAccName(tx.credits[0].account_id) }}</div>
-          </div>
-          <div class="font-bold text-red-500">${{ formatNumber(tx.debits[0].amount) }}</div>
-          <button @click="deleteTransaction(tx.id)" class="text-red-400 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
         </div>
       </div>
 
-      <!-- 資產與股票 Tab -->
-      <div v-show="activeTab === 'assets'" class="space-y-6">
-        <div class="flex justify-between items-center">
-          <h2 class="text-xl font-bold">股票庫存與即時估值</h2>
-          <button @click="updateStockPrices" class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full"><i data-lucide="refresh-cw" class="w-4 h-4 inline"></i> 更新股價</button>
+      <!-- 明細 Tab (獨立頁面：支援篩選) -->
+      <div v-show="activeTab === 'history'" class="space-y-4">
+        <h2 class="text-xl font-bold border-b pb-2">明細查詢</h2>
+        
+        <!-- 篩選器 -->
+        <div class="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border dark:border-slate-700 space-y-2 text-sm shadow-sm">
+          <div class="flex gap-2">
+            <input type="text" v-model="historyFilter.keyword" placeholder="搜尋摘要或科目..." class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
+            <select v-model="historyFilter.scope" class="border p-2 rounded w-28 dark:bg-slate-700 dark:border-slate-600 outline-none">
+              <option value="all">全部類型</option>
+              <option value="personal">僅個人</option>
+              <option value="family">僅家庭</option>
+            </select>
+          </div>
+          <div class="flex gap-2 items-center">
+            <input type="date" v-model="historyFilter.dateFrom" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
+            <span class="text-slate-400">至</span>
+            <input type="date" v-model="historyFilter.dateTo" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
+          </div>
         </div>
-        <div v-for="inv in data.investments" :key="inv.id" class="p-4 border rounded-xl dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+        
+        <div class="flex justify-between items-center mt-2">
+          <span class="text-sm font-bold text-slate-500">共 {{ filteredTransactions.length }} 筆符合條件</span>
+        </div>
+        
+        <!-- 明細空白狀態 -->
+        <div v-if="filteredTransactions.length === 0" class="text-center text-slate-400 py-10 bg-slate-50 dark:bg-slate-800 rounded-lg border dark:border-slate-700">
+          查無符合條件的明細
+        </div>
+        
+        <!-- 明細清單 -->
+        <div v-for="tx in filteredTransactions" :key="tx.id" class="p-3 border rounded-lg flex justify-between items-center mb-2 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 shadow-sm hover:shadow transition">
+          <div>
+            <div class="font-bold text-lg">{{ tx.description }} <span v-if="tx.scope==='family'" class="text-[10px] bg-blue-100 text-blue-600 px-1 rounded ml-1">家庭</span></div>
+            <div class="text-xs text-slate-500 mt-1">{{ tx.date }}</div>
+            <div class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">借: {{ getAccName(tx.debits[0].account_id) }} / 貸: {{ getAccName(tx.credits[0].account_id) }}</div>
+          </div>
+          <div class="flex flex-col items-end">
+            <div class="font-bold text-xl text-blue-600 dark:text-blue-400">${{ formatNumber(tx.debits[0].amount) }}</div>
+            <button @click="deleteTransaction(tx.id)" class="text-red-400 p-1 mt-1 hover:text-red-600 bg-slate-100 dark:bg-slate-700 rounded-full"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 資產 Tab -->
+      <div v-show="activeTab === 'assets'" class="space-y-6">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h2 class="text-xl font-bold">股票庫存與即時估值</h2>
+          <button @click="updateStockPrices" class="text-sm bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full hover:bg-indigo-200 transition"><i data-lucide="refresh-cw" class="w-4 h-4 inline"></i> 更新股價</button>
+        </div>
+        <!-- 資產頁股票空白狀態 -->
+        <div v-if="data.investments.length === 0" class="text-center text-slate-400 py-6 text-sm bg-slate-50 dark:bg-slate-800 rounded-lg border dark:border-slate-700">
+          目前無股票庫存
+        </div>
+        <div v-else v-for="inv in data.investments" :key="inv.id" class="p-4 border rounded-xl dark:border-slate-700 bg-slate-50 dark:bg-slate-800 shadow-sm">
           <div class="flex justify-between font-bold mb-2">
             <span>{{ inv.name }} ({{ inv.symbol }})</span>
-            <!-- 防呆機制 3：加入 (inv.last_price || 0) 避免未抓取股價時顯示 NaN -->
             <span>市值: $ {{ formatNumber(inv.shares * (inv.last_price || 0) * (inv.currency==='USD'? fxRate : 1)) }}</span>
           </div>
           <div class="text-sm flex justify-between text-slate-500">
@@ -133,94 +188,146 @@
           </div>
         </div>
 
-        <h2 class="text-xl font-bold mt-6">固定資產與折舊</h2>
-        <div v-for="fa in data.fixed_assets" :key="fa.id" class="p-4 border rounded-xl dark:border-slate-700">
+        <h2 class="text-xl font-bold mt-6 border-b pb-2">固定資產與折舊</h2>
+        <!-- 資產頁固定資產空白狀態 -->
+        <div v-if="data.fixed_assets.length === 0" class="text-center text-slate-400 py-6 text-sm bg-slate-50 dark:bg-slate-800 rounded-lg border dark:border-slate-700">
+          目前無固定資產
+        </div>
+        <div v-else v-for="fa in data.fixed_assets" :key="fa.id" class="p-4 border rounded-xl dark:border-slate-700 bg-slate-50 dark:bg-slate-800 shadow-sm">
           <div class="font-bold">{{ fa.name }}</div>
           <div class="text-sm text-slate-500">原價: ${{ formatNumber(fa.original_cost) }} | 月折舊: ${{ formatNumber(fa.monthly_depreciation) }}</div>
           <div class="text-xs mt-1">最後折舊: {{ fa.last_depreciation_date || '尚未提列' }}</div>
         </div>
       </div>
 
-      <!-- 設定與備份 Tab -->
+      <!-- 設定 Tab -->
       <div v-show="activeTab === 'settings'" class="space-y-6">
-        <h2 class="text-xl font-bold">同步設定 (雙 Repo 架構)</h2>
-        <div class="space-y-3">
-          <input type="text" v-model="settings.githubUser" placeholder="GitHub 帳號 (擁有 Private Repo)" class="w-full border p-2 rounded dark:bg-slate-700">
-          <input type="text" v-model="settings.githubRepo" placeholder="存放資料的 Private Repo 名稱" class="w-full border p-2 rounded dark:bg-slate-700">
-          <!-- 防窺 Token -->
-          <input type="password" v-model="settings.githubToken" placeholder="GitHub PAT Token (需勾選 repo 權限)" class="w-full border p-2 rounded dark:bg-slate-700">
-          <button @click="saveSettings" class="w-full bg-slate-800 text-white p-2 rounded font-bold dark:bg-slate-600">儲存並測試連線</button>
+        
+        <!-- App 基本設定 -->
+        <h2 class="text-xl font-bold border-b pb-2">基本設定</h2>
+        <div class="flex items-center gap-2">
+          <span class="w-24 text-sm font-bold">App 名稱</span>
+          <input type="text" v-model="settings.appName" @change="saveSettings" placeholder="例如: 我的複式帳本" class="flex-1 border p-2 rounded dark:bg-slate-700 outline-none focus:border-blue-500">
         </div>
 
-        <h2 class="text-xl font-bold mt-8 border-t pt-6">安全與備份 (萬能導出/導入)</h2>
-        <div class="flex items-center justify-between border p-3 rounded-lg">
+        <!-- 常用摘要管理 -->
+        <h2 class="text-xl font-bold border-b pb-2 mt-6">常用摘要管理</h2>
+        <div class="flex gap-2 mb-3">
+          <input type="text" v-model="newPreset" placeholder="新增摘要標籤 (如: 晚餐)" class="border p-2 rounded flex-1 dark:bg-slate-700 outline-none">
+          <button @click="addPreset" class="bg-blue-600 hover:bg-blue-700 transition text-white px-4 rounded font-bold">+</button>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <span v-for="(p, idx) in data.desc_presets" :key="idx" class="bg-slate-200 dark:bg-slate-700 px-3 py-1 rounded-full text-sm flex items-center gap-2 shadow-sm">
+            {{ p }} <button @click="removePreset(idx)" class="text-slate-500 hover:text-red-600 font-bold ml-1">&times;</button>
+          </span>
+        </div>
+
+        <!-- 會計科目管理 -->
+        <h2 class="text-xl font-bold border-b pb-2 mt-6">會計科目管理</h2>
+        <div class="flex gap-2 mb-3">
+          <input type="text" v-model="newAcc.name" placeholder="新科目名稱" class="border p-2 rounded flex-1 dark:bg-slate-700 outline-none focus:border-blue-500">
+          <select v-model="newAcc.type" class="border p-2 rounded dark:bg-slate-700 w-24 outline-none">
+            <option value="Asset">資產</option>
+            <option value="Liability">負債</option>
+            <option value="Equity">權益</option>
+            <option value="Income">收入</option>
+            <option value="Expense">費用</option>
+          </select>
+          <button @click="addAccount" class="bg-blue-600 hover:bg-blue-700 transition text-white px-4 rounded font-bold">+</button>
+        </div>
+        <div class="max-h-48 overflow-y-auto space-y-1 text-sm border p-2 rounded-lg dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
+          <div v-for="acc in data.accounts" :key="acc.id" class="flex justify-between items-center p-2 border-b dark:border-slate-700 last:border-0" :class="{'opacity-50': acc.is_hidden}">
+            <span>{{ acc.name }} <span class="text-xs text-slate-400 ml-1">({{ getAccTypeName(acc.type) }}) <span v-if="acc.is_hidden" class="text-red-400">- 已隱藏</span></span></span>
+            <div class="flex gap-2">
+              <button @click="toggleAccountVisibility(acc.id)" class="text-slate-500 hover:text-blue-500" :title="acc.is_hidden ? '取消隱藏' : '隱藏此科目'">
+                <i :data-lucide="acc.is_hidden ? 'eye-off' : 'eye'" class="w-4 h-4"></i>
+              </button>
+              <button @click="deleteAccount(acc.id)" class="text-red-400 hover:text-red-600" title="刪除 (僅限無紀錄之科目)">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 雲端同步設定 -->
+        <h2 class="text-xl font-bold border-b pb-2 mt-8">同步設定</h2>
+        <div class="space-y-3">
+          <input type="text" v-model="settings.githubUser" placeholder="GitHub 帳號" class="w-full border p-2 rounded dark:bg-slate-700 outline-none">
+          <input type="text" v-model="settings.githubRepo" placeholder="Private Repo 名稱" class="w-full border p-2 rounded dark:bg-slate-700 outline-none">
+          <input type="password" v-model="settings.githubToken" placeholder="GitHub PAT Token" class="w-full border p-2 rounded dark:bg-slate-700 outline-none">
+          <button @click="saveSettings" class="w-full bg-slate-800 hover:bg-slate-900 transition text-white p-3 rounded-lg font-bold dark:bg-slate-600 dark:hover:bg-slate-500 shadow">儲存並測試連線</button>
+        </div>
+
+        <!-- 安全與備份 -->
+        <h2 class="text-xl font-bold mt-8 border-b pb-2">安全與備份</h2>
+        <div class="flex items-center justify-between border p-3 rounded-lg dark:border-slate-700 shadow-sm bg-slate-50 dark:bg-slate-800">
           <span class="font-bold">App PIN 碼防窺鎖</span>
-          <input type="checkbox" v-model="settings.pinEnabled" @change="saveSettings" class="w-5 h-5">
+          <input type="checkbox" v-model="settings.pinEnabled" @change="saveSettings" class="w-5 h-5 accent-blue-600">
         </div>
         <div v-if="settings.pinEnabled">
-          <input type="password" v-model="settings.pinCode" placeholder="設定 4 位數新 PIN 碼" maxlength="4" class="w-full border p-2 rounded mt-2 dark:bg-slate-700">
+          <input type="password" v-model="settings.pinCode" placeholder="設定 4 位數新 PIN 碼" maxlength="4" class="w-full border p-2 rounded mt-2 dark:bg-slate-700 text-center tracking-widest text-lg outline-none focus:border-blue-500">
         </div>
-        <div class="flex gap-2">
-          <button @click="exportData" class="flex-1 bg-green-600 text-white p-2 rounded font-bold"><i data-lucide="download" class="inline w-4 h-4"></i> 匯出 JSON</button>
-          <label class="flex-1 bg-yellow-600 text-white p-2 rounded font-bold text-center cursor-pointer">
-            <i data-lucide="upload" class="inline w-4 h-4"></i> 匯入備份
+        <div class="flex gap-2 mt-3">
+          <button @click="exportData" class="flex-1 bg-green-600 hover:bg-green-700 transition text-white p-3 rounded-lg font-bold shadow flex items-center justify-center gap-1"><i data-lucide="download" class="w-4 h-4"></i> 匯出 JSON</button>
+          <label class="flex-1 bg-yellow-600 hover:bg-yellow-700 transition text-white p-3 rounded-lg font-bold shadow flex items-center justify-center gap-1 cursor-pointer">
+            <i data-lucide="upload" class="w-4 h-4"></i> 匯入備份
             <input type="file" @change="importData" class="hidden" accept=".json">
           </label>
         </div>
-        <button @click="initOpeningBalance" class="w-full bg-purple-600 text-white p-2 rounded font-bold mt-2">設定期初餘額 (引導分錄)</button>
+        <button @click="initOpeningBalance" class="w-full bg-purple-600 hover:bg-purple-700 transition text-white p-3 rounded-lg font-bold mt-3 shadow">設定期初餘額 (引導分錄)</button>
       </div>
 
     </main>
 
     <!-- 底部導覽列 -->
-    <nav v-if="isUnlocked" class="fixed bottom-0 w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-around p-3 z-40">
-      <button @click="activeTab='dashboard'" :class="{'text-blue-600': activeTab==='dashboard', 'text-slate-400': activeTab!=='dashboard'}" class="flex flex-col items-center"><i data-lucide="layout-dashboard"></i><span class="text-[10px]">總覽</span></button>
-      <button @click="activeTab='entry'" :class="{'text-blue-600': activeTab==='entry', 'text-slate-400': activeTab!=='entry'}" class="flex flex-col items-center"><i data-lucide="edit-3"></i><span class="text-[10px]">記帳</span></button>
-      <button @click="activeTab='assets'" :class="{'text-blue-600': activeTab==='assets', 'text-slate-400': activeTab!=='assets'}" class="flex flex-col items-center"><i data-lucide="pie-chart"></i><span class="text-[10px]">資產</span></button>
-      <button @click="activeTab='settings'" :class="{'text-blue-600': activeTab==='settings', 'text-slate-400': activeTab!=='settings'}" class="flex flex-col items-center"><i data-lucide="settings"></i><span class="text-[10px]">設定</span></button>
+    <nav v-if="isUnlocked" class="fixed bottom-0 w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-2 py-3 z-40 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+      <button @click="activeTab='dashboard'" :class="{'text-blue-600': activeTab==='dashboard', 'text-slate-400': activeTab!=='dashboard'}" class="flex-1 flex flex-col items-center hover:text-blue-500 transition"><i data-lucide="layout-dashboard"></i><span class="text-[10px] mt-1">總覽</span></button>
+      <button @click="activeTab='entry'" :class="{'text-blue-600': activeTab==='entry', 'text-slate-400': activeTab!=='entry'}" class="flex-1 flex flex-col items-center hover:text-blue-500 transition"><i data-lucide="edit-3"></i><span class="text-[10px] mt-1">記帳</span></button>
+      <button @click="activeTab='history'" :class="{'text-blue-600': activeTab==='history', 'text-slate-400': activeTab!=='history'}" class="flex-1 flex flex-col items-center hover:text-blue-500 transition"><i data-lucide="list"></i><span class="text-[10px] mt-1">明細</span></button>
+      <button @click="activeTab='assets'" :class="{'text-blue-600': activeTab==='assets', 'text-slate-400': activeTab!=='assets'}" class="flex-1 flex flex-col items-center hover:text-blue-500 transition"><i data-lucide="pie-chart"></i><span class="text-[10px] mt-1">資產</span></button>
+      <button @click="activeTab='settings'" :class="{'text-blue-600': activeTab==='settings', 'text-slate-400': activeTab!=='settings'}" class="flex-1 flex flex-col items-center hover:text-blue-500 transition"><i data-lucide="settings"></i><span class="text-[10px] mt-1">設定</span></button>
     </nav>
   </div>
 
   <script type="module">
     import { createApp, ref, reactive, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
 
-    // 輔助：Base64 中文處理 (加入 GitHub 換行符號過濾修復)
     const b64EncodeUnicode = (str) => btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
     const b64DecodeUnicode = (str) => {
-      // 修復 Bug 2：移除 GitHub API 回傳的 \n 換行符號，防止 atob 觸發 Invalid character 錯誤
       const cleanStr = str.replace(/\n/g, '');
       return decodeURIComponent(Array.prototype.map.call(atob(cleanStr), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
     };
 
     createApp({
       setup() {
-        // --- 狀態管理 ---
         const activeTab = ref('dashboard');
         const isUnlocked = ref(false);
         const pinInput = ref('');
         const pinError = ref('');
-        const syncStatus = ref('offline'); // offline, ok, error
+        const syncStatus = ref('offline'); 
         const isSyncing = ref(false);
-        const fxRate = ref(32.5); // USD/TWD 預設
+        const fxRate = ref(32.5); 
         const chartInstance = ref(null);
+        
+        const hasExpensesThisMonth = ref(false);
 
         const settings = reactive({
-          githubUser: '', githubRepo: '', githubToken: '', pinEnabled: false, pinCode: '0000', fileSha: ''
+          appName: '我的複式帳本', githubUser: '', githubRepo: '', githubToken: '', pinEnabled: false, pinCode: '0000', fileSha: ''
         });
 
-        // 資料庫 Schema
         const data = reactive({
           version: "1.0.0",
+          desc_presets: ['三餐', '交通', '日用品', '娛樂', '薪水'],
           accounts: [
-            { id: "1101", name: "現金", type: "Asset" },
-            { id: "1102", name: "交割戶", type: "Asset" },
-            { id: "1201", name: "汽車", type: "Asset" },
-            { id: "1201-DEP", name: "汽車累計折舊", type: "Asset", is_contra: true },
-            { id: "2101", name: "信用卡", type: "Liability" },
-            { id: "3101", name: "期初權益", type: "Equity" },
-            { id: "4101", name: "薪資收入", type: "Income" },
-            { id: "5101", name: "餐飲", type: "Expense" },
-            { id: "5102", name: "折舊費用", type: "Expense" }
+            { id: "1101", name: "現金", type: "Asset", is_hidden: false },
+            { id: "1102", name: "交割戶", type: "Asset", is_hidden: false },
+            { id: "1201", name: "汽車", type: "Asset", is_hidden: false },
+            { id: "1201-DEP", name: "汽車累計折舊", type: "Asset", is_contra: true, is_hidden: false },
+            { id: "2101", name: "信用卡", type: "Liability", is_hidden: false },
+            { id: "3101", name: "期初權益", type: "Equity", is_hidden: false },
+            { id: "4101", name: "薪資收入", type: "Income", is_hidden: false },
+            { id: "5101", name: "餐飲", type: "Expense", is_hidden: false },
+            { id: "5102", name: "折舊費用", type: "Expense", is_hidden: false }
           ],
           transactions: [],
           fixed_assets: [],
@@ -229,11 +336,17 @@
 
         const newTx = reactive({ date: new Date().toISOString().split('T')[0], desc: '', scope: 'personal', debit: '', credit: '', amount: null });
         const txError = ref('');
+        
+        // 明細頁面過濾狀態
+        const historyFilter = reactive({ keyword: '', scope: 'all', dateFrom: '', dateTo: '' });
+        
+        const newPreset = ref('');
+        const newAcc = reactive({ name: '', type: 'Expense' });
 
-        // --- 防呆與解鎖邏輯 ---
         const loadSettings = () => {
           const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}');
           Object.assign(settings, s);
+          if (!settings.appName) settings.appName = '我的複式帳本'; // 確保舊版資料過渡
           if (!settings.pinEnabled) isUnlocked.value = true;
         };
 
@@ -252,7 +365,64 @@
           if (settings.githubToken) syncWithGitHub();
         };
 
-        // --- 會計計算與試算表邏輯 ---
+        const addPreset = () => {
+          if (newPreset.value && !data.desc_presets.includes(newPreset.value)) {
+            data.desc_presets.push(newPreset.value);
+            newPreset.value = '';
+            autoBackup();
+          }
+        };
+        
+        const removePreset = (idx) => {
+          data.desc_presets.splice(idx, 1);
+          autoBackup();
+        };
+
+        const getAccTypeName = (type) => {
+          const map = { 'Asset': '資產', 'Liability': '負債', 'Equity': '權益', 'Income': '收入', 'Expense': '費用' };
+          return map[type] || type;
+        };
+
+        const addAccount = () => {
+          if (!newAcc.name) return;
+          data.accounts.push({
+            id: 'acc_' + Date.now(),
+            name: newAcc.name,
+            type: newAcc.type,
+            is_hidden: false
+          });
+          newAcc.name = '';
+          autoBackup();
+          nextTick(() => lucide.createIcons());
+        };
+
+        // 科目停用/隱藏切換
+        const toggleAccountVisibility = (id) => {
+          const acc = data.accounts.find(a => a.id === id);
+          if (acc) {
+            acc.is_hidden = !acc.is_hidden;
+            autoBackup();
+            nextTick(() => lucide.createIcons());
+          }
+        };
+
+        const deleteAccount = (id) => {
+          const isUsed = data.transactions.some(tx => 
+            tx.debits.some(d => d.account_id === id) || 
+            tx.credits.some(c => c.account_id === id)
+          );
+          
+          if (isUsed) {
+            alert('❌ 刪除失敗：此科目已有歷史交易紀錄。請改用左側的「隱藏 (眼睛)」圖示來停用該科目，以維持會計帳本借貸平衡。');
+            return;
+          }
+
+          if (confirm('確定要永久刪除此未使用之科目嗎？')) {
+            data.accounts = data.accounts.filter(a => a.id !== id);
+            autoBackup();
+          }
+        };
+
         const calculateBalance = (accountId) => {
           let balance = 0;
           data.transactions.forEach(tx => {
@@ -260,20 +430,15 @@
             tx.credits.forEach(c => { if (c.account_id === accountId) balance -= c.amount; });
           });
           const acc = data.accounts.find(a => a.id === accountId);
-          // 資產/費用 借方增加；負債/權益/收入 貸方增加
-          // (貸方備抵科目 1201-DEP 是 Asset 型態，這裡算出來本來就會是負值)
           return (acc.type === 'Asset' || acc.type === 'Expense') ? balance : -balance;
         };
 
         const totalAssets = computed(() => {
           let sum = 0;
           data.accounts.filter(a => a.type === 'Asset').forEach(a => {
-            // 修復 Bug 1：直接累加，不需要再乘 -1，否則負數餘額的折舊科目會變成正數導致資產暴增
             sum += calculateBalance(a.id);
           });
-          // 加上股票未實現損益 (現值 - 歷史成本)
           data.investments.forEach(inv => {
-            // 防呆 3: 若無股價則以 0 計算
             const currentVal = inv.shares * (inv.last_price || 0) * (inv.currency === 'USD' ? fxRate.value : 1);
             sum += (currentVal - inv.total_cost);
           });
@@ -285,18 +450,37 @@
         });
 
         const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
+        
+        // 可用(非隱藏)科目列表，用於記帳表單下拉選單
+        const visibleAccounts = computed(() => data.accounts.filter(a => !a.is_hidden));
 
         const sortedTransactions = computed(() => data.transactions.slice().sort((a,b) => new Date(b.date) - new Date(a.date)));
+        
+        // 明細分頁過濾邏輯
+        const filteredTransactions = computed(() => {
+          return sortedTransactions.value.filter(tx => {
+            const kw = historyFilter.keyword.toLowerCase();
+            const accNameD = getAccName(tx.debits[0].account_id).toLowerCase();
+            const accNameC = getAccName(tx.credits[0].account_id).toLowerCase();
+            const desc = tx.description.toLowerCase();
+            
+            const matchKeyword = !kw || desc.includes(kw) || accNameD.includes(kw) || accNameC.includes(kw);
+            const matchScope = historyFilter.scope === 'all' || tx.scope === historyFilter.scope;
+            const matchDateFrom = !historyFilter.dateFrom || tx.date >= historyFilter.dateFrom;
+            const matchDateTo = !historyFilter.dateTo || tx.date <= historyFilter.dateTo;
+            
+            return matchKeyword && matchScope && matchDateFrom && matchDateTo;
+          });
+        });
+
         const getAccName = (id) => data.accounts.find(a => a.id === id)?.name || id;
         const formatNumber = (num) => Math.round(num).toLocaleString('en-US');
 
-        // --- 核心防呆：記帳與自動折舊 ---
         const submitTransaction = () => {
           txError.value = '';
           if (!newTx.debit || !newTx.credit || !newTx.amount) return txError.value = '欄位不完整';
-          if (newTx.debit === newTx.credit) return txError.value = '借貸科目不可相同 (防呆機制 1)';
+          if (newTx.debit === newTx.credit) return txError.value = '借貸科目不可相同';
           
-          // 資產負數預警
           const creditAcc = data.accounts.find(a=>a.id===newTx.credit);
           if (creditAcc.type === 'Asset' && !creditAcc.is_contra && (calculateBalance(creditAcc.id) - newTx.amount < 0)) {
             if(!confirm(`警告：此筆支出將導致【${creditAcc.name}】餘額為負數，確定要繼續嗎？`)) return;
@@ -305,26 +489,30 @@
           data.transactions.push({
             id: 'tx_' + Date.now(),
             date: newTx.date,
-            description: newTx.desc,
+            description: newTx.desc || '無摘要',
             scope: newTx.scope,
             debits: [{ account_id: newTx.debit, amount: newTx.amount }],
             credits: [{ account_id: newTx.credit, amount: newTx.amount }]
           });
           
           newTx.desc = ''; newTx.amount = null;
+          newTx.debit = ''; newTx.credit = '';
+          
           autoBackup();
           updateCharts();
+          alert('✅ 記帳成功！');
+          nextTick(() => lucide.createIcons());
         };
 
         const deleteTransaction = (id) => {
+          if(!confirm('確定要刪除這筆交易明細嗎？')) return;
           const txIndex = data.transactions.findIndex(t => t.id === id);
           if (txIndex === -1) return;
           const tx = data.transactions[txIndex];
           
-          // 折舊防呆：若刪除自動折舊，重置 last_depreciation_date
           if (tx.auto_generated && tx.asset_id) {
             const asset = data.fixed_assets.find(a => a.id === tx.asset_id);
-            if(asset) asset.last_depreciation_date = null; // 簡化處理
+            if(asset) asset.last_depreciation_date = null;
           }
           data.transactions.splice(txIndex, 1);
           autoBackup();
@@ -359,11 +547,9 @@
           }
         };
 
-        // --- API 對接：GitHub 雙 Repo 讀寫 ---
         const getGitHubUrl = () => `https://api.github.com/repos/${settings.githubUser}/${settings.githubRepo}/contents/transactions.json`;
 
         const autoBackup = () => {
-          // 資料安全：同步前先存 LocalStorage
           localStorage.setItem('ledger_backup', JSON.stringify(data));
         };
 
@@ -371,18 +557,14 @@
           if (!settings.githubToken || !settings.githubRepo) return;
           isSyncing.value = true;
           try {
-            // 1. Fetch Latest SHA (避免 409 Conflict)
             const res = await fetch(getGitHubUrl(), {
               headers: { 'Authorization': `token ${settings.githubToken}`, 'Accept': 'application/vnd.github.v3+json' }
             });
             if (res.ok) {
               const fileData = await res.json();
               settings.fileSha = fileData.sha;
-              
-              // 合併邏輯 (此處採覆蓋策略，實務可加入雙向 Merge)
               autoBackup(); 
               
-              // 2. 寫入 GitHub
               const content = b64EncodeUnicode(JSON.stringify(data, null, 2));
               const putRes = await fetch(getGitHubUrl(), {
                 method: 'PUT',
@@ -399,10 +581,9 @@
                 settings.fileSha = putData.content.sha;
                 syncStatus.value = 'ok';
               } else {
-                throw new Error('Write failed (可能發生 409 SHA 衝突)');
+                throw new Error('Write failed');
               }
             } else if (res.status === 404) {
-              // 首次建立檔案
               const content = b64EncodeUnicode(JSON.stringify(data, null, 2));
               const putRes = await fetch(getGitHubUrl(), {
                 method: 'PUT',
@@ -421,7 +602,6 @@
           }
         };
 
-        // --- API 對接：股市與匯率 ---
         const fetchExchangeRate = async () => {
           try {
             const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
@@ -431,7 +611,6 @@
         };
 
         const updateStockPrices = async () => {
-          // TWSE 台股 (無 CORS 限制 API)
           try {
             const res = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL');
             const twseData = await res.json();
@@ -440,20 +619,18 @@
               if(inv.currency !== 'USD') {
                 const stock = twseData.find(s => s.Code === inv.symbol.replace('.TW', ''));
                 if(stock) {
-                  inv.last_price = parseFloat(stock.ClosingPrice); // 更新最新價
+                  inv.last_price = parseFloat(stock.ClosingPrice); 
                 }
               }
             });
             alert('股價更新完成');
             autoBackup();
           } catch (e) {
-             // 股票防呆：抓取失敗時，自動使用 last_price，避免淨值暴跌
             console.error("TWSE API 失敗，使用本地快取股價", e);
             alert('無法連線證交所，目前使用快取股價估值。');
           }
         };
 
-        // --- 災難復原與匯入匯出 ---
         const exportData = () => {
           const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
           const url = URL.createObjectURL(blob);
@@ -471,6 +648,7 @@
               const imported = JSON.parse(event.target.result);
               if(!imported.transactions || !imported.accounts) throw new Error("Schema Error");
               Object.assign(data, imported);
+              if(!data.desc_presets) data.desc_presets = ['三餐', '交通', '日用品', '娛樂', '薪水'];
               autoBackup();
               alert("匯入成功");
               updateCharts();
@@ -483,29 +661,37 @@
 
         const initOpeningBalance = () => {
           newTx.desc = '期初餘額設定';
-          newTx.credit = '3101'; // 貸方設為期初權益
+          newTx.credit = '3101'; 
           alert('請選擇您要初始化的資產帳戶，並輸入金額。這將會借記資產，貸記期初權益，避免影響當月收入損益。');
           activeTab.value = 'entry';
         };
 
-        // --- Chart.js 渲染 ---
         const updateCharts = () => {
           if (activeTab.value !== 'dashboard') return;
           nextTick(() => {
             const ctx = document.getElementById('expenseChart');
             if(!ctx) return;
             
-            // 計算本月費用
             const currentMonth = new Date().toISOString().substring(0,7);
             const expenses = {};
+            let totalExpenses = 0;
+            
             data.transactions.filter(t => t.date.startsWith(currentMonth)).forEach(tx => {
               tx.debits.forEach(d => {
                 const acc = data.accounts.find(a=>a.id===d.account_id);
                 if(acc && acc.type === 'Expense') {
                   expenses[acc.name] = (expenses[acc.name] || 0) + d.amount;
+                  totalExpenses += d.amount;
                 }
               });
             });
+
+            hasExpensesThisMonth.value = totalExpenses > 0;
+
+            if (!hasExpensesThisMonth.value) {
+                if (chartInstance.value) chartInstance.value.destroy();
+                return;
+            }
 
             if (chartInstance.value) chartInstance.value.destroy();
             
@@ -515,7 +701,7 @@
                 labels: Object.keys(expenses),
                 datasets: [{
                   data: Object.values(expenses),
-                  backgroundColor: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6'],
+                  backgroundColor: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'],
                   borderWidth: 0
                 }]
               },
@@ -529,25 +715,28 @@
           nextTick(() => lucide.createIcons());
         });
 
-        // --- 初始化 ---
         const initData = async () => {
-          // 檔案防呆：Try Catch 載入備份
           try {
             const backup = localStorage.getItem('ledger_backup');
-            if (backup) Object.assign(data, JSON.parse(backup));
+            if (backup) {
+              Object.assign(data, JSON.parse(backup));
+              if(!data.desc_presets) data.desc_presets = ['三餐', '交通', '日用品', '娛樂', '薪水'];
+              // 防呆確保科目有 is_hidden 屬性
+              data.accounts.forEach(acc => { if(acc.is_hidden === undefined) acc.is_hidden = false; });
+            }
           } catch(e) { console.error("本地快取損毀"); }
           
           await fetchExchangeRate();
           
-          // 如果有 Token，嘗試從 GitHub 拉取最新
           if (settings.githubToken) {
             try {
               const res = await fetch(getGitHubUrl(), { headers: { 'Authorization': `token ${settings.githubToken}` } });
               if (res.ok) {
                 const fileData = await res.json();
                 settings.fileSha = fileData.sha;
-                // 這裡會通過剛才修復過的新 b64DecodeUnicode 解碼，防止換行符號報錯
                 Object.assign(data, JSON.parse(b64DecodeUnicode(fileData.content)));
+                if(!data.desc_presets) data.desc_presets = ['三餐', '交通', '日用品', '娛樂', '薪水'];
+                data.accounts.forEach(acc => { if(acc.is_hidden === undefined) acc.is_hidden = false; });
                 syncStatus.value = 'ok';
               }
             } catch(e) { syncStatus.value = 'offline'; }
@@ -565,10 +754,12 @@
 
         return {
           accounts: data.accounts,
+          visibleAccounts,
           activeTab, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGitHub,
           data, newTx, txError, submitTransaction, deleteTransaction, getAccName, formatNumber,
           netWorth, totalAssets, totalLiabilities, updateStockPrices, fxRate,
-          exportData, importData, initOpeningBalance, sortedTransactions
+          exportData, importData, initOpeningBalance, sortedTransactions, filteredTransactions, historyFilter,
+          newPreset, addPreset, removePreset, newAcc, addAccount, deleteAccount, toggleAccountVisibility, getAccTypeName, hasExpensesThisMonth
         };
       }
     }).mount('#app')
