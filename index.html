@@ -20,9 +20,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(reg => {
-          console.log('Service Worker 註冊成功:', reg.scope);
-        }).catch(err => {
+        navigator.serviceWorker.register('./sw.js').catch(err => {
           console.log('Service Worker 註冊失敗:', err);
         });
       });
@@ -46,7 +44,7 @@
     <!-- 頂部導航 -->
     <header v-if="isUnlocked" class="p-4 bg-blue-600 text-white flex justify-between items-center sticky top-0 z-40 shadow-md">
       <h1 class="text-xl font-bold flex items-center gap-2 truncate">
-        <i data-lucide="book-open" class="flex-shrink-0"></i> {{ settings.appName || '我的複式帳本' }}
+        <i data-lucide="book-open" class="flex-shrink-0"></i> {{ settings.appName }}
       </h1>
       <div class="flex gap-4 flex-shrink-0">
         <!-- 同步狀態指示燈 -->
@@ -81,7 +79,7 @@
         <!-- 當前資產配置圓餅圖 -->
         <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700">
           <h3 class="font-bold mb-2 flex items-center gap-2"><i data-lucide="pie-chart" class="w-4 h-4 text-blue-500"></i> 當前資產配置</h3>
-          <div v-if="totalAssets <= 0" class="w-full h-40 flex flex-col items-center justify-center text-slate-400 text-sm">
+          <div v-show="totalAssets <= 0" class="w-full h-40 flex flex-col items-center justify-center text-slate-400 text-sm">
             <i data-lucide="inbox" class="w-8 h-8 mb-2 opacity-50"></i> 目前無資產紀錄
           </div>
           <div v-show="totalAssets > 0" class="relative w-full h-48">
@@ -92,7 +90,7 @@
         <!-- 本月收支結構圓餅圖 -->
         <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700">
           <h3 class="font-bold mb-2 flex items-center gap-2"><i data-lucide="circle-dot" class="w-4 h-4 text-pink-500"></i> 本月支出結構 (主類別)</h3>
-          <div v-if="!hasExpensesThisMonth" class="w-full h-40 flex flex-col items-center justify-center text-slate-400 text-sm">
+          <div v-show="!hasExpensesThisMonth" class="w-full h-40 flex flex-col items-center justify-center text-slate-400 text-sm">
             <i data-lucide="inbox" class="w-8 h-8 mb-2 opacity-50"></i> 本月尚無支出資料
           </div>
           <div v-show="hasExpensesThisMonth" class="relative w-full h-48">
@@ -125,7 +123,7 @@
 
           <!-- 快捷標籤 (支出/收入) -->
           <div v-show="entryMode === 'expense' || entryMode === 'income'" class="flex flex-wrap gap-2 pt-1 pb-2">
-            <button v-for="tag in (data.quick_tags || [])" :key="tag" @click="applyQuickTag(tag)" class="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-xs px-3 py-1.5 rounded-full transition border border-blue-200 dark:border-blue-800 shadow-sm">
+            <button v-for="tag in data.quick_tags" :key="tag" @click="applyQuickTag(tag)" class="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-xs px-3 py-1.5 rounded-full transition border border-blue-200 dark:border-blue-800 shadow-sm">
               {{ tag }}
             </button>
           </div>
@@ -135,7 +133,7 @@
             <div class="flex gap-2">
               <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>主類別</option>
-                <option v-for="cat in (data.main_categories?.Expense || [])" :key="cat" :value="cat">{{ cat }}</option>
+                <option v-for="cat in data.main_categories.Expense" :key="cat" :value="cat">{{ cat }}</option>
               </select>
               <select v-model="newTx.subAccount" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>子類別</option>
@@ -153,7 +151,7 @@
             <div class="flex gap-2">
               <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>主類別</option>
-                <option v-for="cat in (data.main_categories?.Income || [])" :key="cat" :value="cat">{{ cat }}</option>
+                <option v-for="cat in data.main_categories.Income" :key="cat" :value="cat">{{ cat }}</option>
               </select>
               <select v-model="newTx.subAccount" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>子類別</option>
@@ -197,7 +195,7 @@
             </div>
             <div class="flex justify-between items-center px-1">
               <span class="text-xs text-slate-500">總金額 (系統自動計算)</span>
-              <span class="font-bold text-lg text-orange-600 dark:text-orange-400">${{ formatNumber((newTx.shares || 0) * (newTx.price || 0)) }}</span>
+              <span class="font-bold text-lg text-orange-600 dark:text-orange-400">${{ formatNumber(getInvestTotalAmount()) }}</span>
             </div>
             <select v-model="newTx.paymentAcc" class="w-full border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none">
               <option value="" disabled>扣款 / 入帳交割戶</option>
@@ -247,12 +245,12 @@
         <div v-for="tx in filteredTransactions" :key="tx.id" class="p-3 border rounded-xl flex justify-between items-center mb-3 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm relative overflow-hidden">
           <div class="absolute left-0 top-0 bottom-0 w-1" :class="getTxColorBand(tx)"></div>
           <div class="pl-2">
-            <div class="font-bold text-[15px]">{{ tx.description || '無摘要' }} <span v-if="tx.scope==='family'" class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded ml-1 align-top">家庭</span></div>
+            <div class="font-bold text-[15px]">{{ getTxDesc(tx) }} <span v-if="tx.scope==='family'" class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded ml-1 align-top">家庭</span></div>
             <div class="text-xs text-slate-500 mt-1">{{ tx.date }}</div>
-            <div class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">借: {{ getAccName(tx.debits?.[0]?.account_id) }} / 貸: {{ getAccName(tx.credits?.[0]?.account_id) }}</div>
+            <div class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">借: {{ getDebitAccName(tx) }} / 貸: {{ getCreditAccName(tx) }}</div>
           </div>
           <div class="flex flex-col items-end">
-            <div class="font-bold text-lg" :class="getTxAmountColor(tx)">${{ formatNumber(tx.debits?.[0]?.amount || 0) }}</div>
+            <div class="font-bold text-lg" :class="getTxAmountColor(tx)">${{ formatNumber(getDebitAmount(tx)) }}</div>
             <button @click="deleteTransaction(tx.id)" class="text-red-400 p-1 mt-1 hover:text-red-600 bg-red-50 dark:bg-slate-700 rounded-full transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
           </div>
         </div>
@@ -270,18 +268,18 @@
           </div>
         </div>
 
-        <div v-if="(data.investments || []).length === 0" class="flex flex-col items-center justify-center text-slate-400 py-8 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm">
+        <div v-if="data.investments.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-8 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm">
           <i data-lucide="inbox" class="w-8 h-8 mb-2 opacity-50"></i> 目前無股票庫存
         </div>
-        <div v-else v-for="inv in data.investments" :key="inv.id" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
+        <div v-for="inv in data.investments" :key="inv.id" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
           <div class="flex justify-between font-bold mb-2 text-lg">
             <span>{{ inv.name || '未命名' }} <span class="text-sm font-normal text-slate-500">({{ inv.symbol }})</span></span>
-            <span>市值: $ {{ formatNumber((inv.shares || 0) * (inv.last_price || 0) * (inv.currency==='USD'? (fxRate || 32.5) : 1)) }}</span>
+            <span>市值: $ {{ formatNumber(getInvCurrentValue(inv)) }}</span>
           </div>
           <div class="text-sm flex justify-between text-slate-500">
             <span>持有: {{ inv.shares || 0 }} 股 | 成本: $ {{ formatNumber(inv.total_cost || 0) }}</span>
-            <span :class="((inv.shares || 0) * (inv.last_price || 0) * (inv.currency==='USD'? (fxRate || 32.5) : 1) - (inv.total_cost || 0)) >= 0 ? 'text-green-500 font-bold' : 'text-red-500 font-bold'">
-              未實現: $ {{ formatNumber(((inv.shares || 0) * (inv.last_price || 0) * (inv.currency==='USD'? (fxRate || 32.5) : 1)) - (inv.total_cost || 0)) }}
+            <span :class="getUnrealizedGain(inv) >= 0 ? 'text-green-500 font-bold' : 'text-red-500 font-bold'">
+              未實現: $ {{ formatNumber(getUnrealizedGain(inv)) }}
             </span>
           </div>
         </div>
@@ -289,10 +287,10 @@
         <!-- 固定資產 -->
         <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2"><i data-lucide="monitor" class="w-5 h-5"></i> 固定資產與折舊</h2>
         <button @click="showAddFixedAssetModal = true" class="w-full mt-2 text-sm border border-dashed border-slate-400 text-slate-500 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition">+ 登錄新固定資產</button>
-        <div v-if="(data.fixed_assets || []).length === 0" class="flex flex-col items-center justify-center text-slate-400 py-8 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
+        <div v-if="data.fixed_assets.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-8 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
           <i data-lucide="inbox" class="w-8 h-8 mb-2 opacity-50"></i> 目前無固定資產
         </div>
-        <div v-else v-for="fa in data.fixed_assets" :key="fa.id" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm mt-3 relative overflow-hidden">
+        <div v-for="fa in data.fixed_assets" :key="fa.id" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm mt-3 relative overflow-hidden">
           <div class="font-bold text-lg">{{ fa.name }}</div>
           <div class="text-sm text-slate-500 mt-1">購入原價: ${{ formatNumber(fa.original_cost) }} | 月提折舊: ${{ formatNumber(fa.monthly_depreciation) }}</div>
           <div class="text-xs mt-1 bg-slate-100 dark:bg-slate-700 inline-block px-2 py-1 rounded text-slate-600 dark:text-slate-300">最後折舊: {{ fa.last_depreciation_date || '尚未提列' }}</div>
@@ -328,13 +326,13 @@
             <div class="flex gap-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800">
               <select v-model="newSubCat.main" class="border p-2 rounded-lg w-1/3 dark:bg-slate-700 outline-none text-sm">
                 <option value="" disabled>選主類</option>
-                <option v-for="cat in (data.main_categories?.[settingCategoryMode] || [])" :key="cat" :value="cat">{{ cat }}</option>
+                <option v-for="cat in data.main_categories[settingCategoryMode]" :key="cat" :value="cat">{{ cat }}</option>
               </select>
               <input type="text" v-model="newSubCat.name" placeholder="新增子類別" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 outline-none text-sm">
               <button @click="addSubCategory" class="bg-blue-600 text-white px-3 rounded-lg font-bold text-sm">+</button>
             </div>
             <div class="border rounded-lg p-2 dark:border-slate-700 bg-white dark:bg-slate-800 max-h-64 overflow-y-auto">
-              <div v-for="mainCat in (data.main_categories?.[settingCategoryMode] || [])" :key="mainCat" class="mb-3 last:mb-0">
+              <div v-for="mainCat in data.main_categories[settingCategoryMode]" :key="mainCat" class="mb-3 last:mb-0">
                 <div class="font-bold text-sm bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded flex justify-between">
                   {{ mainCat }} <button @click="deleteMainCategory(settingCategoryMode, mainCat)" class="text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-3 h-3"></i></button>
                 </div>
@@ -342,7 +340,7 @@
                   <div v-for="acc in getSubAccounts(settingCategoryMode, mainCat, true)" :key="acc.id" class="flex justify-between items-center text-sm py-1 border-b dark:border-slate-700 last:border-0" :class="{'opacity-50': acc.is_hidden}">
                     <span>{{ acc.name }} <span v-if="acc.is_hidden" class="text-[10px] text-red-400 border border-red-400 px-1 rounded ml-1">停用</span></span>
                     <div class="flex gap-2">
-                      <button @click="toggleAccountVisibility(acc.id)" class="text-slate-400"><i :data-lucide="acc.is_hidden ? 'eye-off' : 'eye'" class="w-4 h-4"></i></button>
+                      <button @click="toggleAccountVisibility(acc.id)" class="text-slate-400 hover:text-blue-500"><i :data-lucide="acc.is_hidden ? 'eye-off' : 'eye'" class="w-4 h-4"></i></button>
                       <button @click="deleteAccount(acc.id)" class="text-slate-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
                     </div>
                   </div>
@@ -360,7 +358,7 @@
             <button @click="addPreset" class="bg-slate-200 dark:bg-slate-600 px-4 rounded-lg font-bold text-sm">新增</button>
           </div>
           <div class="flex flex-wrap gap-2">
-            <span v-for="(p, idx) in (data.quick_tags || [])" :key="idx" class="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-1 shadow-sm">
+            <span v-for="(p, idx) in data.quick_tags" :key="idx" class="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-1 shadow-sm">
               {{ p }} <button @click="removePreset(idx)" class="hover:text-red-600 font-bold ml-1 rounded-full"><i data-lucide="x" class="w-3 h-3"></i></button>
             </span>
           </div>
@@ -454,8 +452,8 @@
   <script type="module">
     import { createApp, ref, reactive, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
 
-    const b64EncodeUnicode = (str) => btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
-    const b64DecodeUnicode = (str) => decodeURIComponent(Array.prototype.map.call(atob(str.replace(/\n/g, '')), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    const b64EncodeUnicode = (str) => { try { return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1))); } catch(e){ return ""; } };
+    const b64DecodeUnicode = (str) => { try { return decodeURIComponent(Array.prototype.map.call(atob(str.replace(/\n/g, '')), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')); } catch(e){ return "{}"; } };
 
     createApp({
       setup() {
@@ -489,7 +487,7 @@
         const initStock = reactive({ symbol: '', name: '', shares: null, cost: null });
         const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60 });
 
-        // --- 強制資料遷移防呆 ---
+        // --- 強制資料結構還原 (確保 Vue Template 絕對不會出錯) ---
         const migrateLegacyData = () => {
           if(!data.transactions) data.transactions = [];
           if(!data.investments) data.investments = [];
@@ -505,9 +503,11 @@
             ];
           }
           if(!data.main_categories || Object.keys(data.main_categories).length===0) data.main_categories = { Expense: ['餐飲食品', '交通出行', '休閒娛樂', '生活用品'], Income: ['薪資收入', '其他收入'] };
+          if(!data.main_categories.Expense) data.main_categories.Expense = [];
+          if(!data.main_categories.Income) data.main_categories.Income = [];
           if(!data.quick_tags || data.quick_tags.length===0) data.quick_tags = ['三餐', '交通', '日用品', '娛樂', '薪水'];
           
-          (data.accounts || []).forEach(acc => {
+          data.accounts.forEach(acc => {
             if (acc.is_hidden === undefined) acc.is_hidden = false;
             if ((acc.type === 'Expense' || acc.type === 'Income') && !acc.category) {
               if (acc.type === 'Expense') { acc.category = ['三餐', '餐飲'].includes(acc.name) ? '餐飲食品' : (['交通', '高鐵'].includes(acc.name) ? '交通出行' : '生活用品'); } 
@@ -516,53 +516,75 @@
           });
         };
 
-        const assetAccounts = computed(() => (data.accounts || []).filter(a => a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && !a.is_hidden));
-        const paymentAccounts = computed(() => (data.accounts || []).filter(a => ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201') || a.type === 'Liability') && !a.is_hidden));
+        const assetAccounts = computed(() => data.accounts.filter(a => a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && !a.is_hidden));
+        const paymentAccounts = computed(() => data.accounts.filter(a => ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201') || a.type === 'Liability') && !a.is_hidden));
         
-        const getSubAccounts = (type, mainCat, incHidden = false) => (data.accounts || []).filter(a => a.type === type && a.category === mainCat && (incHidden || !a.is_hidden));
+        const getSubAccounts = (type, mainCat, incHidden = false) => data.accounts.filter(a => a.type === type && a.category === mainCat && (incHidden || !a.is_hidden));
 
         const calculateBalance = (id) => {
           let bal = 0;
-          (data.transactions || []).forEach(tx => {
-            (tx.debits || []).forEach(d => { if (d.account_id === id) bal += Number(d.amount)||0; });
-            (tx.credits || []).forEach(c => { if (c.account_id === id) bal -= Number(c.amount)||0; });
+          data.transactions.forEach(tx => {
+            if(tx.debits) tx.debits.forEach(d => { if (d.account_id === id) bal += Number(d.amount)||0; });
+            if(tx.credits) tx.credits.forEach(c => { if (c.account_id === id) bal -= Number(c.amount)||0; });
           });
-          const acc = (data.accounts || []).find(a => a.id === id);
+          const acc = data.accounts.find(a => a.id === id);
           return (acc?.type === 'Asset' || acc?.type === 'Expense') ? bal : -bal;
         };
 
         const totalAssets = computed(() => {
           let sum = 0;
-          (data.accounts || []).filter(a => a.type === 'Asset').forEach(a => { sum += calculateBalance(a.id); });
-          (data.investments || []).forEach(inv => { sum += ((Number(inv.shares)||0) * (Number(inv.last_price)||0) * (inv.currency==='USD'? (Number(fxRate.value)||32.5):1)) - (Number(inv.total_cost)||0); });
+          data.accounts.filter(a => a.type === 'Asset').forEach(a => { sum += calculateBalance(a.id); });
+          data.investments.forEach(inv => { sum += ((Number(inv.shares)||0) * (Number(inv.last_price)||0) * (inv.currency==='USD'? (Number(fxRate.value)||32.5):1)) - (Number(inv.total_cost)||0); });
           return sum;
         });
 
-        const totalLiabilities = computed(() => (data.accounts || []).filter(a => a.type === 'Liability').reduce((sum, a) => sum + calculateBalance(a.id), 0));
+        const totalLiabilities = computed(() => data.accounts.filter(a => a.type === 'Liability').reduce((sum, a) => sum + calculateBalance(a.id), 0));
         const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
-        const sortedTransactions = computed(() => (data.transactions || []).slice().sort((a,b) => new Date(b.date||0) - new Date(a.date||0)));
+        const sortedTransactions = computed(() => data.transactions.slice().sort((a,b) => new Date(b.date||0) - new Date(a.date||0)));
         
         const filteredTransactions = computed(() => sortedTransactions.value.filter(tx => {
           const kw = (historyFilter.keyword||'').toLowerCase(), desc = (tx.description||'').toLowerCase();
-          const accD = (getAccName(tx.debits?.[0]?.account_id)||'').toLowerCase(), accC = (getAccName(tx.credits?.[0]?.account_id)||'').toLowerCase();
+          const accD = getDebitAccName(tx).toLowerCase(), accC = getCreditAccName(tx).toLowerCase();
           return (!kw || desc.includes(kw) || accD.includes(kw) || accC.includes(kw)) && (historyFilter.scope === 'all' || tx.scope === historyFilter.scope) && (!historyFilter.dateFrom || (tx.date||'') >= historyFilter.dateFrom) && (!historyFilter.dateTo || (tx.date||'') <= historyFilter.dateTo);
         }));
 
-        const getAccName = (id) => (data.accounts || []).find(a => a.id === id)?.name || id || '未知';
+        const getAccName = (id) => { if(!id) return '未知'; return data.accounts.find(a => a.id === id)?.name || String(id); };
         const formatNumber = (num) => Math.round(Number(num)||0).toLocaleString('en-US');
 
+        // --- Template 安全輔助函式 ---
+        const getTxDesc = (tx) => tx ? (tx.description || '無摘要') : '';
+        const getDebitAccName = (tx) => (tx && tx.debits && tx.debits[0]) ? getAccName(tx.debits[0].account_id) : '未知';
+        const getCreditAccName = (tx) => (tx && tx.credits && tx.credits[0]) ? getAccName(tx.credits[0].account_id) : '未知';
+        const getDebitAmount = (tx) => (tx && tx.debits && tx.debits[0]) ? (Number(tx.debits[0].amount)||0) : 0;
+        const getInvestTotalAmount = () => (Number(newTx.shares)||0) * (Number(newTx.price)||0);
+        
+        const getInvCurrentValue = (inv) => {
+            if (!inv) return 0;
+            const shares = Number(inv.shares) || 0;
+            const price = Number(inv.last_price) || 0;
+            const rate = inv.currency === 'USD' ? (Number(fxRate.value) || 32.5) : 1;
+            return shares * price * rate;
+        };
+        const getUnrealizedGain = (inv) => {
+            if (!inv) return 0;
+            const cost = Number(inv.total_cost) || 0;
+            return getInvCurrentValue(inv) - cost;
+        };
+
         const getTxColorBand = (tx) => {
-          const tD = (data.accounts || []).find(a => a.id === tx.debits?.[0]?.account_id)?.type, tC = (data.accounts || []).find(a => a.id === tx.credits?.[0]?.account_id)?.type;
-          const desc = tx.description || '';
+          const tD = tx && tx.debits && tx.debits[0] ? data.accounts.find(a => a.id === tx.debits[0].account_id)?.type : null;
+          const tC = tx && tx.credits && tx.credits[0] ? data.accounts.find(a => a.id === tx.credits[0].account_id)?.type : null;
+          const desc = tx && tx.description ? tx.description : '';
           return tD === 'Expense' ? 'bg-red-500' : (tC === 'Income' ? 'bg-green-500' : (desc.includes('買進')||desc.includes('賣出') ? 'bg-orange-500' : 'bg-purple-500'));
         };
         const getTxAmountColor = (tx) => {
-          const tD = (data.accounts || []).find(a => a.id === tx.debits?.[0]?.account_id)?.type;
-          return tD === 'Expense' ? 'text-red-500' : (tD === 'Asset' && !(tx.description||'').includes('轉帳') ? 'text-green-600 dark:text-green-400' : 'text-slate-700 dark:text-slate-300');
+          const tD = tx && tx.debits && tx.debits[0] ? data.accounts.find(a => a.id === tx.debits[0].account_id)?.type : null;
+          const desc = tx && tx.description ? tx.description : '';
+          return tD === 'Expense' ? 'text-red-500' : (tD === 'Asset' && !desc.includes('轉帳') ? 'text-green-600 dark:text-green-400' : 'text-slate-700 dark:text-slate-300');
         };
 
         const applyQuickTag = (tag) => {
-          const acc = (data.accounts || []).find(a => a.name === tag && (a.type==='Expense'||a.type==='Income'));
+          const acc = data.accounts.find(a => a.name === tag && (a.type==='Expense'||a.type==='Income'));
           if (acc) { entryMode.value = acc.type.toLowerCase(); newTx.mainCategory = acc.category; newTx.subAccount = acc.id; newTx.desc = tag; }
         };
 
@@ -579,7 +601,7 @@
             txObj.debits.push({ account_id: newTx.toAcc, amount: newTx.amount }); txObj.credits.push({ account_id: newTx.fromAcc, amount: newTx.amount }); txObj.desc = newTx.desc||'轉帳';
           } else if (entryMode.value === 'invest') {
             if (!newTx.symbol || !newTx.shares || !newTx.price || !newTx.paymentAcc) return txError.value = '欄位不完整';
-            const amt = newTx.shares * newTx.price; let inv = (data.investments || []).find(i => i.symbol === newTx.symbol);
+            const amt = newTx.shares * newTx.price; let inv = data.investments.find(i => i.symbol === newTx.symbol);
             if (newTx.investAction === 'buy') {
               txObj.debits.push({ account_id: '1103', amount: amt }); txObj.credits.push({ account_id: newTx.paymentAcc, amount: amt }); txObj.desc = `買進 ${newTx.stockName||newTx.symbol} ${newTx.shares}股`;
               if (inv) { inv.shares += newTx.shares; inv.total_cost += amt; } else { data.investments.push({ id: 'inv_'+Date.now(), symbol: newTx.symbol, name: newTx.stockName||newTx.symbol, shares: newTx.shares, total_cost: amt, currency: 'TWD' }); }
@@ -596,8 +618,8 @@
         };
 
         const deleteTransaction = (id) => {
-          if(!confirm('確定刪除？')) return; const idx = (data.transactions || []).findIndex(t => t.id === id); if (idx === -1) return;
-          const tx = data.transactions[idx]; if (tx.auto_generated && tx.asset_id) { const a = (data.fixed_assets||[]).find(fa => fa.id === tx.asset_id); if(a) a.last_depreciation_date = null; }
+          if(!confirm('確定刪除？')) return; const idx = data.transactions.findIndex(t => t.id === id); if (idx === -1) return;
+          const tx = data.transactions[idx]; if (tx.auto_generated && tx.asset_id) { const a = data.fixed_assets.find(fa => fa.id === tx.asset_id); if(a) a.last_depreciation_date = null; }
           data.transactions.splice(idx, 1); autoBackup(); updateCharts();
         };
 
@@ -621,12 +643,12 @@
         const addPreset = () => { if(newPreset.value && !data.quick_tags.includes(newPreset.value)){ data.quick_tags.push(newPreset.value); newPreset.value=''; autoBackup(); } };
         const removePreset = (idx) => { data.quick_tags.splice(idx, 1); autoBackup(); };
         const toggleAccountVisibility = (id) => { const a = data.accounts.find(a=>a.id===id); if(a){ a.is_hidden = !a.is_hidden; autoBackup(); nextTick(() => lucide.createIcons()); } };
-        const deleteAccount = (id) => { if(data.transactions.some(tx=>tx.debits.some(d=>d.account_id===id)||tx.credits.some(c=>c.account_id===id))) return alert("已有紀錄，請改用隱藏"); if(confirm("確定刪除?")){ data.accounts = data.accounts.filter(a=>a.id!==id); autoBackup(); } };
+        const deleteAccount = (id) => { if(data.transactions.some(tx=>(tx.debits||[]).some(d=>d.account_id===id)||(tx.credits||[]).some(c=>c.account_id===id))) return alert("已有紀錄，請改用隱藏"); if(confirm("確定刪除?")){ data.accounts = data.accounts.filter(a=>a.id!==id); autoBackup(); } };
         const getAccTypeName = (t) => ({ 'Asset':'資產', 'Liability':'負債', 'Equity':'權益', 'Income':'收入', 'Expense':'費用' }[t] || t);
 
         const runAutoDepreciation = () => {
           const curM = new Date().toISOString().substring(0,7); let g = 0;
-          (data.fixed_assets || []).forEach(fa => {
+          data.fixed_assets.forEach(fa => {
             const ld = fa.last_depreciation_date || fa.purchase_date || '';
             if (ld && ld.substring(0,7) !== curM) {
               data.transactions.push({ id: 'tx_dep_'+Date.now()+Math.random(), date: new Date().toISOString().split('T')[0], desc: `${fa.name} 自動折舊`, scope: 'family', auto_generated: true, asset_id: fa.id, debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }], credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }] });
@@ -658,13 +680,13 @@
         const updateStockPrices = async () => {
           try {
             const res = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL'); const twseData = await res.json();
-            (data.investments || []).forEach(inv => { if(inv.currency!=='USD'){ const s = twseData.find(st=>st.Code===inv.symbol.replace('.TW','')); if(s) inv.last_price = parseFloat(s.ClosingPrice); } });
+            data.investments.forEach(inv => { if(inv.currency!=='USD'){ const s = twseData.find(st=>st.Code===inv.symbol.replace('.TW','')); if(s) inv.last_price = parseFloat(s.ClosingPrice); } });
             alert('股價更新完成'); autoBackup();
           } catch (e) { alert('無法連線證交所'); }
         };
 
         const fetchExchangeRate = async () => { try { const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD'); const fx = await res.json(); fxRate.value = fx.rates.TWD; } catch(e) {} };
-        const loadSettings = () => { const s = JSON.parse(localStorage.getItem('ledger_settings')||'{}'); Object.assign(settings, s); if(!settings.appName) settings.appName='我的複式帳本'; if(!settings.pinEnabled) isUnlocked.value=true; };
+        const loadSettings = () => { try{ const s = JSON.parse(localStorage.getItem('ledger_settings')||'{}'); Object.assign(settings, s); }catch(e){} if(!settings.appName) settings.appName='我的複式帳本'; if(!settings.pinEnabled) isUnlocked.value=true; };
         const unlockApp = () => { if(pinInput.value === settings.pinCode) { isUnlocked.value=true; initData(); } else pinError.value="PIN錯誤"; };
         const saveSettings = () => { localStorage.setItem('ledger_settings', JSON.stringify(settings)); alert('儲存成功'); if(settings.githubToken) syncWithGitHub(); };
         const exportData = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); a.download = `LedgerBackup_${new Date().toISOString().split('T')[0]}.json`; a.click(); };
@@ -675,7 +697,7 @@
           nextTick(() => {
             const ctx1 = document.getElementById('expenseChart');
             const curM = new Date().toISOString().substring(0,7); const exp = {}; let tot = 0;
-            (data.transactions || []).filter(t => (t.date||'').startsWith(curM)).forEach(tx => { (tx.debits||[]).forEach(d => { const a = (data.accounts||[]).find(ac=>ac.id===d.account_id); if(a && a.type==='Expense'){ const cat = a.category||'未分類'; exp[cat] = (exp[cat]||0) + (Number(d.amount)||0); tot += Number(d.amount)||0; } }); });
+            data.transactions.filter(t => (t.date||'').startsWith(curM)).forEach(tx => { (tx.debits||[]).forEach(d => { const a = data.accounts.find(ac=>ac.id===d.account_id); if(a && a.type==='Expense'){ const cat = a.category||'未分類'; exp[cat] = (exp[cat]||0) + (Number(d.amount)||0); tot += Number(d.amount)||0; } }); });
             hasExpensesThisMonth.value = tot > 0;
             if (hasExpensesThisMonth.value && ctx1) {
               if (expenseChartInstance.value) expenseChartInstance.value.destroy();
@@ -686,8 +708,8 @@
             if (totalAssets.value <= 0) { if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; } } 
             else if (ctx2) {
               let cTot=0, sTot=0;
-              (data.accounts||[]).filter(a=>a.type==='Asset'&&!a.is_contra&&a.id!=='1103'&&a.id!=='1201').forEach(a=>{ cTot+=calculateBalance(a.id); });
-              (data.investments||[]).forEach(i=>{ sTot+=((Number(i.shares)||0)*(Number(i.last_price)||0)*(i.currency==='USD'?(Number(fxRate.value)||32.5):1)); });
+              data.accounts.filter(a=>a.type==='Asset'&&!a.is_contra&&a.id!=='1103'&&a.id!=='1201').forEach(a=>{ cTot+=calculateBalance(a.id); });
+              data.investments.forEach(i=>{ sTot+=getInvCurrentValue(i); });
               let fTot = calculateBalance('1201') + calculateBalance('1201-DEP');
               if (assetChartInstance.value) assetChartInstance.value.destroy();
               assetChartInstance.value = new Chart(ctx2, { type: 'pie', data: { labels: ['現金存款', '股票現值', '固定資產'], datasets: [{ data: [Math.max(0,cTot), sTot, Math.max(0,fTot)], backgroundColor: ['#3b82f6', '#8b5cf6', '#14b8a6'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } });
@@ -711,7 +733,10 @@
 
         onMounted(() => { loadSettings(); if(isUnlocked.value) initData(); });
 
-        return { accounts: data.accounts, assetAccounts, paymentAccounts, activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGitHub, data, newTx, txError, submitTransaction, deleteTransaction, getAccName, formatNumber, applyQuickTag, getSubAccounts, netWorth, totalAssets, totalLiabilities, updateStockPrices, fxRate, hasExpensesThisMonth, exportData, importData, sortedTransactions, filteredTransactions, historyFilter, getTxColorBand, getTxAmountColor, settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, addAccount, deleteAccount, toggleAccountVisibility, getAccTypeName, showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, initFA, submitFixedAsset };
+        return { 
+          accounts: data.accounts, assetAccounts, paymentAccounts, activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGitHub, data, newTx, txError, submitTransaction, deleteTransaction, formatNumber, applyQuickTag, getSubAccounts, netWorth, totalAssets, totalLiabilities, updateStockPrices, hasExpensesThisMonth, exportData, importData, sortedTransactions, filteredTransactions, historyFilter, settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, addAccount, deleteAccount, toggleAccountVisibility, getAccTypeName, showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, initFA, submitFixedAsset,
+          getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getInvestTotalAmount, getInvCurrentValue, getUnrealizedGain, getTxColorBand, getTxAmountColor
+        };
       }
     }).mount('#app')
   </script>
