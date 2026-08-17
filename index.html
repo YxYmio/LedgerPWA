@@ -38,8 +38,8 @@
       <input type="password" v-model="pinInput" maxlength="4" pattern="[0-9]*" inputmode="numeric" 
              class="text-center text-3xl tracking-[1em] w-48 p-2 rounded-lg text-black mb-4 outline-none"
              placeholder="••••">
-      <button @click="unlockApp" class="bg-blue-600 px-6 py-2 rounded-full font-bold w-48 shadow-lg">解鎖</button>
-      <p v-if="pinError" class="text-red-400 mt-4 font-bold">{{ pinError }}</p>
+      <button @click="unlockApp" class="bg-blue-600 px-6 py-2 rounded-full font-bold w-48">解鎖</button>
+      <p v-if="pinError" class="text-red-400 mt-4">{{ pinError }}</p>
     </div>
 
     <!-- 頂部導航 -->
@@ -48,9 +48,9 @@
         <i data-lucide="book-open" class="flex-shrink-0"></i> {{ settings.appName || '我的複式帳本' }}
       </h1>
       <div class="flex gap-4 flex-shrink-0">
-        <button @click="syncWithGitHub" title="同步至 GitHub" class="relative p-1">
+        <button @click="syncWithGitHub" title="同步至 GitHub" class="relative">
           <i data-lucide="refresh-cw" :class="{'animate-spin': isSyncing}"></i>
-          <span class="absolute top-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-blue-600" 
+          <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-blue-600" 
                 :class="syncStatus === 'ok' ? 'bg-green-400' : (syncStatus === 'offline' ? 'bg-yellow-400' : 'bg-red-500')"></span>
         </button>
       </div>
@@ -61,7 +61,7 @@
       
       <!-- 未綁定 Banner 提示 -->
       <div v-if="!settings.githubToken" @click="activeTab = 'settings'" class="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded-lg mb-4 flex items-center cursor-pointer hover:bg-yellow-100 transition shadow-sm dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-300">
-        <i data-lucide="alert-triangle" class="w-5 h-5 mr-2 flex-shrink-0 text-yellow-600"></i>
+        <i data-lucide="alert-triangle" class="w-5 h-5 mr-2 flex-shrink-0"></i>
         <span class="text-xs font-bold">目前為單機模式（資料存於本地）。點此前往設定 GitHub Token 以開啟雲端同步</span>
       </div>
 
@@ -78,24 +78,26 @@
         
         <!-- 當前資產配置圓餅圖 -->
         <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700">
-          <h3 class="font-bold mb-2 flex items-center gap-2 text-sm"><i data-lucide="pie-chart" class="w-4 h-4 text-blue-500"></i> 當前資產配置</h3>
-          <div v-show="totalAssets <= 0" class="w-full h-40 flex flex-col items-center justify-center text-slate-400 text-sm">
+          <h3 class="font-bold mb-2 flex items-center gap-2"><i data-lucide="pie-chart" class="w-4 h-4 text-blue-500"></i> 當前資產配置</h3>
+          <!-- 改用 v-if 避免 Chart.js 在隱藏元素上報錯 -->
+          <div v-if="totalAssets <= 0" class="w-full h-40 flex flex-col items-center justify-center text-slate-400 text-sm">
             <i data-lucide="inbox" class="w-8 h-8 mb-2 opacity-50"></i>
             目前無資產紀錄
           </div>
-          <div v-show="totalAssets > 0" class="relative w-full h-48">
+          <div v-if="totalAssets > 0" class="relative w-full h-48">
             <canvas id="assetChart" class="w-full h-full"></canvas>
           </div>
         </div>
 
         <!-- 本月收支結構圓餅圖 -->
         <div class="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700">
-          <h3 class="font-bold mb-2 flex items-center gap-2 text-sm"><i data-lucide="pie-chart" class="w-4 h-4 text-pink-500"></i> 本月支出結構 (主類別)</h3>
-          <div v-show="!hasExpensesThisMonth" class="w-full h-40 flex flex-col items-center justify-center text-slate-400 text-sm">
+          <h3 class="font-bold mb-2 flex items-center gap-2"><i data-lucide="circle-dot" class="w-4 h-4 text-pink-500"></i> 本月支出結構 (主類別)</h3>
+          <!-- 改用 v-if 避免 Chart.js 在隱藏元素上報錯 -->
+          <div v-if="!hasExpensesThisMonth" class="w-full h-40 flex flex-col items-center justify-center text-slate-400 text-sm">
             <i data-lucide="inbox" class="w-8 h-8 mb-2 opacity-50"></i>
             本月尚無支出資料
           </div>
-          <div v-show="hasExpensesThisMonth" class="relative w-full h-48">
+          <div v-if="hasExpensesThisMonth" class="relative w-full h-48">
             <canvas id="expenseChart" class="w-full h-full"></canvas>
           </div>
         </div>
@@ -125,7 +127,7 @@
 
           <!-- 快捷標籤 (僅支出與收入模式顯示) -->
           <div v-show="entryMode === 'expense' || entryMode === 'income'" class="flex flex-wrap gap-2 pt-1 pb-2">
-            <button v-for="tag in (data.quick_tags || [])" :key="tag" @click="applyQuickTag(tag)" class="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-800/50 dark:text-blue-300 text-xs px-3 py-1.5 rounded-full transition border border-blue-200 dark:border-blue-800 shadow-sm">
+            <button v-for="tag in data.quick_tags" :key="tag" @click="applyQuickTag(tag)" class="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-800/50 dark:text-blue-300 text-xs px-3 py-1.5 rounded-full transition border border-blue-200 dark:border-blue-800 shadow-sm">
               {{ tag }}
             </button>
           </div>
@@ -133,16 +135,16 @@
           <!-- 【支出模式】表單 -->
           <template v-if="entryMode === 'expense'">
             <div class="flex gap-2">
-              <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+              <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>選擇主類別</option>
                 <option v-for="cat in (data.main_categories?.Expense || [])" :key="cat" :value="cat">{{ cat }}</option>
               </select>
-              <select v-model="newTx.subAccount" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+              <select v-model="newTx.subAccount" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>選擇子類別</option>
                 <option v-for="acc in getSubAccounts('Expense', newTx.mainCategory)" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
               </select>
             </div>
-            <select v-model="newTx.paymentAcc" class="w-full border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+            <select v-model="newTx.paymentAcc" class="w-full border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none">
               <option value="" disabled>選擇扣款帳戶</option>
               <option v-for="acc in paymentAccounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
             </select>
@@ -151,16 +153,16 @@
           <!-- 【收入模式】表單 -->
           <template v-if="entryMode === 'income'">
             <div class="flex gap-2">
-              <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+              <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>選擇主類別</option>
                 <option v-for="cat in (data.main_categories?.Income || [])" :key="cat" :value="cat">{{ cat }}</option>
               </select>
-              <select v-model="newTx.subAccount" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+              <select v-model="newTx.subAccount" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>選擇子類別</option>
                 <option v-for="acc in getSubAccounts('Income', newTx.mainCategory)" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
               </select>
             </div>
-            <select v-model="newTx.paymentAcc" class="w-full border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+            <select v-model="newTx.paymentAcc" class="w-full border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none">
               <option value="" disabled>選擇入帳帳戶</option>
               <option v-for="acc in assetAccounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
             </select>
@@ -169,12 +171,12 @@
           <!-- 【轉帳模式】表單 -->
           <template v-if="entryMode === 'transfer'">
             <div class="flex gap-2 items-center">
-              <select v-model="newTx.fromAcc" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+              <select v-model="newTx.fromAcc" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>轉出帳戶</option>
                 <option v-for="acc in paymentAccounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
               </select>
               <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400"></i>
-              <select v-model="newTx.toAcc" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+              <select v-model="newTx.toAcc" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>轉入帳戶</option>
                 <option v-for="acc in paymentAccounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
               </select>
@@ -184,28 +186,28 @@
           <!-- 【投資模式】表單 -->
           <template v-if="entryMode === 'invest'">
             <div class="flex gap-2 mb-2">
-              <button @click="newTx.investAction = 'buy'" :class="newTx.investAction==='buy' ? 'bg-red-500 text-white shadow-inner' : 'bg-slate-100 text-slate-500 dark:bg-slate-700'" class="flex-1 py-1.5 rounded font-bold transition text-sm">買進</button>
-              <button @click="newTx.investAction = 'sell'" :class="newTx.investAction==='sell' ? 'bg-green-500 text-white shadow-inner' : 'bg-slate-100 text-slate-500 dark:bg-slate-700'" class="flex-1 py-1.5 rounded font-bold transition text-sm">賣出</button>
+              <button @click="newTx.investAction = 'buy'" :class="newTx.investAction==='buy' ? 'bg-red-500 text-white shadow-inner' : 'bg-slate-100 text-slate-500 dark:bg-slate-700'" class="flex-1 py-1.5 rounded font-bold transition">買進</button>
+              <button @click="newTx.investAction = 'sell'" :class="newTx.investAction==='sell' ? 'bg-green-500 text-white shadow-inner' : 'bg-slate-100 text-slate-500 dark:bg-slate-700'" class="flex-1 py-1.5 rounded font-bold transition">賣出</button>
             </div>
             <div class="flex gap-2">
-              <input type="text" v-model="newTx.symbol" placeholder="代號 (如: 2330.TW)" class="border p-2 rounded w-1/3 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
-              <input type="text" v-model="newTx.stockName" placeholder="名稱 (如: 台積電)" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+              <input type="text" v-model="newTx.symbol" placeholder="代號 (如: 2330.TW)" class="border p-2 rounded w-1/3 dark:bg-slate-700 dark:border-slate-600 outline-none">
+              <input type="text" v-model="newTx.stockName" placeholder="名稱 (如: 台積電)" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
             </div>
             <div class="flex gap-2">
-              <input type="number" v-model.number="newTx.shares" placeholder="成交股數" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
-              <input type="number" v-model.number="newTx.price" placeholder="成交單價" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+              <input type="number" v-model.number="newTx.shares" placeholder="成交股數" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
+              <input type="number" v-model.number="newTx.price" placeholder="成交單價" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
             </div>
             <div class="flex justify-between items-center px-1">
               <span class="text-xs text-slate-500">系統自動計算總價</span>
-              <span class="font-bold text-lg text-orange-600 dark:text-orange-400">${{ formatNumber((Number(newTx.shares) || 0) * (Number(newTx.price) || 0)) }}</span>
+              <span class="font-bold text-lg text-orange-600 dark:text-orange-400">${{ formatNumber((newTx.shares || 0) * (newTx.price || 0)) }}</span>
             </div>
-            <select v-model="newTx.paymentAcc" class="w-full border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+            <select v-model="newTx.paymentAcc" class="w-full border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none">
               <option value="" disabled>選擇扣款 / 入帳交割戶</option>
               <option v-for="acc in assetAccounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
             </select>
           </template>
 
-          <input type="text" v-model="newTx.desc" placeholder="輸入備註 / 摘要說明 (如: 得正橘子春烏龍)" class="w-full border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+          <input type="text" v-model="newTx.desc" placeholder="輸入備註 / 摘要說明 (如: 得正橘子春烏龍)" class="w-full border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none">
           <template v-if="entryMode !== 'invest'">
             <input type="number" v-model.number="newTx.amount" placeholder="輸入金額" class="w-full border p-3 rounded dark:bg-slate-700 dark:border-slate-600 outline-none text-lg font-bold">
           </template>
@@ -250,7 +252,7 @@
         <div v-for="tx in filteredTransactions" :key="tx.id" class="p-3 border rounded-xl flex justify-between items-center mb-3 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm hover:shadow transition relative overflow-hidden">
           <div class="absolute left-0 top-0 bottom-0 w-1" :class="getTxColorBand(tx)"></div>
           <div class="pl-2">
-            <div class="font-bold text-[15px]">{{ tx.description || tx.desc || '無摘要' }} <span v-if="tx.scope==='family'" class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded ml-1 align-top">家庭</span></div>
+            <div class="font-bold text-[15px]">{{ tx.description || '無摘要' }} <span v-if="tx.scope==='family'" class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded ml-1 align-top">家庭</span></div>
             <div class="text-xs text-slate-500 mt-1">{{ tx.date }}</div>
             <div class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">借: {{ getAccName(tx.debits?.[0]?.account_id) }} / 貸: {{ getAccName(tx.credits?.[0]?.account_id) }}</div>
           </div>
@@ -279,13 +281,13 @@
         </div>
         <div v-else v-for="inv in data.investments" :key="inv.id" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm">
           <div class="flex justify-between font-bold mb-2 text-lg">
-            <span>{{ inv.name }} <span class="text-sm font-normal text-slate-500">({{ inv.symbol }})</span></span>
-            <span>市值: $ {{ formatNumber((Number(inv.shares) || 0) * (Number(inv.last_price) || 0) * (inv.currency==='USD'? Number(fxRate) : 1)) }}</span>
+            <span>{{ inv.name || '未命名' }} <span class="text-sm font-normal text-slate-500">({{ inv.symbol }})</span></span>
+            <span>市值: $ {{ formatNumber(inv.shares * (inv.last_price || 0) * (inv.currency==='USD'? (fxRate || 32.5) : 1)) }}</span>
           </div>
           <div class="text-sm flex justify-between text-slate-500">
-            <span>持有: {{ inv.shares }} 股 | 總成本: $ {{ formatNumber(inv.total_cost || 0) }}</span>
-            <span :class="(((Number(inv.shares) || 0) * (Number(inv.last_price) || 0) * (inv.currency==='USD'? Number(fxRate) : 1)) - (Number(inv.total_cost) || 0)) >= 0 ? 'text-green-500 font-bold' : 'text-red-500 font-bold'">
-              未實現: $ {{ formatNumber(((Number(inv.shares) || 0) * (Number(inv.last_price) || 0) * (inv.currency==='USD'? Number(fxRate) : 1)) - (Number(inv.total_cost) || 0)) }}
+            <span>持有: {{ inv.shares || 0 }} 股 | 總成本: $ {{ formatNumber(inv.total_cost || 0) }}</span>
+            <span :class="(inv.shares * (inv.last_price || 0) * (inv.currency==='USD'? (fxRate || 32.5) : 1) - (inv.total_cost || 0)) >= 0 ? 'text-green-500 font-bold' : 'text-red-500 font-bold'">
+              未實現: $ {{ formatNumber((inv.shares * (inv.last_price || 0) * (inv.currency==='USD'? (fxRate || 32.5) : 1)) - (inv.total_cost || 0)) }}
             </span>
           </div>
         </div>
@@ -371,7 +373,7 @@
         <section>
           <h2 class="text-lg font-bold border-b pb-2 mb-3 text-blue-600 dark:text-blue-400">記帳快捷標籤</h2>
           <div class="flex gap-2 mb-3">
-            <input type="text" v-model="newPreset" placeholder="標籤名稱 (如: 晚餐)" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 outline-none text-sm">
+            <input type="text" v-model="newPreset" placeholder="標籤名稱 (須對應子類別名稱)" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 outline-none text-sm">
             <button @click="addPreset" class="bg-slate-200 hover:bg-slate-300 dark:bg-slate-600 dark:hover:bg-slate-500 transition px-4 rounded-lg font-bold text-sm">新增</button>
           </div>
           <div class="flex flex-wrap gap-2">
@@ -474,12 +476,13 @@
 
     const b64EncodeUnicode = (str) => btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1)));
     const b64DecodeUnicode = (str) => {
-      const cleanStr = (str || '').replace(/\n/g, '');
+      const cleanStr = str.replace(/\n/g, '');
       return decodeURIComponent(Array.prototype.map.call(atob(cleanStr), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
     };
 
     createApp({
       setup() {
+        // UI Tabs & States
         const activeTab = ref('dashboard');
         const entryMode = ref('expense'); 
         const isUnlocked = ref(false);
@@ -489,9 +492,11 @@
         const isSyncing = ref(false);
         const fxRate = ref(32.5); 
         
+        // Modals
         const showInitialStockModal = ref(false);
         const showAddFixedAssetModal = ref(false);
 
+        // Chart Instances
         const expenseChartInstance = ref(null);
         const assetChartInstance = ref(null);
         const hasExpensesThisMonth = ref(false);
@@ -500,7 +505,7 @@
           appName: '我的複式帳本', githubUser: '', githubRepo: '', githubToken: '', pinEnabled: false, pinCode: '0000', fileSha: ''
         });
 
-        // 預設資料結構
+        // 核心資料結構與預設值
         const data = reactive({
           version: "2.0.0",
           quick_tags: ['手搖飲', '烘焙食材', '遊戲課金', '密室逃脫', '高鐵'],
@@ -552,26 +557,20 @@
         const initStock = reactive({ symbol: '', name: '', shares: null, cost: null });
         const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60 });
 
-        // --- 防呆過濾計算 ---
+        // --- 核心計算邏輯 (全面加入防護 || []) ---
         
         const assetAccounts = computed(() => (data.accounts || []).filter(a => a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && !a.is_hidden));
         const paymentAccounts = computed(() => (data.accounts || []).filter(a => (a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201') || a.type === 'Liability').filter(a => !a.is_hidden));
         
         const getSubAccounts = (type, mainCat, includeHidden = false) => {
-          if (!data.accounts || !Array.isArray(data.accounts)) return [];
-          return data.accounts.filter(a => a.type === type && a.category === mainCat && (includeHidden || !a.is_hidden));
+          return (data.accounts || []).filter(a => a.type === type && a.category === mainCat && (includeHidden || !a.is_hidden));
         };
 
         const calculateBalance = (accountId) => {
           let balance = 0;
-          if (!data.transactions || !Array.isArray(data.transactions)) return 0;
-          data.transactions.forEach(tx => {
-            if (Array.isArray(tx.debits)) {
-              tx.debits.forEach(d => { if (d && d.account_id === accountId) balance += (Number(d.amount) || 0); });
-            }
-            if (Array.isArray(tx.credits)) {
-              tx.credits.forEach(c => { if (c && c.account_id === accountId) balance -= (Number(c.amount) || 0); });
-            }
+          (data.transactions || []).forEach(tx => {
+            (tx.debits || []).forEach(d => { if (d.account_id === accountId) balance += (Number(d.amount) || 0); });
+            (tx.credits || []).forEach(c => { if (c.account_id === accountId) balance -= (Number(c.amount) || 0); });
           });
           const acc = (data.accounts || []).find(a => a.id === accountId);
           if(!acc) return 0;
@@ -582,11 +581,8 @@
           let sum = 0;
           (data.accounts || []).filter(a => a.type === 'Asset').forEach(a => { sum += calculateBalance(a.id); });
           (data.investments || []).forEach(inv => {
-            const shares = Number(inv.shares) || 0;
-            const price = Number(inv.last_price) || 0;
-            const cost = Number(inv.total_cost) || 0;
-            const currentVal = shares * price * (inv.currency === 'USD' ? (Number(fxRate.value) || 32.5) : 1);
-            sum += (currentVal - cost);
+            const currentVal = (Number(inv.shares) || 0) * (Number(inv.last_price) || 0) * (inv.currency === 'USD' ? (Number(fxRate.value) || 32.5) : 1);
+            sum += (currentVal - (Number(inv.total_cost) || 0));
           });
           return sum;
         });
@@ -596,109 +592,99 @@
         
         const sortedTransactions = computed(() => (data.transactions || []).slice().sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0)));
         
+        // 修正 1：全面加入 .toLowerCase() 防呆
         const filteredTransactions = computed(() => {
           return sortedTransactions.value.filter(tx => {
             const kw = (historyFilter.keyword || '').toLowerCase();
-            const desc = (tx.description || tx.desc || '').toLowerCase();
-            const accN1 = getAccName(tx.debits?.[0]?.account_id).toLowerCase();
-            const accN2 = getAccName(tx.credits?.[0]?.account_id).toLowerCase();
+            const desc = (tx.description || '').toLowerCase();
+            const accN1 = (getAccName(tx.debits?.[0]?.account_id) || '').toLowerCase();
+            const accN2 = (getAccName(tx.credits?.[0]?.account_id) || '').toLowerCase();
             
             const matchKw = !kw || desc.includes(kw) || accN1.includes(kw) || accN2.includes(kw);
             const matchScope = historyFilter.scope === 'all' || tx.scope === historyFilter.scope;
-            const matchDate = (!historyFilter.dateFrom || (tx.date && tx.date >= historyFilter.dateFrom)) && (!historyFilter.dateTo || (tx.date && tx.date <= historyFilter.dateTo));
+            const matchDate = (!historyFilter.dateFrom || (tx.date || '') >= historyFilter.dateFrom) && (!historyFilter.dateTo || (tx.date || '') <= historyFilter.dateTo);
             
             return matchKw && matchScope && matchDate;
           });
         });
 
-        const getAccName = (id) => (data.accounts || []).find(a => a.id === id)?.name || id || '';
-        const formatNumber = (num) => {
-          if (num === null || num === undefined || isNaN(num)) return '0';
-          return Math.round(Number(num)).toLocaleString('en-US');
+        const getAccName = (id) => {
+          if (!id) return '未指定';
+          return (data.accounts || []).find(a => a.id === id)?.name || String(id);
         };
+        const formatNumber = (num) => Math.round(Number(num) || 0).toLocaleString('en-US');
 
-        const renderIcons = () => {
-          nextTick(() => {
-            if (window.lucide && typeof window.lucide.createIcons === 'function') {
-              window.lucide.createIcons();
-            }
-          });
-        };
-
+        // UI 裝飾邏輯防呆
         const getTxColorBand = (tx) => {
           const accD = (data.accounts || []).find(a => a.id === tx.debits?.[0]?.account_id);
           const accC = (data.accounts || []).find(a => a.id === tx.credits?.[0]?.account_id);
-          const desc = tx.description || tx.desc || '';
+          const desc = tx.description || '';
           if (accD?.type === 'Expense') return 'bg-red-500';
           if (accC?.type === 'Income') return 'bg-green-500';
           if (desc.includes('買進') || desc.includes('賣出')) return 'bg-orange-500';
-          return 'bg-purple-500';
+          return 'bg-purple-500'; // Transfer
         };
-
         const getTxAmountColor = (tx) => {
           const accD = (data.accounts || []).find(a => a.id === tx.debits?.[0]?.account_id);
-          const desc = tx.description || tx.desc || '';
+          const desc = tx.description || '';
           if (accD?.type === 'Expense') return 'text-red-500';
           if (accD?.type === 'Asset' && !desc.includes('轉帳')) return 'text-green-600 dark:text-green-400';
           return 'text-slate-700 dark:text-slate-300';
         };
 
+        // --- 記帳提交邏輯 ---
+        
         const applyQuickTag = (tag) => {
           const acc = (data.accounts || []).find(a => a.name === tag && (a.type === 'Expense' || a.type === 'Income'));
           if (acc) {
             entryMode.value = acc.type.toLowerCase();
-            newTx.mainCategory = acc.category || '';
+            newTx.mainCategory = acc.category;
             newTx.subAccount = acc.id;
-            newTx.desc = tag;
-          } else {
             newTx.desc = tag;
           }
         };
 
         const submitTransaction = () => {
           txError.value = '';
-          const descText = newTx.desc || '無摘要';
-          const txObj = { id: 'tx_' + Date.now(), date: newTx.date, scope: newTx.scope, description: descText, desc: descText, debits: [], credits: [] };
+          const txObj = { id: 'tx_' + Date.now(), date: newTx.date, scope: newTx.scope, desc: newTx.desc || '無摘要', debits: [], credits: [] };
           
           if (entryMode.value === 'expense') {
             if (!newTx.subAccount || !newTx.paymentAcc || !newTx.amount) return txError.value = '請填寫完整資訊';
-            txObj.debits.push({ account_id: newTx.subAccount, amount: Number(newTx.amount) });
-            txObj.credits.push({ account_id: newTx.paymentAcc, amount: Number(newTx.amount) });
+            txObj.debits.push({ account_id: newTx.subAccount, amount: newTx.amount });
+            txObj.credits.push({ account_id: newTx.paymentAcc, amount: newTx.amount });
           } else if (entryMode.value === 'income') {
             if (!newTx.subAccount || !newTx.paymentAcc || !newTx.amount) return txError.value = '請填寫完整資訊';
-            txObj.debits.push({ account_id: newTx.paymentAcc, amount: Number(newTx.amount) });
-            txObj.credits.push({ account_id: newTx.subAccount, amount: Number(newTx.amount) });
+            txObj.debits.push({ account_id: newTx.paymentAcc, amount: newTx.amount }); 
+            txObj.credits.push({ account_id: newTx.subAccount, amount: newTx.amount }); 
           } else if (entryMode.value === 'transfer') {
             if (!newTx.fromAcc || !newTx.toAcc || !newTx.amount) return txError.value = '請填寫完整資訊';
             if (newTx.fromAcc === newTx.toAcc) return txError.value = '轉出與轉入帳戶不可相同';
-            txObj.debits.push({ account_id: newTx.toAcc, amount: Number(newTx.amount) });
-            txObj.credits.push({ account_id: newTx.fromAcc, amount: Number(newTx.amount) });
-            if(txObj.description === '無摘要') { txObj.description = '帳戶互轉'; txObj.desc = '帳戶互轉'; }
+            txObj.debits.push({ account_id: newTx.toAcc, amount: newTx.amount });
+            txObj.credits.push({ account_id: newTx.fromAcc, amount: newTx.amount });
+            if(txObj.desc === '無摘要') txObj.desc = '轉帳';
           } else if (entryMode.value === 'invest') {
             if (!newTx.symbol || !newTx.shares || !newTx.price || !newTx.paymentAcc) return txError.value = '請填寫完整投資資訊';
-            const amount = Number(newTx.shares) * Number(newTx.price);
+            const amount = newTx.shares * newTx.price;
             let inv = (data.investments || []).find(i => i.symbol === newTx.symbol);
             
             if (newTx.investAction === 'buy') {
               txObj.debits.push({ account_id: '1103', amount: amount });
               txObj.credits.push({ account_id: newTx.paymentAcc, amount: amount });
-              const info = `買進 ${newTx.stockName || newTx.symbol} ${newTx.shares}股`;
-              txObj.description = info; txObj.desc = info;
+              txObj.desc = `買進 ${newTx.stockName || newTx.symbol} ${newTx.shares}股`;
               
               if (inv) {
-                inv.shares = (Number(inv.shares) || 0) + Number(newTx.shares);
-                inv.total_cost = (Number(inv.total_cost) || 0) + amount;
+                inv.shares += newTx.shares;
+                inv.total_cost += amount;
               } else {
                 if(!data.investments) data.investments = [];
-                data.investments.push({ id: 'inv_'+Date.now(), symbol: newTx.symbol, name: newTx.stockName || newTx.symbol, shares: Number(newTx.shares), total_cost: amount, currency: 'TWD' });
+                data.investments.push({ id: 'inv_'+Date.now(), symbol: newTx.symbol, name: newTx.stockName || newTx.symbol, shares: newTx.shares, total_cost: amount, currency: 'TWD' });
               }
-            } else {
-              if (!inv || (Number(inv.shares) || 0) < Number(newTx.shares)) return txError.value = '賣出股數不可超過庫存股數';
-              const costProportion = (Number(inv.total_cost) || 0) * (Number(newTx.shares) / Number(inv.shares));
+            } else { // Sell
+              if (!inv || inv.shares < newTx.shares) return txError.value = '賣出股數不可超過庫存股數';
+              const costProportion = inv.total_cost * (newTx.shares / inv.shares);
               const gain = amount - costProportion;
               
-              const info = `賣出 ${newTx.stockName || newTx.symbol} ${newTx.shares}股`;
-              txObj.description = info; txObj.desc = info;
+              txObj.desc = `賣出 ${newTx.stockName || newTx.symbol} ${newTx.shares}股`;
               txObj.debits.push({ account_id: newTx.paymentAcc, amount: amount });
               txObj.credits.push({ account_id: '1103', amount: costProportion });
               
@@ -708,8 +694,8 @@
                 txObj.debits.push({ account_id: '4201', amount: Math.abs(gain) }); 
               }
               
-              inv.shares = (Number(inv.shares) || 0) - Number(newTx.shares);
-              inv.total_cost = Math.max(0, (Number(inv.total_cost) || 0) - costProportion);
+              inv.shares -= newTx.shares;
+              inv.total_cost -= costProportion;
             }
           }
 
@@ -721,7 +707,7 @@
           autoBackup();
           updateCharts();
           alert('✅ 記帳成功！');
-          renderIcons();
+          nextTick(() => lucide.createIcons());
         };
 
         const deleteTransaction = (id) => {
@@ -739,79 +725,84 @@
           updateCharts();
         };
 
+        // --- 彈窗特有邏輯 ---
+        
         const submitInitialStock = () => {
           if(!initStock.symbol || !initStock.shares || !initStock.cost) return alert("請填寫完整");
           if(!data.investments) data.investments = [];
-          data.investments.push({ id: 'inv_'+Date.now(), symbol: initStock.symbol, name: initStock.name || initStock.symbol, shares: Number(initStock.shares), total_cost: Number(initStock.cost), currency: 'TWD' });
-          
           if(!data.transactions) data.transactions = [];
-          const desc = `期初建倉 ${initStock.name || initStock.symbol}`;
+          data.investments.push({ id: 'inv_'+Date.now(), symbol: initStock.symbol, name: initStock.name || initStock.symbol, shares: initStock.shares, total_cost: initStock.cost, currency: 'TWD' });
           data.transactions.push({
-            id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', description: desc, desc: desc,
-            debits: [{ account_id: '1103', amount: Number(initStock.cost) }], credits: [{ account_id: '3101', amount: Number(initStock.cost) }]
+            id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初建倉 ${initStock.name || initStock.symbol}`,
+            debits: [{ account_id: '1103', amount: initStock.cost }], credits: [{ account_id: '3101', amount: initStock.cost }]
           });
           showInitialStockModal.value = false;
           initStock.symbol = ''; initStock.name = ''; initStock.shares = null; initStock.cost = null;
-          autoBackup(); updateCharts(); renderIcons();
+          autoBackup(); updateCharts();
         };
 
         const submitFixedAsset = () => {
           if(!initFA.name || !initFA.cost || !initFA.months) return alert("請填寫完整");
-          const monthlyDep = Math.round(Number(initFA.cost) / Number(initFA.months));
+          const monthlyDep = Math.round(initFA.cost / initFA.months);
           if(!data.fixed_assets) data.fixed_assets = [];
+          if(!data.transactions) data.transactions = [];
           data.fixed_assets.push({
-            id: 'fa_'+Date.now(), name: initFA.name, purchase_date: initFA.date, original_cost: Number(initFA.cost), monthly_depreciation: monthlyDep,
+            id: 'fa_'+Date.now(), name: initFA.name, purchase_date: initFA.date, original_cost: initFA.cost, monthly_depreciation: monthlyDep,
             asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: null
           });
-          if(!data.transactions) data.transactions = [];
-          const desc = `購入固定資產 ${initFA.name}`;
           data.transactions.push({
-            id: 'tx_fa_' + Date.now(), date: initFA.date, scope: 'family', description: desc, desc: desc,
-            debits: [{ account_id: '1201', amount: Number(initFA.cost) }], credits: [{ account_id: '3101', amount: Number(initFA.cost) }]
+            id: 'tx_fa_' + Date.now(), date: initFA.date, scope: 'family', desc: `購入固定資產 ${initFA.name}`,
+            debits: [{ account_id: '1201', amount: initFA.cost }], credits: [{ account_id: '3101', amount: initFA.cost }]
           });
           showAddFixedAssetModal.value = false;
           initFA.name = ''; initFA.cost = null; initFA.months = 60;
-          autoBackup(); updateCharts(); renderIcons();
+          autoBackup(); updateCharts();
         };
+
+        // --- 設定管理邏輯 ---
 
         const addMainCategory = () => {
-          if (newMainCat.value && !data.main_categories[settingCategoryMode.value]?.includes(newMainCat.value)) {
-            if (!data.main_categories[settingCategoryMode.value]) data.main_categories[settingCategoryMode.value] = [];
+          if (newMainCat.value && !(data.main_categories[settingCategoryMode.value] || []).includes(newMainCat.value)) {
+            if(!data.main_categories[settingCategoryMode.value]) data.main_categories[settingCategoryMode.value] = [];
             data.main_categories[settingCategoryMode.value].push(newMainCat.value);
-            newMainCat.value = ''; autoBackup(); renderIcons();
+            newMainCat.value = ''; autoBackup();
           }
         };
-
         const deleteMainCategory = (type, name) => {
           if(getSubAccounts(type, name, true).length > 0) return alert("請先刪除或移出該主類別下的所有子類別！");
           data.main_categories[type] = (data.main_categories[type] || []).filter(c => c !== name);
-          autoBackup(); renderIcons();
+          autoBackup();
         };
 
         const addSubCategory = () => {
           if (!newSubCat.name || !newSubCat.main) return;
+          if(!data.accounts) data.accounts = [];
           data.accounts.push({ id: 'acc_' + Date.now(), name: newSubCat.name, type: settingCategoryMode.value, category: newSubCat.main, is_hidden: false });
-          newSubCat.name = ''; autoBackup(); renderIcons();
+          newSubCat.name = ''; autoBackup(); nextTick(() => lucide.createIcons());
         };
 
         const addPreset = () => {
           if (newPreset.value && !(data.quick_tags || []).includes(newPreset.value)) {
             if(!data.quick_tags) data.quick_tags = [];
-            data.quick_tags.push(newPreset.value); newPreset.value = ''; autoBackup(); renderIcons();
+            data.quick_tags.push(newPreset.value); newPreset.value = ''; autoBackup();
           }
         };
-        const removePreset = (idx) => { data.quick_tags.splice(idx, 1); autoBackup(); renderIcons(); };
+        const removePreset = (idx) => { if(data.quick_tags) data.quick_tags.splice(idx, 1); autoBackup(); };
 
         const toggleAccountVisibility = (id) => {
           const acc = (data.accounts || []).find(a => a.id === id);
-          if (acc) { acc.is_hidden = !acc.is_hidden; autoBackup(); renderIcons(); }
+          if (acc) { acc.is_hidden = !acc.is_hidden; autoBackup(); nextTick(() => lucide.createIcons()); }
         };
 
         const deleteAccount = (id) => {
           const isUsed = (data.transactions || []).some(tx => (tx.debits || []).some(d => d.account_id === id) || (tx.credits || []).some(c => c.account_id === id));
           if (isUsed) return alert('❌ 刪除失敗：此科目已有歷史交易紀錄。請改用「隱藏 (眼睛)」圖示來停用該科目。');
-          if (confirm('確定要永久刪除此未使用之科目嗎？')) { data.accounts = data.accounts.filter(a => a.id !== id); autoBackup(); renderIcons(); }
+          if (confirm('確定要永久刪除此未使用之科目嗎？')) { data.accounts = (data.accounts || []).filter(a => a.id !== id); autoBackup(); }
         };
+
+        const getAccTypeName = (type) => ({ 'Asset': '資產', 'Liability': '負債', 'Equity': '權益', 'Income': '收入', 'Expense': '費用' }[type] || type);
+
+        // --- GitHub 雙 Repo 與自動折舊 ---
 
         const runAutoDepreciation = () => {
           const today = new Date();
@@ -819,11 +810,11 @@
           let generated = 0;
 
           (data.fixed_assets || []).forEach(fa => {
-            const lastDate = fa.last_depreciation_date || fa.purchase_date;
-            if ((lastDate || '').substring(0,7) !== currentMonthStr) {
-              const desc = `${fa.name} 自動提列折舊`;
+            const lastDate = fa.last_depreciation_date || fa.purchase_date || '';
+            if (lastDate && lastDate.substring(0,7) !== currentMonthStr) {
+              if(!data.transactions) data.transactions = [];
               data.transactions.push({
-                id: 'tx_dep_' + Date.now() + Math.random(), date: today.toISOString().split('T')[0], description: desc, desc: desc, scope: 'family',
+                id: 'tx_dep_' + Date.now() + Math.random(), date: today.toISOString().split('T')[0], desc: `${fa.name} 自動提列折舊`, scope: 'family',
                 auto_generated: true, asset_id: fa.id,
                 debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }],
                 credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }]
@@ -832,10 +823,11 @@
               generated++;
             }
           });
-          if(generated > 0) { autoBackup(); }
+          if(generated > 0) { alert(`已自動產生 ${generated} 筆折舊分錄`); autoBackup(); }
         };
 
         const getGitHubUrl = () => `https://api.github.com/repos/${settings.githubUser}/${settings.githubRepo}/contents/transactions.json`;
+
         const autoBackup = () => { localStorage.setItem('ledger_backup', JSON.stringify(data)); };
 
         const syncWithGitHub = async () => {
@@ -870,11 +862,11 @@
             const twseData = await res.json();
             (data.investments || []).forEach(inv => {
               if(inv.currency !== 'USD') {
-                const stock = twseData.find(s => s.Code === (inv.symbol || '').replace('.TW', ''));
-                if(stock && stock.ClosingPrice) inv.last_price = parseFloat(stock.ClosingPrice); 
+                const stock = twseData.find(s => s.Code === inv.symbol.replace('.TW', ''));
+                if(stock) inv.last_price = parseFloat(stock.ClosingPrice); 
               }
             });
-            alert('股價更新完成'); autoBackup(); updateCharts();
+            alert('股價更新完成'); autoBackup();
           } catch (e) { alert('無法連線證交所，目前使用快取股價估值。'); }
         };
 
@@ -886,12 +878,9 @@
         };
 
         const loadSettings = () => {
-          try {
-            const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}'); 
-            Object.assign(settings, s);
-            if (!settings.appName) settings.appName = '我的複式帳本';
-            if (!settings.pinEnabled) isUnlocked.value = true;
-          } catch(e) { isUnlocked.value = true; }
+          const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}'); Object.assign(settings, s);
+          if (!settings.appName) settings.appName = '我的複式帳本';
+          if (!settings.pinEnabled) isUnlocked.value = true;
         };
 
         const unlockApp = () => {
@@ -913,21 +902,32 @@
               const imported = JSON.parse(event.target.result);
               if(!imported.transactions || !imported.accounts) throw new Error("Schema Error");
               Object.assign(data, imported);
-              migrateLegacyData();
-              autoBackup(); alert("匯入成功"); updateCharts(); renderIcons();
+              migrateLegacyData(); 
+              autoBackup(); alert("匯入成功"); updateCharts();
             } catch (err) { alert("檔案防呆啟動：JSON 格式錯誤或損毀。"); }
           };
           reader.readAsText(file);
         };
 
+        const initOpeningBalance = () => {
+          entryMode.value = 'income';
+          newTx.desc = '期初餘額設定';
+          newTx.subAccount = '3101'; 
+          alert('將自動切換為收入模式，請選擇資金所在的帳戶與輸入金額，這將貸記期初權益。');
+          activeTab.value = 'entry';
+        };
+
+        // 修正 3：舊資料向下相容遷移 (嚴格防呆)
         const migrateLegacyData = () => {
-          if(!data.main_categories) data.main_categories = { Expense: ['餐飲食品', '交通出行', '休閒娛樂', '生活用品'], Income: ['薪資收入', '其他收入'] };
-          if(!data.quick_tags) data.quick_tags = ['手搖飲', '烘焙食材', '遊戲課金', '密室逃脫', '高鐵'];
+          if(!data.transactions) data.transactions = [];
           if(!data.investments) data.investments = [];
           if(!data.fixed_assets) data.fixed_assets = [];
-          if(!data.transactions) data.transactions = [];
+          if(!data.accounts) data.accounts = [];
           
-          (data.accounts || []).forEach(acc => {
+          if(!data.main_categories) data.main_categories = { Expense: ['餐飲食品', '交通出行', '休閒娛樂', '生活用品'], Income: ['薪資收入', '其他收入'] };
+          if(!data.quick_tags) data.quick_tags = ['手搖飲', '烘焙食材', '遊戲課金', '密室逃脫', '高鐵'];
+          
+          data.accounts.forEach(acc => {
             if (acc.is_hidden === undefined) acc.is_hidden = false;
             if ((acc.type === 'Expense' || acc.type === 'Income') && !acc.category) {
               if (acc.type === 'Expense') {
@@ -943,29 +943,29 @@
           });
         };
 
+        // --- Chart.js 雙圓餅圖渲染 ---
         const updateCharts = () => {
           if (activeTab.value !== 'dashboard') return;
           nextTick(() => {
-            // Chart 1: 本月支出結構
+            // Chart 1: 本月支出結構 (依主類別)
             const ctx1 = document.getElementById('expenseChart');
             const currentMonth = new Date().toISOString().substring(0,7);
             const expensesByMainCat = {};
             let totalExpenses = 0;
             
             (data.transactions || []).filter(t => (t.date || '').startsWith(currentMonth)).forEach(tx => {
-              if (Array.isArray(tx.debits)) {
-                tx.debits.forEach(d => {
-                  const acc = (data.accounts || []).find(a=>a.id===d.account_id);
-                  if(acc && acc.type === 'Expense') {
-                    const mainCat = acc.category || '未分類';
-                    expensesByMainCat[mainCat] = (expensesByMainCat[mainCat] || 0) + (Number(d.amount) || 0);
-                    totalExpenses += (Number(d.amount) || 0);
-                  }
-                });
-              }
+              (tx.debits || []).forEach(d => {
+                const acc = (data.accounts || []).find(a=>a.id===d.account_id);
+                if(acc && acc.type === 'Expense') {
+                  const mainCat = acc.category || '未分類';
+                  expensesByMainCat[mainCat] = (expensesByMainCat[mainCat] || 0) + (Number(d.amount) || 0);
+                  totalExpenses += (Number(d.amount) || 0);
+                }
+              });
             });
 
             hasExpensesThisMonth.value = totalExpenses > 0;
+            // 修正 2：確保元素存在且為可見狀態時才繪圖
             if (hasExpensesThisMonth.value && ctx1) {
               if (expenseChartInstance.value) expenseChartInstance.value.destroy();
               expenseChartInstance.value = new Chart(ctx1, {
@@ -981,8 +981,8 @@
                 options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } }
               });
             } else if (expenseChartInstance.value) {
-              expenseChartInstance.value.destroy();
-              expenseChartInstance.value = null;
+                expenseChartInstance.value.destroy();
+                expenseChartInstance.value = null;
             }
 
             // Chart 2: 當前資產配置
@@ -998,7 +998,7 @@
                 cashTotal += calculateBalance(a.id);
               });
               let stockTotal = 0;
-              (data.investments || []).forEach(inv => stockTotal += ((Number(inv.shares) || 0) * (Number(inv.last_price) || 0) * (inv.currency==='USD'? Number(fxRate.value) : 1)));
+              (data.investments || []).forEach(inv => stockTotal += ((Number(inv.shares) || 0) * (Number(inv.last_price) || 0) * (inv.currency==='USD'? (Number(fxRate.value) || 32.5) : 1)));
               let faTotal = calculateBalance('1201') + calculateBalance('1201-DEP'); 
 
               if (assetChartInstance.value) assetChartInstance.value.destroy();
@@ -1020,7 +1020,7 @@
 
         watch(activeTab, () => {
           if(activeTab.value === 'dashboard') updateCharts();
-          renderIcons();
+          nextTick(() => lucide.createIcons());
         });
 
         const initData = async () => {
@@ -1030,8 +1030,10 @@
               const parsed = JSON.parse(backup);
               Object.assign(data, parsed);
               migrateLegacyData();
+            } else {
+              migrateLegacyData(); // 初始化預設空結構
             }
-          } catch(e) { console.error("本地快取損毀"); }
+          } catch(e) { console.error("本地快取損毀"); migrateLegacyData(); }
           
           await fetchExchangeRate();
           
@@ -1050,14 +1052,12 @@
           
           runAutoDepreciation();
           if (activeTab.value === 'dashboard') updateCharts();
-          renderIcons();
+          nextTick(() => lucide.createIcons());
         };
 
         onMounted(() => {
-          migrateLegacyData();
           loadSettings();
           if(isUnlocked.value) initData();
-          renderIcons();
         });
 
         return {
@@ -1065,8 +1065,8 @@
           activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGitHub,
           data, newTx, txError, submitTransaction, deleteTransaction, getAccName, formatNumber, applyQuickTag, getSubAccounts,
           netWorth, totalAssets, totalLiabilities, updateStockPrices, fxRate, hasExpensesThisMonth,
-          exportData, importData, sortedTransactions, filteredTransactions, historyFilter, getTxColorBand, getTxAmountColor,
-          settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, addAccount, deleteAccount, toggleAccountVisibility,
+          exportData, importData, initOpeningBalance, sortedTransactions, filteredTransactions, historyFilter, getTxColorBand, getTxAmountColor,
+          settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, addAccount, deleteAccount, toggleAccountVisibility, getAccTypeName,
           showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, initFA, submitFixedAsset
         };
       }
