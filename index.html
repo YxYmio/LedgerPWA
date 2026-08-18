@@ -41,7 +41,7 @@
     [v-cloak] { display: none !important; }
   </style>
 
-  <!-- 全域錯誤捕捉器 -->
+  <!-- 全域錯誤捕捉器，徹底杜絕無提示白屏 -->
   <script>
     window.addEventListener('error', function(e) {
       var loading = document.getElementById('native-loading');
@@ -62,7 +62,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   
-  <!-- Vue 3 -->
+  <!-- 雙重備援 Vue 載入 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
   <script>
     if (typeof Vue === 'undefined') {
@@ -186,8 +186,7 @@
               </select>
             </div>
 
-            <!-- 支出與收入快捷標籤 -->
-            <div v-show="['expense', 'income'].includes(entryMode)" class="flex flex-wrap gap-2 pt-1 pb-1">
+            <div v-show="entryMode === 'expense' || entryMode === 'income'" class="flex flex-wrap gap-2 pt-1 pb-1">
               <button v-for="tag in safeQuickTags" :key="tag" @click="applyQuickTag(tag)" class="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-xs px-3 py-1.5 rounded-full transition border border-blue-200 dark:border-blue-800 shadow-sm whitespace-nowrap">
                 {{ tag }}
               </button>
@@ -223,8 +222,8 @@
                     <label for="isFA" class="text-sm font-bold select-none cursor-pointer block mb-1">登錄為固定資產/開啟折舊</label>
                     <div v-if="newTx.isFA" class="space-y-2 mt-2 bg-slate-50 dark:bg-slate-900 p-2 rounded-lg">
                       <div class="flex gap-2">
-                        <input type="text" v-model="newTx.faName" placeholder="資產名稱" class="border p-2 rounded text-sm w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none">
-                        <input type="number" v-model.number="newTx.faMonths" placeholder="折舊月數" class="border p-2 rounded text-sm w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none">
+                        <input type="text" v-model="newTx.faName" placeholder="資產名稱" class="border p-2 rounded-lg text-sm w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none">
+                        <input type="number" v-model.number="newTx.faMonths" placeholder="折舊月數" class="border p-2 rounded-lg text-sm w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none">
                       </div>
                       <div class="flex flex-wrap gap-1.5 mt-1">
                         <span @click="newTx.faMonths=36; newTx.faName='手機'" class="text-[10px] bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded-md cursor-pointer hover:bg-blue-200 transition font-bold text-slate-700 dark:text-slate-300">3C/手機(36月)</span>
@@ -490,7 +489,7 @@
 
         </div>
 
-        <!-- ================= 5. 設定 Tab ================= -->
+        <!-- ================= 5. 設定 Tab (Settings) ================= -->
         <div v-show="activeTab === 'settings'" class="space-y-8">
           
           <section>
@@ -501,7 +500,7 @@
             </div>
           </section>
 
-          <!-- 新增：銀行與資產帳戶管理 -->
+          <!-- 銀行與資產帳戶管理 -->
           <section>
             <h2 class="text-lg font-bold border-b pb-2 mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2"><i data-lucide="piggy-bank" class="w-5 h-5"></i> 銀行與資產帳戶管理</h2>
             <div class="space-y-4">
@@ -522,7 +521,7 @@
             </div>
           </section>
 
-          <!-- 新增：貸款專案建立 -->
+          <!-- 貸款專案建立 -->
           <section>
             <h2 class="text-lg font-bold border-b pb-2 mb-3 text-rose-600 dark:text-rose-400 flex items-center gap-2"><i data-lucide="building-2" class="w-5 h-5"></i> 貸款項目管理</h2>
             <div class="bg-rose-50 dark:bg-rose-900/20 p-3 rounded-xl border border-rose-100 dark:border-rose-800 space-y-3">
@@ -553,6 +552,7 @@
                 <button v-if="!settings.googleToken" @click="handleGoogleAuth" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition">Google 登入</button>
                 <button v-if="settings.googleToken" @click="handleGoogleSignout" class="bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg font-bold text-sm transition">登出</button>
               </div>
+              <button v-if="settings.googleToken" @click="syncWithGoogleDrive(true)" class="w-full bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-lg font-bold flex justify-center items-center gap-2 shadow mt-2 transition"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 立即強制同步</button>
             </div>
           </section>
 
@@ -637,6 +637,75 @@
 
       <!-- ================= 彈窗區塊 ================= -->
       
+      <!-- 新增貸款彈窗 -->
+      <div v-if="showAddLoanModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
+          <h3 class="text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2 text-rose-600"><i data-lucide="building-2" class="w-5 h-5"></i> 新增貸款</h3>
+          <div class="space-y-3 text-sm">
+            <input type="text" v-model="initLoan.name" placeholder="貸款名稱 (如: 台灣銀行學貸)" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            <input type="number" v-model.number="initLoan.principal" placeholder="初始剩餘本金" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            <div class="flex gap-2">
+              <input type="number" step="0.01" v-model.number="initLoan.rate" placeholder="年利率 (%)" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
+              <input type="number" v-model.number="initLoan.payment" placeholder="約定月繳金額" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            </div>
+            <div class="flex gap-2 mt-5">
+              <button @click="showAddLoanModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+              <button @click="submitAddLoan" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-lg font-bold transition shadow-md">確認建立</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 調整利率彈窗 -->
+      <div v-if="showRateModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
+          <h3 class="text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2"><i data-lucide="percent" class="w-5 h-5"></i> 調整利率</h3>
+          <div class="mb-3 text-sm text-slate-500">修改 <span class="font-bold text-slate-800 dark:text-white">{{ activeLoan?.name }}</span> 的年利率</div>
+          <input type="number" step="0.01" v-model.number="rateData.rate" placeholder="新年利率 (%)" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-lg font-bold">
+          <div class="flex gap-2 mt-5">
+            <button @click="showRateModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+            <button @click="submitRateAdjust" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg font-bold transition shadow-md">儲存修改</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 執行繳款拆分彈窗 -->
+      <div v-if="showPayLoanModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
+          <h3 class="text-xl font-bold mb-2 border-b pb-2 flex items-center gap-2 text-rose-600"><i data-lucide="receipt" class="w-5 h-5"></i> 執行貸款繳款</h3>
+          <div class="mb-4 text-sm bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border dark:border-slate-700">
+            <div class="font-bold mb-1 text-base">{{ activeLoan?.name }}</div>
+            <div>繳款前本金: ${{ formatNumber(payLoanData.current_principal) }}</div>
+            <div>適用年利率: {{ activeLoan?.interest_rate }}%</div>
+          </div>
+          <div class="space-y-3">
+            <input type="date" v-model="payLoanData.date" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm font-mono">
+            <div class="flex gap-2">
+              <div class="flex-1">
+                <div class="text-xs text-slate-500 mb-1">當期利息 (自動)</div>
+                <input type="number" v-model.number="payLoanData.interest" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-red-500 font-bold bg-red-50 dark:bg-red-900/20">
+              </div>
+              <div class="flex-1">
+                <div class="text-xs text-slate-500 mb-1">償還本金 (自動)</div>
+                <input type="number" v-model.number="payLoanData.principal" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-green-600 font-bold bg-green-50 dark:bg-green-900/20">
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500 mb-1">約定扣款總額</div>
+              <input type="number" v-model.number="payLoanData.total" @input="recalcLoanSplit" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-lg font-bold">
+            </div>
+            <select v-model="payLoanData.paymentAcc" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm">
+              <option value="" disabled>選擇繳款扣款帳戶</option>
+              <option v-for="acc in paymentAccountsWithBalance" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
+            </select>
+            <div class="flex gap-2 mt-5">
+              <button @click="showPayLoanModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+              <button @click="submitPayLoan" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-lg font-bold shadow-md transition">確認扣款</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 期初股票彈窗 -->
       <div v-if="showInitialStockModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
@@ -709,22 +778,9 @@
             </template>
 
             <div class="flex gap-2 mt-5">
-              <button @click="showDisposalModal = false" class="flex-1 bg-slate-200 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
-              <button @click="submitDisposal" class="flex-1 bg-red-600 text-white p-2 rounded-lg font-bold shadow-md transition">確認執行</button>
+              <button @click="showDisposalModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+              <button @click="submitDisposal" class="flex-1 bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg font-bold shadow-md transition">確認執行</button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 調整利率彈窗 -->
-      <div v-if="showRateModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
-          <h3 class="text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2 text-rose-600"><i data-lucide="percent" class="w-5 h-5"></i> 調整利率</h3>
-          <div class="mb-3 text-sm text-slate-500">修改 <span class="font-bold text-slate-800 dark:text-white">{{ activeLoan?.name }}</span> 的年利率</div>
-          <input type="number" step="0.01" v-model.number="rateData.rate" placeholder="新年利率 (%)" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-lg font-bold">
-          <div class="flex gap-2 mt-5">
-            <button @click="showRateModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
-            <button @click="submitRateAdjust" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg font-bold transition shadow-md">儲存修改</button>
           </div>
         </div>
       </div>
@@ -812,6 +868,7 @@
         const initLoan = reactive({ name: '', principal: null, rate: null, payment: null });
         const activeLoan = ref(null);
         const rateData = reactive({ rate: null });
+        const payLoanData = reactive({ date: '', interest: 0, principal: 0, total: 0, paymentAcc: '', current_principal: 0 });
 
         let tokenClient = null;
 
@@ -829,6 +886,7 @@
               { id: "1101", name: "現金錢包", type: "Asset", is_hidden: false },
               { id: "1102", name: "常用銀行存款", type: "Asset", is_hidden: false },
               { id: "2101", name: "信用卡", type: "Liability", is_hidden: false },
+              // System accounts below
               { id: "1103", name: "股票投資", type: "Asset", is_hidden: false }, { id: "1201", name: "固定資產", type: "Asset", is_hidden: false },
               { id: "1201-DEP", name: "累計折舊", type: "Asset", is_contra: true, is_hidden: false },
               { id: "3101", name: "期初權益", type: "Equity", is_hidden: false }, { id: "4201", name: "處分資產損益", type: "Income", is_hidden: false },
@@ -1038,6 +1096,7 @@
                let monthlyDep = Math.round(newTx.amount / newTx.faMonths);
                if(!data.fixed_assets) data.fixed_assets = [];
                data.fixed_assets.push({ id: 'fa_'+Date.now(), name: newTx.faName||newTx.desc, purchase_date: newTx.date, original_cost: newTx.amount, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: newTx.date });
+               // Capitalize asset
                txObj.debits[0].account_id = '1201';
                txObj.desc = `購入固定資產: ${newTx.faName||newTx.desc}`;
                newTx.isFA = false; newTx.faMonths = 60; newTx.faName = '';
@@ -1082,7 +1141,7 @@
             txObj.loan_id = loan.id;
             txObj.desc = newTx.desc || `貸款還款: ${loan.name}`;
             txObj.debits.push({ account_id: loan.liability_acc_id, amount: preview.principal });
-            txObj.debits.push({ account_id: '5103', amount: preview.interest }); 
+            txObj.debits.push({ account_id: '5103', amount: preview.interest }); // Interest Expense
             txObj.credits.push({ account_id: newTx.paymentAcc, amount: newTx.amount });
           }
 
@@ -1146,6 +1205,7 @@
           data.accounts.push({ id: accId, name: initLoan.name, type: 'Liability', is_hidden: false });
           data.loans.push({ id: 'loan_' + Date.now(), name: initLoan.name, liability_acc_id: accId, interest_rate: initLoan.rate, monthly_payment: initLoan.payment });
           data.transactions.push({ id: 'tx_loan_init_'+Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初貸款本金: ${initLoan.name}`, debits: [{ account_id: '3101', amount: initLoan.principal }], credits: [{ account_id: accId, amount: initLoan.principal }] });
+          showAddLoanModal.value = false;
           initLoan.name = ''; initLoan.principal = null; initLoan.rate = null; initLoan.payment = null;
           autoBackup(); updateCharts(); alert('✅ 貸款建立成功！');
         };
@@ -1313,7 +1373,7 @@
         };
 
         const fetchExchangeRate = async () => { try { const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD'); const fx = await res.json(); if(fx && fx.rates && fx.rates.TWD) fxRate.value = fx.rates.TWD; } catch(e) {} };
-        const loadSettings = () => { try { const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}'); if(s && typeof s === 'object') Object.assign(settings, s); } catch(e) {} if(!settings.appName) settings.appName = '我的複式帳本'; if(!settings.pinEnabled) isUnlocked.value = true; };
+        const loadSettings = () => { try { const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}'); if(s && typeof s === 'object') Object.assign(settings, s); } catch(e) {} if(!settings.appName) settings.appName = '智慧帳本'; if(!settings.pinEnabled) isUnlocked.value = true; };
         const unlockApp = () => { if (pinInput.value === settings.pinCode) { isUnlocked.value = true; initData(); } else { pinError.value = "PIN錯誤"; } };
         const saveSettings = () => { localStorage.setItem('ledger_settings', JSON.stringify(settings)); alert('儲存成功'); if (settings.googleToken && settings.googleClientId) initGoogleAuth(); };
         const exportData = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); a.download = `LedgerBackup_${new Date().toISOString().split('T')[0]}.json`; a.click(); };
@@ -1411,7 +1471,7 @@
           isAppReady, accounts: data.accounts, assetAccounts, paymentAccounts, balanceAccounts, activeInstallments, activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGoogleDrive, handleGoogleAuth, handleGoogleSignout, data, newTx, txError, submitTransaction, deleteTransaction, formatNumber, applyQuickTag, getSubAccounts, netWorth, totalAssets, totalLiabilities, updateStockPrices, hasExpensesThisMonth, exportData, importData, sortedTransactions, filteredTransactions, historyFilter, getTxColorBand, getTxAmountColor, settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, toggleAccountVisibility, deleteAccount, showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, submitFixedAsset, initFA,
           getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getInvestTotalAmount, getInvCurrentValue, getUnrealizedGain, expenseCategories, incomeCategories, currentSettingCategories, safeQuickTags, safeInvestments, safeFixedAssets, accountsWithBalance, getFAAccDep, getFABookValue, disposalAsset, disposalForm, openDisposalModal, submitDisposal, paymentAccountsWithBalance, assetAccountsWithBalance, liquidAccountsWithBalance, liabilityAccountsWithBalance, totalLiquidAssets, newAssetAcc, submitNewAssetAccount,
           showAmounts, expenseMonth, updateCharts, setHistoryToCurrentMonth, getAccumulatedInterest, loanRepayPreview,
-          safeLoans, showAddLoanModal, showRateModal, showPayLoanModal, showResetModal, initLoan, activeLoan, rateData, payLoanData, submitAddLoan, openRateModal, submitRateAdjust, openPayLoanModal, recalcLoanSplit, submitPayLoan, executeFactoryReset, calculateBalance, showAddFixedAssetModal
+          safeLoans, showAddLoanModal, showRateModal, showPayLoanModal, showResetModal, initLoan, activeLoan, rateData, payLoanData, submitAddLoan, openRateModal, submitRateAdjust, openPayLoanModal, recalcLoanSplit, submitPayLoan, executeFactoryReset, calculateBalance
         };
       }
     });
