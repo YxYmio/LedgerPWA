@@ -3,11 +3,36 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>LedgerPWA 專業版</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2382/2382533.png">
-  <meta name="theme-color" content="#0f172a">
+  <title>智慧帳本 - 資產與記帳管理</title>
   
+  <!-- 全新設計：高質感 FinTech 向量圖示與 Apple Touch Icon (Data URI SVG) -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231e293b'/%3E%3Cstop offset='100%25' stop-color='%230f172a'/%3E%3C/linearGradient%3E%3ClinearGradient id='gold' x1='0%25' y1='0%25' x2='100%25' y2='0%25'%3E%3Cstop offset='0%25' stop-color='%23fbbf24'/%3E%3Cstop offset='100%25' stop-color='%23d97706'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='118' fill='url(%23bg)'/%3E%3Cpath d='M96 360 L192 260 L272 320 L416 160' fill='none' stroke='url(%23gold)' stroke-width='36' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='416' cy='160' r='24' fill='%23fbbf24'/%3E%3Cpath d='M110 390 H402' stroke='%23334155' stroke-width='16' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231e293b'/%3E%3Cstop offset='100%25' stop-color='%230f172a'/%3E%3C/linearGradient%3E%3ClinearGradient id='gold' x1='0%25' y1='0%25' x2='100%25' y2='0%25'%3E%3Cstop offset='0%25' stop-color='%23fbbf24'/%3E%3Cstop offset='100%25' stop-color='%23d97706'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='118' fill='url(%23bg)'/%3E%3Cpath d='M96 360 L192 260 L272 320 L416 160' fill='none' stroke='url(%23gold)' stroke-width='36' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='416' cy='160' r='24' fill='%23fbbf24'/%3E%3Cpath d='M110 390 H402' stroke='%23334155' stroke-width='16' stroke-linecap='round'/%3E%3C/svg%3E">
+
+  <!-- PWA Manifest 動態生成 -->
+  <script>
+    const manifestData = {
+      "name": "智慧帳本 - 資產與記帳管理",
+      "short_name": "智慧帳本",
+      "start_url": "./index.html",
+      "display": "standalone",
+      "background_color": "#F8FAFC",
+      "theme_color": "#1E293B",
+      "icons": [{
+        "src": document.querySelector("link[rel*='icon']").href,
+        "sizes": "512x512",
+        "type": "image/svg+xml"
+      }]
+    };
+    const stringManifest = JSON.stringify(manifestData);
+    const blob = new Blob([stringManifest], {type: 'application/json'});
+    const manifestURL = URL.createObjectURL(blob);
+    const manifestTag = document.createElement('link');
+    manifestTag.rel = 'manifest';
+    manifestTag.href = manifestURL;
+    document.head.appendChild(manifestTag);
+  </script>
+
   <style>
     ::-webkit-scrollbar { width: 0px; background: transparent; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
@@ -37,22 +62,13 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   
-  <!-- 雙重備援 Vue 載入 -->
+  <!-- Vue 3 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
   <script>
     if (typeof Vue === 'undefined') {
       document.write('<script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"><\/script>');
     }
-  </script>
-  
-  <script>
     tailwind.config = { darkMode: 'class' };
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for(let r of registrations) { r.unregister(); }
-      });
-      window.addEventListener('load', function() { navigator.serviceWorker.register('./sw.js?v=' + new Date().getTime()); });
-    }
   </script>
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 select-none">
@@ -91,7 +107,7 @@
       <!-- 頂部導航 -->
       <header class="p-4 bg-blue-600 text-white flex justify-between items-center sticky top-0 z-40 shadow-md">
         <h1 class="text-xl font-bold flex items-center gap-2 truncate">
-          <i data-lucide="book-open" class="flex-shrink-0"></i> {{ settings?.appName ?? '我的複式帳本' }}
+          <i data-lucide="book-open" class="flex-shrink-0"></i> {{ settings?.appName ?? '智慧帳本' }}
         </h1>
         <div class="flex gap-4 flex-shrink-0 items-center">
           <button @click="syncWithGoogleDrive(true)" title="強制同步至 Google Drive" class="relative">
@@ -207,8 +223,8 @@
                     <label for="isFA" class="text-sm font-bold select-none cursor-pointer block mb-1">登錄為固定資產/開啟折舊</label>
                     <div v-if="newTx.isFA" class="space-y-2 mt-2 bg-slate-50 dark:bg-slate-900 p-2 rounded-lg">
                       <div class="flex gap-2">
-                        <input type="text" v-model="newTx.faName" placeholder="資產名稱" class="border p-2 rounded-lg text-sm w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none">
-                        <input type="number" v-model.number="newTx.faMonths" placeholder="折舊月數" class="border p-2 rounded-lg text-sm w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none">
+                        <input type="text" v-model="newTx.faName" placeholder="資產名稱" class="border p-2 rounded text-sm w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none">
+                        <input type="number" v-model.number="newTx.faMonths" placeholder="折舊月數" class="border p-2 rounded text-sm w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none">
                       </div>
                       <div class="flex flex-wrap gap-1.5 mt-1">
                         <span @click="newTx.faMonths=36; newTx.faName='手機'" class="text-[10px] bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded-md cursor-pointer hover:bg-blue-200 transition font-bold text-slate-700 dark:text-slate-300">3C/手機(36月)</span>
@@ -455,6 +471,8 @@
 
           <!-- 固定資產與除列 -->
           <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2 text-teal-700 dark:text-teal-400"><i data-lucide="monitor" class="w-5 h-5"></i> 固定資產與除列</h2>
+          <button @click="showAddFixedAssetModal = true" class="w-full mt-2 text-sm border border-dashed border-slate-400 text-slate-500 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition font-bold">+ 登錄新固定資產</button>
+          
           <div v-if="safeFixedAssets.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-6 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
             <i data-lucide="monitor" class="w-8 h-8 mb-2 opacity-30"></i> 目前無固定資產
           </div>
@@ -472,7 +490,7 @@
 
         </div>
 
-        <!-- ================= 5. 設定 Tab (Settings) ================= -->
+        <!-- ================= 5. 設定 Tab ================= -->
         <div v-show="activeTab === 'settings'" class="space-y-8">
           
           <section>
@@ -535,7 +553,6 @@
                 <button v-if="!settings.googleToken" @click="handleGoogleAuth" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition">Google 登入</button>
                 <button v-if="settings.googleToken" @click="handleGoogleSignout" class="bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg font-bold text-sm transition">登出</button>
               </div>
-              <button v-if="settings.googleToken" @click="syncWithGoogleDrive(true)" class="w-full bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-lg font-bold flex justify-center items-center gap-2 shadow mt-2 transition"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 立即強制同步</button>
             </div>
           </section>
 
@@ -620,75 +637,6 @@
 
       <!-- ================= 彈窗區塊 ================= -->
       
-      <!-- 新增貸款彈窗 -->
-      <div v-if="showAddLoanModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
-          <h3 class="text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2 text-rose-600"><i data-lucide="building-2" class="w-5 h-5"></i> 新增貸款</h3>
-          <div class="space-y-3 text-sm">
-            <input type="text" v-model="initLoan.name" placeholder="貸款名稱 (如: 台灣銀行學貸)" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
-            <input type="number" v-model.number="initLoan.principal" placeholder="初始剩餘本金" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
-            <div class="flex gap-2">
-              <input type="number" step="0.01" v-model.number="initLoan.rate" placeholder="年利率 (%)" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
-              <input type="number" v-model.number="initLoan.payment" placeholder="約定月繳金額" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
-            </div>
-            <div class="flex gap-2 mt-5">
-              <button @click="showAddLoanModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
-              <button @click="submitAddLoan" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-lg font-bold transition shadow-md">確認建立</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 調整利率彈窗 -->
-      <div v-if="showRateModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
-          <h3 class="text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2"><i data-lucide="percent" class="w-5 h-5"></i> 調整利率</h3>
-          <div class="mb-3 text-sm text-slate-500">修改 <span class="font-bold text-slate-800 dark:text-white">{{ activeLoan?.name }}</span> 的年利率</div>
-          <input type="number" step="0.01" v-model.number="rateData.rate" placeholder="新年利率 (%)" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-lg font-bold">
-          <div class="flex gap-2 mt-5">
-            <button @click="showRateModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
-            <button @click="submitRateAdjust" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg font-bold transition shadow-md">儲存修改</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 執行繳款拆分彈窗 -->
-      <div v-if="showPayLoanModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
-          <h3 class="text-xl font-bold mb-2 border-b pb-2 flex items-center gap-2 text-rose-600"><i data-lucide="receipt" class="w-5 h-5"></i> 執行貸款繳款</h3>
-          <div class="mb-4 text-sm bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border dark:border-slate-700">
-            <div class="font-bold mb-1 text-base">{{ activeLoan?.name }}</div>
-            <div>繳款前本金: ${{ formatNumber(payLoanData.current_principal) }}</div>
-            <div>適用年利率: {{ activeLoan?.interest_rate }}%</div>
-          </div>
-          <div class="space-y-3">
-            <input type="date" v-model="payLoanData.date" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm font-mono">
-            <div class="flex gap-2">
-              <div class="flex-1">
-                <div class="text-xs text-slate-500 mb-1">當期利息 (自動)</div>
-                <input type="number" v-model.number="payLoanData.interest" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-red-500 font-bold bg-red-50 dark:bg-red-900/20">
-              </div>
-              <div class="flex-1">
-                <div class="text-xs text-slate-500 mb-1">償還本金 (自動)</div>
-                <input type="number" v-model.number="payLoanData.principal" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-green-600 font-bold bg-green-50 dark:bg-green-900/20">
-              </div>
-            </div>
-            <div>
-              <div class="text-xs text-slate-500 mb-1">約定扣款總額</div>
-              <input type="number" v-model.number="payLoanData.total" @input="recalcLoanSplit" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-lg font-bold">
-            </div>
-            <select v-model="payLoanData.paymentAcc" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm">
-              <option value="" disabled>選擇繳款扣款帳戶</option>
-              <option v-for="acc in paymentAccountsWithBalance" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
-            </select>
-            <div class="flex gap-2 mt-5">
-              <button @click="showPayLoanModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
-              <button @click="submitPayLoan" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-lg font-bold shadow-md transition">確認扣款</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- 期初股票彈窗 -->
       <div v-if="showInitialStockModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
@@ -761,9 +709,22 @@
             </template>
 
             <div class="flex gap-2 mt-5">
-              <button @click="showDisposalModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
-              <button @click="submitDisposal" class="flex-1 bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg font-bold shadow-md transition">確認執行</button>
+              <button @click="showDisposalModal = false" class="flex-1 bg-slate-200 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+              <button @click="submitDisposal" class="flex-1 bg-red-600 text-white p-2 rounded-lg font-bold shadow-md transition">確認執行</button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 調整利率彈窗 -->
+      <div v-if="showRateModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
+          <h3 class="text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2 text-rose-600"><i data-lucide="percent" class="w-5 h-5"></i> 調整利率</h3>
+          <div class="mb-3 text-sm text-slate-500">修改 <span class="font-bold text-slate-800 dark:text-white">{{ activeLoan?.name }}</span> 的年利率</div>
+          <input type="number" step="0.01" v-model.number="rateData.rate" placeholder="新年利率 (%)" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-lg font-bold">
+          <div class="flex gap-2 mt-5">
+            <button @click="showRateModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+            <button @click="submitRateAdjust" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg font-bold transition shadow-md">儲存修改</button>
           </div>
         </div>
       </div>
@@ -782,7 +743,7 @@
         </div>
       </div>
 
-      <!-- 底部導覽列 (徹底修復點擊高亮) -->
+      <!-- 底部導覽列 -->
       <nav class="fixed bottom-0 w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-1 py-1.5 z-40 shadow-[0_-5px_15px_rgba(0,0,0,0.03)] pb-[calc(env(safe-area-inset-bottom)+6px)]">
         <button @click="activeTab='dashboard'" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="layout-dashboard" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">總覽</span></button>
         <button @click="activeTab='entry'" :class="activeTab==='entry' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="edit-3" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">記帳</span></button>
@@ -851,7 +812,6 @@
         const initLoan = reactive({ name: '', principal: null, rate: null, payment: null });
         const activeLoan = ref(null);
         const rateData = reactive({ rate: null });
-        const payLoanData = reactive({ date: '', interest: 0, principal: 0, total: 0, paymentAcc: '', current_principal: 0 });
 
         let tokenClient = null;
 
@@ -869,7 +829,6 @@
               { id: "1101", name: "現金錢包", type: "Asset", is_hidden: false },
               { id: "1102", name: "常用銀行存款", type: "Asset", is_hidden: false },
               { id: "2101", name: "信用卡", type: "Liability", is_hidden: false },
-              // System accounts below
               { id: "1103", name: "股票投資", type: "Asset", is_hidden: false }, { id: "1201", name: "固定資產", type: "Asset", is_hidden: false },
               { id: "1201-DEP", name: "累計折舊", type: "Asset", is_contra: true, is_hidden: false },
               { id: "3101", name: "期初權益", type: "Equity", is_hidden: false }, { id: "4201", name: "處分資產損益", type: "Income", is_hidden: false },
@@ -1067,8 +1026,8 @@
             if (newTx.isInst && newTx.periods > 1) {
               let perAmt = Math.round(newTx.amount / newTx.periods);
               if(!data.installments) data.installments = [];
-              let nextM = newTx.date.length >= 7 ? newTx.date.substring(0,7) : new Date().toISOString().substring(0,7);
-              let nextD = newTx.date.length >= 10 ? newTx.date.substring(8,10) : '01';
+              let nextM = newTx.date && newTx.date.length >= 7 ? newTx.date.substring(0,7) : new Date().toISOString().substring(0,7);
+              let nextD = newTx.date && newTx.date.length >= 10 ? newTx.date.substring(8,10) : '01';
               data.installments.push({ id: 'inst_'+Date.now(), desc: newTx.desc||'無摘要', total_amount: newTx.amount, periods: newTx.periods, amount_per_period: perAmt, paid_periods: 0, next_month: nextM, date_day: nextD, debit_acc: newTx.subAccount, credit_acc: newTx.paymentAcc, scope: newTx.scope });
               runAutoTasks(); newTx.amount = null; newTx.desc = ''; newTx.isInst = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 分期建立成功！'); return;
             } else {
@@ -1079,7 +1038,6 @@
                let monthlyDep = Math.round(newTx.amount / newTx.faMonths);
                if(!data.fixed_assets) data.fixed_assets = [];
                data.fixed_assets.push({ id: 'fa_'+Date.now(), name: newTx.faName||newTx.desc, purchase_date: newTx.date, original_cost: newTx.amount, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: newTx.date });
-               // Capitalize asset
                txObj.debits[0].account_id = '1201';
                txObj.desc = `購入固定資產: ${newTx.faName||newTx.desc}`;
                newTx.isFA = false; newTx.faMonths = 60; newTx.faName = '';
@@ -1124,7 +1082,7 @@
             txObj.loan_id = loan.id;
             txObj.desc = newTx.desc || `貸款還款: ${loan.name}`;
             txObj.debits.push({ account_id: loan.liability_acc_id, amount: preview.principal });
-            txObj.debits.push({ account_id: '5103', amount: preview.interest }); // Interest Expense
+            txObj.debits.push({ account_id: '5103', amount: preview.interest }); 
             txObj.credits.push({ account_id: newTx.paymentAcc, amount: newTx.amount });
           }
 
@@ -1194,6 +1152,33 @@
 
         const openRateModal = (loan) => { activeLoan.value = loan; rateData.rate = loan.interest_rate; showRateModal.value = true; };
         const submitRateAdjust = () => { if(!rateData.rate) return alert("請輸入利率"); activeLoan.value.interest_rate = rateData.rate; showRateModal.value = false; autoBackup(); alert('✅ 利率修改成功！'); };
+
+        const openPayLoanModal = (loan) => {
+          activeLoan.value = loan;
+          payLoanData.current_principal = Math.abs(calculateBalance(loan.liability_acc_id));
+          payLoanData.date = new Date().toISOString().split('T')[0];
+          payLoanData.total = loan.monthly_payment;
+          payLoanData.paymentAcc = '';
+          recalcLoanSplit();
+          showPayLoanModal.value = true;
+        };
+
+        const recalcLoanSplit = () => {
+          if(!activeLoan.value) return;
+          payLoanData.interest = Math.round(payLoanData.current_principal * (activeLoan.value.interest_rate / 100 / 12));
+          payLoanData.principal = (payLoanData.total || 0) - payLoanData.interest;
+          if (payLoanData.principal > payLoanData.current_principal) {
+             payLoanData.principal = payLoanData.current_principal;
+             payLoanData.total = payLoanData.principal + payLoanData.interest;
+          }
+        };
+
+        const submitPayLoan = () => {
+          if(!payLoanData.paymentAcc || !payLoanData.total || !payLoanData.date) return alert("請選擇扣款帳戶與日期");
+          if(!data.transactions) data.transactions = [];
+          data.transactions.push({ id: 'tx_loan_pay_'+Date.now(), date: payLoanData.date, scope: 'personal', desc: `貸款繳款: ${activeLoan.value.name}`, debits: [{ account_id: activeLoan.value.liability_acc_id, amount: payLoanData.principal }, { account_id: '5103', amount: payLoanData.interest }], credits: [{ account_id: payLoanData.paymentAcc, amount: payLoanData.total }] });
+          showPayLoanModal.value = false; autoBackup(); updateCharts(); alert('✅ 繳款成功！');
+        };
 
         const addMainCategory = () => { let list = data.main_categories[settingCategoryMode.value] || []; if (newMainCat.value && !list.includes(newMainCat.value)) { data.main_categories[settingCategoryMode.value].push(newMainCat.value); newMainCat.value = ''; autoBackup(); } };
         const deleteMainCategory = (type, name) => { if(getSubAccounts(type, name, true).length > 0) return alert("請先清空子類別"); data.main_categories[type] = (data.main_categories[type] || []).filter(c => c !== name); autoBackup(); };
@@ -1423,10 +1408,10 @@
         const currentSettingCategories = computed(() => (data.main_categories && data.main_categories[settingCategoryMode.value]) ? data.main_categories[settingCategoryMode.value] : []);
 
         return { 
-          isAppReady, accounts: data.accounts, assetAccounts, paymentAccounts, balanceAccounts, activeInstallments, activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGoogleDrive, handleGoogleAuth, handleGoogleSignout, data, newTx, txError, submitTransaction, deleteTransaction, formatNumber, applyQuickTag, getSubAccounts, netWorth, totalAssets, totalLiabilities, updateStockPrices, hasExpensesThisMonth, exportData, importData, sortedTransactions, filteredTransactions, historyFilter, getTxColorBand, getTxAmountColor, settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, toggleAccountVisibility, deleteAccount, showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, initFA, submitFixedAsset,
+          isAppReady, accounts: data.accounts, assetAccounts, paymentAccounts, balanceAccounts, activeInstallments, activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGoogleDrive, handleGoogleAuth, handleGoogleSignout, data, newTx, txError, submitTransaction, deleteTransaction, formatNumber, applyQuickTag, getSubAccounts, netWorth, totalAssets, totalLiabilities, updateStockPrices, hasExpensesThisMonth, exportData, importData, sortedTransactions, filteredTransactions, historyFilter, getTxColorBand, getTxAmountColor, settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, toggleAccountVisibility, deleteAccount, showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, submitFixedAsset, initFA,
           getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getInvestTotalAmount, getInvCurrentValue, getUnrealizedGain, expenseCategories, incomeCategories, currentSettingCategories, safeQuickTags, safeInvestments, safeFixedAssets, accountsWithBalance, getFAAccDep, getFABookValue, disposalAsset, disposalForm, openDisposalModal, submitDisposal, paymentAccountsWithBalance, assetAccountsWithBalance, liquidAccountsWithBalance, liabilityAccountsWithBalance, totalLiquidAssets, newAssetAcc, submitNewAssetAccount,
           showAmounts, expenseMonth, updateCharts, setHistoryToCurrentMonth, getAccumulatedInterest, loanRepayPreview,
-          safeLoans, showAddLoanModal, showRateModal, initLoan, activeLoan, rateData, submitAddLoan, openRateModal, submitRateAdjust, executeFactoryReset, showResetModal, showPayLoanModal, payLoanData, openPayLoanModal, recalcLoanSplit, submitPayLoan, calculateBalance
+          safeLoans, showAddLoanModal, showRateModal, showPayLoanModal, showResetModal, initLoan, activeLoan, rateData, payLoanData, submitAddLoan, openRateModal, submitRateAdjust, openPayLoanModal, recalcLoanSplit, submitPayLoan, executeFactoryReset, calculateBalance, showAddFixedAssetModal
         };
       }
     });
