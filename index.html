@@ -211,6 +211,7 @@
                         <span @click="newTx.faMonths=36; newTx.faName='手機'" class="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded cursor-pointer hover:bg-blue-100 transition">3C/手機(36月)</span>
                         <span @click="newTx.faMonths=60; newTx.faName='家電'" class="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded cursor-pointer hover:bg-blue-100 transition">家電/電視(60月)</span>
                         <span @click="newTx.faMonths=60; newTx.faName='汽車'" class="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded cursor-pointer hover:bg-blue-100 transition">汽車(60月)</span>
+                        <span @click="newTx.faMonths=36; newTx.faName='機車'" class="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded cursor-pointer hover:bg-blue-100 transition">機車(36月)</span>
                       </div>
                       <div v-if="newTx.amount && newTx.faMonths" class="text-xs text-blue-600 dark:text-blue-400 font-bold">自動試算：每月折舊 ${{ formatNumber(Math.round(newTx.amount / newTx.faMonths)) }}</div>
                     </div>
@@ -338,7 +339,7 @@
           </div>
         </div>
 
-        <!-- ================= 4. 資產 Tab ================= -->
+        <!-- ================= 4. 資產 Tab (Assets) ================= -->
         <div v-show="activeTab === 'assets'" class="space-y-6">
           
           <!-- 帳戶現況總覽 -->
@@ -448,6 +449,27 @@
             </div>
           </section>
 
+          <!-- Google Drive 同步設定 -->
+          <section>
+            <h2 class="text-lg font-bold border-b pb-2 mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2"><i data-lucide="cloud" class="w-5 h-5"></i> 雲端同步 (Google Drive)</h2>
+            <div class="space-y-3 bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm">
+              <div class="text-xs text-slate-500">請輸入 Google Client ID 開啟自動備份與多裝置同步。</div>
+              <input type="text" v-model="settings.googleClientId" @change="saveSettings" placeholder="Client ID (xxx.apps.googleusercontent.com)" class="w-full border p-2 rounded-lg dark:bg-slate-900 outline-none text-sm font-mono">
+              
+              <div class="flex items-center gap-2 mt-4 pt-4 border-t dark:border-slate-700">
+                <div class="flex-1">
+                  <div class="text-sm font-bold flex items-center gap-1" :class="settings.googleToken ? 'text-green-600' : 'text-slate-500'">
+                    <i :data-lucide="settings.googleToken ? 'check-circle' : 'x-circle'" class="w-4 h-4"></i> 
+                    {{ settings.googleToken ? '已連結' : '未授權' }}
+                  </div>
+                </div>
+                <button v-if="!settings.googleToken" @click="handleGoogleAuth" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition">使用 Google 登入</button>
+                <button v-if="settings.googleToken" @click="handleGoogleSignout" class="bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg font-bold text-sm transition">登出</button>
+              </div>
+              <button v-if="settings.googleToken" @click="syncWithGoogleDrive(true)" class="w-full bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-lg font-bold flex justify-center items-center gap-2 shadow mt-2 transition"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 立即強制同步</button>
+            </div>
+          </section>
+
           <!-- 會計科目與常用標籤 -->
           <section>
             <h2 class="text-lg font-bold border-b pb-2 mb-3 text-blue-600 dark:text-blue-400 flex justify-between items-center">
@@ -498,26 +520,6 @@
               <span v-for="(p, idx) in safeQuickTags" :key="idx" class="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-1 shadow-sm">
                 {{ p }} <button @click="removePreset(idx)" class="hover:text-red-600 font-bold ml-1 rounded-full bg-white dark:bg-slate-800 p-0.5 transition"><i data-lucide="x" class="w-3 h-3"></i></button>
               </span>
-            </div>
-          </section>
-
-          <!-- Google Drive 同步設定 -->
-          <section>
-            <h2 class="text-lg font-bold border-b pb-2 mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2"><i data-lucide="cloud" class="w-5 h-5"></i> 雲端同步 (Google Drive)</h2>
-            <div class="space-y-3 bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm">
-              <div class="text-xs text-slate-500">輸入 Google Client ID 以開啟自動備份與多裝置同步。</div>
-              <input type="text" v-model="settings.googleClientId" @change="saveSettings" placeholder="Client ID (xxx.apps.googleusercontent.com)" class="w-full border p-2 rounded-lg dark:bg-slate-900 outline-none text-sm font-mono">
-              
-              <div class="flex items-center gap-2 mt-4 pt-4 border-t dark:border-slate-700">
-                <div class="flex-1">
-                  <div class="text-sm font-bold flex items-center gap-1" :class="settings.googleToken ? 'text-green-600' : 'text-slate-500'">
-                    <i :data-lucide="settings.googleToken ? 'check-circle' : 'x-circle'" class="w-4 h-4"></i> 
-                    {{ settings.googleToken ? '已連結' : '未授權' }}
-                  </div>
-                </div>
-                <button v-if="!settings.googleToken" @click="handleGoogleAuth" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition">Google 登入</button>
-                <button v-if="settings.googleToken" @click="handleGoogleSignout" class="bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg font-bold text-sm transition">登出</button>
-              </div>
             </div>
           </section>
 
@@ -637,6 +639,25 @@
         </div>
       </div>
 
+      <!-- 新增固定資產彈窗 -->
+      <div v-if="showAddFixedAssetModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
+          <h3 class="text-xl font-bold mb-4 border-b pb-2">登錄新固定資產</h3>
+          <div class="space-y-3 text-sm">
+            <input type="text" v-model="initFA.name" placeholder="設備名稱" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            <input type="date" v-model="initFA.date" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            <div class="flex gap-2">
+              <input type="number" v-model.number="initFA.cost" placeholder="購入原價" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
+              <input type="number" v-model.number="initFA.months" placeholder="折舊月數" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            </div>
+            <div class="flex gap-2 mt-5">
+              <button @click="showAddFixedAssetModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+              <button @click="submitFixedAsset" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg font-bold transition shadow-md">確認登錄</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 處分固定資產彈窗 -->
       <div v-if="showDisposalModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
@@ -652,6 +673,7 @@
               <button @click="disposalForm.type = 'scrap'" :class="disposalForm.type==='scrap' ? 'bg-white dark:bg-slate-800 shadow text-red-600 font-bold' : 'text-slate-500'" class="flex-1 py-1.5 rounded-md text-sm transition">純報廢</button>
               <button @click="disposalForm.type = 'sell'" :class="disposalForm.type==='sell' ? 'bg-white dark:bg-slate-800 shadow text-green-600 font-bold' : 'text-slate-500'" class="flex-1 py-1.5 rounded-md text-sm transition">二手出售</button>
             </div>
+            
             <template v-if="disposalForm.type === 'sell'">
               <input type="number" v-model.number="disposalForm.price" placeholder="出售取得金額" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none font-bold text-lg">
               <select v-model="disposalForm.account" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm">
@@ -662,9 +684,13 @@
                 試算損益: ${{ formatNumber((disposalForm.price||0) - getFABookValue(disposalAsset)) }}
               </div>
             </template>
+            
             <template v-if="disposalForm.type === 'scrap'">
-              <div class="text-sm text-red-500 font-bold text-center bg-red-50 dark:bg-red-900/20 p-2 rounded">將認列處分損失: ${{ formatNumber(getFABookValue(disposalAsset)) }}</div>
+              <div class="text-sm text-red-500 font-bold text-center bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                將認列處分損失: ${{ formatNumber(getFABookValue(disposalAsset)) }}
+              </div>
             </template>
+
             <div class="flex gap-2 mt-5">
               <button @click="showDisposalModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
               <button @click="submitDisposal" class="flex-1 bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg font-bold shadow-md transition">確認執行</button>
@@ -687,13 +713,13 @@
         </div>
       </div>
 
-      <!-- 底部導覽列 -->
+      <!-- 底部導覽列 (徹底修復點擊高亮) -->
       <nav class="fixed bottom-0 w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-1 py-1.5 z-40 shadow-[0_-5px_15px_rgba(0,0,0,0.03)] pb-[calc(env(safe-area-inset-bottom)+6px)]">
-        <button @click="activeTab='dashboard'" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center p-1.5 transition"><i data-lucide="layout-dashboard" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">總覽</span></button>
-        <button @click="activeTab='entry'" :class="activeTab==='entry' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center p-1.5 transition"><i data-lucide="edit-3" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">記帳</span></button>
-        <button @click="activeTab='history'" :class="activeTab==='history' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center p-1.5 transition"><i data-lucide="list" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">明細</span></button>
-        <button @click="activeTab='assets'" :class="activeTab==='assets' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center p-1.5 transition"><i data-lucide="wallet" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">資產</span></button>
-        <button @click="activeTab='settings'" :class="activeTab==='settings' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center p-1.5 transition"><i data-lucide="settings" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">設定</span></button>
+        <button @click="activeTab='dashboard'" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="layout-dashboard" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">總覽</span></button>
+        <button @click="activeTab='entry'" :class="activeTab==='entry' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="edit-3" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">記帳</span></button>
+        <button @click="activeTab='history'" :class="activeTab==='history' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="list" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">明細</span></button>
+        <button @click="activeTab='assets'" :class="activeTab==='assets' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="wallet" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">資產</span></button>
+        <button @click="activeTab='settings'" :class="activeTab==='settings' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="settings" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">設定</span></button>
       </nav>
     </div>
   </div>
@@ -754,7 +780,7 @@
 
         let tokenClient = null;
 
-        // ================= 強制資料結構還原防呆 =================
+        // ================= 強制向下相容資料遷移 =================
         const migrateLegacyData = () => {
           if(!data.transactions) data.transactions = [];
           if(!data.investments) data.investments = [];
@@ -993,7 +1019,16 @@
           showInitialStockModal.value = false; initStock.symbol = ''; initStock.name = ''; initStock.shares = null; initStock.cost = null; autoBackup(); updateCharts();
         };
 
-        // Fixed Asset Disposal Logic
+        const submitFixedAsset = () => {
+          if(!initFA.name || !initFA.cost || !initFA.months) return alert("請填寫完整");
+          if(!data.fixed_assets) data.fixed_assets = []; if(!data.transactions) data.transactions = [];
+          let monthlyDep = Math.round(initFA.cost / initFA.months);
+          data.fixed_assets.push({ id: 'fa_'+Date.now(), name: initFA.name, purchase_date: initFA.date, original_cost: initFA.cost, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: null, is_disposed: false });
+          data.transactions.push({ id: 'tx_fa_'+Date.now(), date: initFA.date, scope: 'family', desc: `購入固定資產 ${initFA.name}`, debits: [{ account_id: '1201', amount: initFA.cost }], credits: [{ account_id: '3101', amount: initFA.cost }] });
+          showAddFixedAssetModal.value = false; initFA.name = ''; initFA.cost = null; initFA.months = 60; autoBackup(); updateCharts(); alert('✅ 固定資產登錄成功！');
+        };
+
+        // Disposal Logic
         const openDisposalModal = (fa) => { disposalAsset.value = fa; disposalForm.type = 'scrap'; disposalForm.price = null; disposalForm.account = ''; showDisposalModal.value = true; };
         const submitDisposal = () => {
           if (disposalForm.type === 'sell' && (disposalForm.price === null || !disposalForm.account)) return alert("請填寫出售金額與入帳帳戶");
@@ -1163,20 +1198,14 @@
         };
 
         const executeFactoryReset = async () => {
-          // 清空所有陣列
           data.transactions = []; data.accounts = []; data.fixed_assets = []; data.investments = []; data.installments = []; data.loans = []; data.quick_tags = []; data.smart_tags = {}; data.main_categories = { Expense: [], Income: [] };
-          // 重建預設帳戶
           migrateLegacyData();
-          
-          // 如果有綁定 Google Drive，同步上傳清空的狀態
           if (settings.googleToken && settings.fileId && typeof gapi !== 'undefined') {
              try {
                 let content = JSON.stringify(data);
                 await fetch(`https://www.googleapis.com/upload/drive/v3/files/${settings.fileId}?uploadType=media`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${settings.googleToken}`, 'Content-Type': 'application/json' }, body: content });
              } catch(e) { console.error("GDrive Reset Failed", e); }
           }
-          
-          // 清除本地儲存並強制重整
           localStorage.removeItem('ledger_backup');
           window.location.reload(true);
         };
