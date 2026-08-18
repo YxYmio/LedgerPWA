@@ -8,39 +8,46 @@
   <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2382/2382533.png">
   <meta name="theme-color" content="#1e293b">
   
+  <!-- 防閃爍樣式 -->
   <style>
-    /* 防閃爍遮罩，確保 Vue 載入完成前畫面乾淨 */
     [v-cloak] { display: none !important; }
   </style>
 
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- 改用全局穩定版 Vue 3，避免 ES Module 載入阻擋問題 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  
   <script>
     tailwind.config = { darkMode: 'class' }
   </script>
   
+  <!-- PWA 強制更新機制：打破舊快取死循環 -->
   <script>
     if ('serviceWorker' in navigator) {
+      // 1. 強制解除安裝舊的 Service Worker
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister();
+        }
+      });
+      // 2. 重新註冊加上隨機碼，逼迫瀏覽器抓取最新版
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(err => {
-          console.log('Service Worker 註冊失敗:', err);
-        });
+        navigator.serviceWorker.register('./sw.js?v=' + new Date().getTime());
       });
     }
   </script>
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 select-none">
   
-  <!-- 系統崩潰時的備用錯誤畫面 -->
-  <div id="fallback-error" style="display: none; padding: 20px; text-align: center; color: #ef4444; margin-top: 20vh;">
-    <h2 style="font-size: 1.5rem; font-weight: bold;">系統載入失敗</h2>
-    <p style="margin-top: 10px;">如果畫面持續卡在這裡，請清除瀏覽器快取後重新整理。</p>
-  </div>
-
+  <!-- 加入 v-cloak，確保 Vue 編譯完成前不顯示任何殘影破圖 -->
   <div id="app" class="max-w-md mx-auto min-h-screen bg-white dark:bg-slate-800 shadow-xl relative pb-20" v-cloak>
     
-    <!-- 畫面防窺 -->
+    <!-- 畫面防窺 (PIN 碼解鎖) -->
     <div v-if="settings.pinEnabled && !isUnlocked" class="fixed inset-0 z-[999] bg-slate-900 flex flex-col items-center justify-center p-6 text-white">
       <i data-lucide="lock" class="w-16 h-16 mb-4 text-blue-500"></i>
       <h2 class="text-2xl font-bold mb-6">輸入 PIN 碼解鎖</h2>
@@ -65,17 +72,19 @@
       </div>
     </header>
 
+    <!-- 內容區域 -->
     <main class="p-4">
       
-      <!-- 未綁定 Banner -->
+      <!-- 未綁定 Banner 提示 -->
       <div v-if="!settings.githubToken" @click="activeTab = 'settings'" class="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded-lg mb-4 flex items-center cursor-pointer hover:bg-yellow-100 transition shadow-sm dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-300">
         <i data-lucide="alert-triangle" class="w-5 h-5 mr-2 flex-shrink-0"></i>
-        <span class="text-xs font-bold">目前為單機模式（資料存於本地）。點此前往設定 GitHub Token 以開啟雲端同步</span>
+        <span class="text-xs font-bold">目前為單機模式（資料存於本地）。點此開啟雲端同步</span>
       </div>
 
-      <!-- 1. 總覽 Tab -->
+      <!-- ================= 1. 總覽 Tab ================= -->
       <div v-show="activeTab === 'dashboard'" class="space-y-6">
         
+        <!-- 淨資產卡片 (防窺開關) -->
         <div class="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg relative">
           <button @click="showAmounts = !showAmounts" class="absolute top-4 right-4 p-1 hover:bg-white/20 rounded-full transition">
             <i :data-lucide="showAmounts ? 'eye' : 'eye-off'" class="w-5 h-5"></i>
@@ -112,7 +121,7 @@
         </div>
       </div>
 
-      <!-- 2. 記帳 Tab -->
+      <!-- ================= 2. 記帳 Tab ================= -->
       <div v-show="activeTab === 'entry'" class="space-y-4">
         
         <div class="flex bg-slate-200 dark:bg-slate-700 rounded-lg p-1">
@@ -138,7 +147,8 @@
             </button>
           </div>
 
-          <template v-if="entryMode === 'expense'">
+          <!-- 支出模式表單 -->
+          <div v-if="entryMode === 'expense'" class="space-y-3">
             <div class="flex gap-2">
               <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>主類別</option>
@@ -158,9 +168,10 @@
               <label for="isInst" class="text-sm font-bold select-none cursor-pointer">啟用分期付款</label>
               <input v-if="newTx.isInst" type="number" v-model.number="newTx.periods" placeholder="期數" class="border rounded p-1 w-16 text-center text-sm dark:bg-slate-700 dark:border-slate-600 outline-none ml-auto">
             </div>
-          </template>
+          </div>
 
-          <template v-if="entryMode === 'income'">
+          <!-- 收入模式表單 -->
+          <div v-if="entryMode === 'income'" class="space-y-3">
             <div class="flex gap-2">
               <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>主類別</option>
@@ -175,9 +186,10 @@
               <option value="" disabled>入帳帳戶 (現金/銀行存款...)</option>
               <option v-for="acc in assetAccounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
             </select>
-          </template>
+          </div>
 
-          <template v-if="entryMode === 'transfer'">
+          <!-- 轉帳模式表單 -->
+          <div v-if="entryMode === 'transfer'" class="space-y-3">
             <div class="flex gap-2 items-center">
               <select v-model="newTx.fromAcc" class="border p-2 rounded flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
                 <option value="" disabled>轉出帳戶</option>
@@ -189,9 +201,10 @@
                 <option v-for="acc in paymentAccounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
               </select>
             </div>
-          </template>
+          </div>
 
-          <template v-if="entryMode === 'invest'">
+          <!-- 投資模式表單 -->
+          <div v-if="entryMode === 'invest'" class="space-y-3">
             <div class="flex gap-2 mb-2">
               <button @click="newTx.investAction = 'buy'" :class="newTx.investAction==='buy' ? 'bg-red-500 text-white shadow-inner' : 'bg-slate-100 text-slate-500 dark:bg-slate-700'" class="flex-1 py-1.5 rounded font-bold transition">買進</button>
               <button @click="newTx.investAction = 'sell'" :class="newTx.investAction==='sell' ? 'bg-green-500 text-white shadow-inner' : 'bg-slate-100 text-slate-500 dark:bg-slate-700'" class="flex-1 py-1.5 rounded font-bold transition">賣出</button>
@@ -216,20 +229,21 @@
               <option value="" disabled>扣款 / 入帳交割戶</option>
               <option v-for="acc in assetAccounts" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
             </select>
-          </template>
+          </div>
 
-          <input type="text" v-model="newTx.desc" placeholder="輸入備註 / 摘要說明" class="w-full border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none">
+          <!-- 共用底部 -->
+          <input type="text" v-model="newTx.desc" placeholder="輸入備註 / 摘要說明" class="w-full border p-2 rounded dark:bg-slate-700 dark:border-slate-600 outline-none mt-3">
           
-          <template v-if="entryMode !== 'invest'">
+          <div v-if="entryMode !== 'invest'" class="mt-3">
             <input type="number" v-model.number="newTx.amount" placeholder="輸入總金額" class="w-full border p-3 rounded dark:bg-slate-700 dark:border-slate-600 outline-none text-lg font-bold">
-          </template>
+          </div>
 
-          <button @click="submitTransaction" class="w-full bg-blue-600 hover:bg-blue-700 transition text-white p-3 rounded-lg font-bold shadow-md">記一筆</button>
-          <p v-if="txError" class="text-red-500 text-sm font-bold text-center">{{ txError }}</p>
+          <button @click="submitTransaction" class="w-full bg-blue-600 hover:bg-blue-700 transition text-white p-3 rounded-lg font-bold shadow-md mt-3">記一筆</button>
+          <p v-if="txError" class="text-red-500 text-sm font-bold text-center mt-2">{{ txError }}</p>
         </div>
       </div>
 
-      <!-- 3. 明細 Tab -->
+      <!-- ================= 3. 明細 Tab ================= -->
       <div v-show="activeTab === 'history'" class="space-y-4">
         <div class="flex justify-between items-center border-b pb-2">
           <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> 明細查詢</h2>
@@ -256,7 +270,7 @@
           <span class="text-sm font-bold text-slate-500">共 {{ filteredTransactions.length }} 筆</span>
         </div>
         
-        <div v-show="filteredTransactions.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-12 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm">
+        <div v-if="filteredTransactions.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-12 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm">
           <i data-lucide="search" class="w-10 h-10 mb-3 opacity-50"></i> 查無符合條件的明細
         </div>
         
@@ -274,7 +288,7 @@
         </div>
       </div>
 
-      <!-- 4. 資產 Tab -->
+      <!-- ================= 4. 資產 Tab ================= -->
       <div v-show="activeTab === 'assets'" class="space-y-6">
         
         <h2 class="text-xl font-bold border-b pb-2 flex items-center gap-2"><i data-lucide="landmark" class="w-5 h-5"></i> 帳戶現況與負債</h2>
@@ -341,7 +355,7 @@
         </div>
       </div>
 
-      <!-- 5. 設定 Tab -->
+      <!-- ================= 5. 設定 Tab ================= -->
       <div v-show="activeTab === 'settings'" class="space-y-8">
         
         <section>
@@ -436,7 +450,7 @@
 
     </main>
 
-    <!-- 期初股票彈窗 -->
+    <!-- 彈窗 -->
     <div v-if="showInitialStockModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
       <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
         <h3 class="text-xl font-bold mb-4 border-b pb-2">期初股票建倉 (不扣款)</h3>
@@ -455,7 +469,6 @@
       </div>
     </div>
 
-    <!-- 新增固定資產彈窗 -->
     <div v-if="showAddFixedAssetModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
       <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
         <h3 class="text-xl font-bold mb-4 border-b pb-2">登錄新固定資產</h3>
@@ -488,23 +501,14 @@
     </nav>
   </div>
 
-  <!-- 主程式邏輯 -->
-  <script type="module">
-    import { createApp, ref, reactive, computed, onMounted, watch, nextTick, onErrorCaptured } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js'
+  <script>
+    const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
 
     const b64EncodeUnicode = (str) => { try { return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1))); } catch(e){ return ""; } };
     const b64DecodeUnicode = (str) => { try { return decodeURIComponent(Array.prototype.map.call(atob(str.replace(/\n/g, '')), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')); } catch(e){ return "{}"; } };
 
     createApp({
       setup() {
-        // Vue 崩潰捕捉器
-        onErrorCaptured((err) => {
-          console.error("Vue 執行錯誤:", err);
-          document.getElementById('fallback-error').style.display = 'block';
-          document.getElementById('fallback-error').innerHTML = `<h2 style="font-size: 1.5rem; font-weight: bold;">系統載入失敗</h2><p style="margin-top: 10px;">錯誤訊息: ${err.message}</p><p>請清除瀏覽器快取後重新整理。</p>`;
-          return false;
-        });
-
         const activeTab = ref('dashboard');
         const entryMode = ref('expense'); 
         const isUnlocked = ref(false);
@@ -538,7 +542,6 @@
         const initStock = reactive({ symbol: '', name: '', shares: null, cost: null });
         const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60 });
 
-        // --- 強制資料結構還原防呆 (絕不允許 undefined) ---
         const migrateLegacyData = () => {
           if(!data.transactions) data.transactions = [];
           if(!data.investments) data.investments = [];
@@ -665,9 +668,11 @@
           return acc ? acc.name : String(id);
         };
         
-        const formatNumber = (num) => Math.round(Number(num)||0).toLocaleString('en-US');
+        const formatNumber = (num) => {
+          let n = Number(num);
+          return isNaN(n) ? '0' : Math.round(n).toLocaleString('en-US');
+        };
 
-        // --- Template 安全輔助函式 ---
         const getTxDesc = (tx) => { return (tx && tx.description) ? tx.description : '無摘要'; };
         const getDebitAccName = (tx) => { return (tx && tx.debits && tx.debits[0]) ? getAccName(tx.debits[0].account_id) : '未知'; };
         const getCreditAccName = (tx) => { return (tx && tx.credits && tx.credits[0]) ? getAccName(tx.credits[0].account_id) : '未知'; };
@@ -738,7 +743,7 @@
               data.installments.push({ id: 'inst_'+Date.now(), desc: newTx.desc||'無摘要', total_amount: newTx.amount, periods: newTx.periods, amount_per_period: perAmt, paid_periods: 0, next_month: nextM, date_day: nextD, debit_acc: newTx.subAccount, credit_acc: newTx.paymentAcc, scope: newTx.scope });
               runAutoTasks();
               newTx.amount = null; newTx.desc = ''; newTx.isInst = false;
-              autoBackup(); updateCharts(); alert('✅ 分期建立成功！'); refreshIcons(); return;
+              autoBackup(); updateCharts(); refreshIcons(); return;
             } else {
               txObj.debits.push({ account_id: newTx.subAccount, amount: newTx.amount });
               txObj.credits.push({ account_id: newTx.paymentAcc, amount: newTx.amount });
@@ -794,7 +799,7 @@
           data.transactions.push(txObj);
           
           newTx.amount = null; newTx.desc = ''; newTx.shares = null; newTx.price = null; newTx.fee = null; newTx.tax = null;
-          autoBackup(); updateCharts(); alert('✅ 記帳成功！'); refreshIcons();
+          autoBackup(); updateCharts(); refreshIcons();
         };
 
         const deleteTransaction = (id) => {
@@ -813,7 +818,7 @@
         };
 
         const submitInitialStock = () => {
-          if(!initStock.symbol || !initStock.shares || !initStock.cost) return alert("請填妥");
+          if(!initStock.symbol || !initStock.shares || !initStock.cost) return;
           if(!data.investments) data.investments = [];
           if(!data.transactions) data.transactions = [];
           data.investments.push({ id: 'inv_'+Date.now(), symbol: initStock.symbol, name: initStock.name || initStock.symbol, shares: initStock.shares, total_cost: initStock.cost, currency: 'TWD' });
@@ -825,7 +830,7 @@
         };
 
         const submitFixedAsset = () => {
-          if(!initFA.name || !initFA.cost || !initFA.months) return alert("請填妥");
+          if(!initFA.name || !initFA.cost || !initFA.months) return;
           if(!data.fixed_assets) data.fixed_assets = [];
           if(!data.transactions) data.transactions = [];
           let monthlyDep = Math.round(initFA.cost / initFA.months);
@@ -895,7 +900,6 @@
 
         const runAutoTasks = () => {
           let curM = new Date().toISOString().substring(0,7);
-          let g = 0;
           let faList = data.fixed_assets || [];
           for(let i=0; i<faList.length; i++) {
             let fa = faList[i];
@@ -905,7 +909,6 @@
               if(!data.transactions) data.transactions = [];
               data.transactions.push({ id: 'tx_dep_'+Date.now()+Math.random(), date: new Date().toISOString().split('T')[0], desc: `${fa.name} 自動折舊`, scope: 'family', auto_generated: true, asset_id: fa.id, debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }], credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }] });
               fa.last_depreciation_date = new Date().toISOString().split('T')[0];
-              g++;
             }
           }
           
@@ -927,10 +930,9 @@
                 let mm = m < 10 ? '0' + m : '' + m;
                 inst.next_month = `${y}-${mm}`;
               }
-              g++;
             }
           }
-          if (g > 0) { console.log(`自動排程產生 ${g} 筆紀錄`); autoBackup(); }
+          autoBackup();
         };
 
         const getGitHubUrl = () => `https://api.github.com/repos/${settings.githubUser}/${settings.githubRepo}/contents/transactions.json`;
@@ -951,7 +953,6 @@
                 let json = await putRes.json();
                 if(json && json.content) settings.fileSha = json.content.sha;
                 syncStatus.value = 'ok';
-                if(isManual) console.log('連線且同步成功');
               } else {
                 throw new Error('Write failed');
               }
@@ -961,12 +962,10 @@
                 let json = await putRes.json();
                 if(json && json.content) settings.fileSha = json.content.sha;
                 syncStatus.value = 'ok';
-                if(isManual) console.log('連線且初始化成功');
               }
             }
           } catch (err) {
             syncStatus.value = 'error';
-            if(isManual) console.log(`連線失敗`);
           } finally {
             isSyncing.value = false;
           }
@@ -984,8 +983,8 @@
                 if (s) inv.last_price = parseFloat(s.ClosingPrice);
               }
             }
-            alert('股價更新完成'); autoBackup();
-          } catch (e) { alert('無法連線證交所'); }
+            autoBackup();
+          } catch (e) { }
         };
 
         const setHistoryToCurrentMonth = () => {
@@ -1003,7 +1002,7 @@
             const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
             const fx = await res.json();
             if(fx && fx.rates && fx.rates.TWD) fxRate.value = fx.rates.TWD;
-          } catch(e) { console.log(e); }
+          } catch(e) {}
         };
 
         const loadSettings = () => {
@@ -1022,7 +1021,6 @@
 
         const saveSettings = () => {
           localStorage.setItem('ledger_settings', JSON.stringify(settings));
-          alert('儲存成功');
           if (settings.githubToken) syncWithGitHub(true);
         };
 
@@ -1044,10 +1042,9 @@
                 Object.assign(data, p);
                 migrateLegacyData();
                 autoBackup();
-                alert("成功匯入");
                 updateCharts();
               }
-            } catch(err) { alert("檔案錯誤"); }
+            } catch(err) { }
           };
           r.readAsText(f);
         };
@@ -1118,6 +1115,8 @@
           });
         };
 
+        const refreshIcons = () => { nextTick(() => { try { if (window.lucide) lucide.createIcons(); } catch(e){} }); };
+
         watch(activeTab, () => {
           if(activeTab.value === 'dashboard') updateCharts();
           refreshIcons();
@@ -1158,6 +1157,13 @@
           loadSettings();
           if(isUnlocked.value) initData();
         });
+
+        const expenseCategories = computed(() => (data.main_categories && data.main_categories.Expense) ? data.main_categories.Expense : []);
+        const incomeCategories = computed(() => (data.main_categories && data.main_categories.Income) ? data.main_categories.Income : []);
+        const currentSettingCategories = computed(() => (data.main_categories && data.main_categories[settingCategoryMode.value]) ? data.main_categories[settingCategoryMode.value] : []);
+        const safeQuickTags = computed(() => data.quick_tags || []);
+        const safeInvestments = computed(() => data.investments || []);
+        const safeFixedAssets = computed(() => data.fixed_assets || []);
 
         return { 
           accounts: data.accounts, assetAccounts, paymentAccounts, balanceAccounts, activeInstallments, activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGitHub, data, newTx, txError, submitTransaction, deleteTransaction, formatNumber, applyQuickTag, getSubAccounts, netWorth, totalAssets, totalLiabilities, updateStockPrices, hasExpensesThisMonth, exportData, importData, sortedTransactions, filteredTransactions, historyFilter, getTxColorBand, getTxAmountColor, settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, toggleAccountVisibility, deleteAccount, showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, initFA, submitFixedAsset,
