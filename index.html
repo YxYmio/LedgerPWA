@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2382/2382533.png">
   <meta name="theme-color" content="#1e293b">
   
-  <!-- 加入 v-cloak 防閃爍樣式 -->
+  <!-- 防閃爍樣式 -->
   <style>
     [v-cloak] { display: none !important; }
   </style>
@@ -39,7 +39,7 @@
   <!-- 加入 v-cloak，確保 Vue 編譯完成前不顯示破圖 -->
   <div id="app" class="max-w-md mx-auto min-h-screen bg-white dark:bg-slate-800 shadow-xl relative pb-20" v-cloak>
     
-    <!-- 畫面防窺 (PIN 碼解鎖) 改為最上層覆蓋 -->
+    <!-- 畫面防窺 (PIN 碼解鎖) -->
     <div v-if="settings.pinEnabled && !isUnlocked" class="fixed inset-0 z-[999] bg-slate-900 flex flex-col items-center justify-center p-6 text-white">
       <i data-lucide="lock" class="w-16 h-16 mb-4 text-blue-500"></i>
       <h2 class="text-2xl font-bold mb-6">輸入 PIN 碼解鎖</h2>
@@ -262,6 +262,7 @@
       <!-- 4. 資產 Tab -->
       <div v-show="activeTab === 'assets'" class="space-y-6">
         
+        <!-- 股票 -->
         <div class="flex justify-between items-center border-b pb-2">
           <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="trending-up" class="w-5 h-5"></i> 股票庫存估值</h2>
           <div class="flex gap-2">
@@ -286,6 +287,7 @@
           </div>
         </div>
 
+        <!-- 固定資產 -->
         <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2"><i data-lucide="monitor" class="w-5 h-5"></i> 固定資產與折舊</h2>
         <button @click="showAddFixedAssetModal = true" class="w-full mt-2 text-sm border border-dashed border-slate-400 text-slate-500 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition">+ 登錄新固定資產</button>
         
@@ -369,7 +371,7 @@
             <input type="text" v-model="settings.githubUser" placeholder="GitHub 帳號" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
             <input type="text" v-model="settings.githubRepo" placeholder="Private Repo 名稱" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
             <input type="password" v-model="settings.githubToken" placeholder="GitHub PAT Token" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
-            <button @click="syncWithGitHub(false)" class="w-full bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-lg font-bold flex justify-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> 儲存並連線</button>
+            <button @click="syncWithGitHub(true)" class="w-full bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-lg font-bold flex justify-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> 儲存並連線</button>
           </div>
         </section>
 
@@ -557,6 +559,7 @@
         const getAccName = (id) => { if(!id) return '未知'; return (data.accounts || []).find(a => a.id === id)?.name || String(id); };
         const formatNumber = (num) => Math.round(Number(num)||0).toLocaleString('en-US');
 
+        // --- Template 安全輔助函式 ---
         const getTxDesc = (tx) => tx ? (tx.description || '無摘要') : '';
         const getDebitAccName = (tx) => (tx && tx.debits && tx.debits[0]) ? getAccName(tx.debits[0].account_id) : '未知';
         const getCreditAccName = (tx) => (tx && tx.credits && tx.credits[0]) ? getAccName(tx.credits[0].account_id) : '未知';
@@ -737,8 +740,8 @@
         onMounted(() => { loadSettings(); if(isUnlocked.value) initData(); });
 
         return { 
-          accounts: data.accounts, assetAccounts, paymentAccounts, activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGitHub, data, newTx, txError, submitTransaction, deleteTransaction, formatNumber, applyQuickTag, getSubAccounts, netWorth, totalAssets, totalLiabilities, updateStockPrices, hasExpensesThisMonth, exportData, importData, sortedTransactions, filteredTransactions, historyFilter, settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, addAccount, deleteAccount, toggleAccountVisibility, showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, initFA, submitFixedAsset,
-          getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getInvestTotalAmount, getInvCurrentValue, getUnrealizedGain, getTxColorBand, getTxAmountColor, expenseCategories, incomeCategories, currentSettingCategories, safeQuickTags, safeInvestments, safeFixedAssets
+          accounts: data.accounts, assetAccounts, paymentAccounts, activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGitHub, data, newTx, txError, submitTransaction, deleteTransaction, formatNumber, applyQuickTag, getSubAccounts, netWorth, totalAssets, totalLiabilities, updateStockPrices, hasExpensesThisMonth, exportData, importData, sortedTransactions, filteredTransactions, historyFilter, getTxColorBand, getTxAmountColor, settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, toggleAccountVisibility, deleteAccount, showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, initFA, submitFixedAsset,
+          getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getInvestTotalAmount, getInvCurrentValue, getUnrealizedGain, expenseCategories, incomeCategories, currentSettingCategories, safeQuickTags, safeInvestments, safeFixedAssets
         };
       }
     }).mount('#app')
