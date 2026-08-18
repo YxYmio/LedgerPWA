@@ -9,44 +9,73 @@
   <meta name="theme-color" content="#1e293b">
   
   <style>
-    /* 防閃爍樣式，直到 Vue 接管畫面 */
     [v-cloak] { display: none !important; }
     ::-webkit-scrollbar { width: 0px; background: transparent; }
+    /* 原生載入動畫 */
+    @keyframes spin { 100% { transform: rotate(360deg); } }
   </style>
+
+  <!-- 全域錯誤捕捉器：一旦出錯，隱藏載入畫面，顯示錯誤原因 -->
+  <script>
+    window.addEventListener('error', function(e) {
+      var loading = document.getElementById('native-loading');
+      var errorScreen = document.getElementById('fallback-error');
+      var errorMsg = document.getElementById('fallback-error-msg');
+      if(loading) loading.style.display = 'none';
+      if(errorScreen) errorScreen.style.display = 'flex';
+      if(errorMsg) errorMsg.innerText = e.message || '未知語法錯誤';
+    });
+  </script>
 
   <!-- Google Identity & Drive API -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
   
-  <!-- 核心載入庫 -->
+  <!-- 核心載入庫 (使用最穩定的 cdnjs 與 jsdelivr) -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
   
-  <!-- 就是漏掉這行！！ Vue 3 核心庫 -->
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <!-- 雙重備援 Vue 載入，確保絕不發生 Vue is not defined -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+  <script>
+    if (typeof Vue === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"><\/script>');
+    }
+  </script>
   
   <script>
-    tailwind.config = { darkMode: 'class' }
+    tailwind.config = { darkMode: 'class' };
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js?v=' + new Date().getTime()); });
+      // 強制清除舊異常快取並載入最新版
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let i=0; i<registrations.length; i++) { registrations[i].unregister(); }
+      });
+      window.addEventListener('load', function() { navigator.serviceWorker.register('./sw.js?v=' + new Date().getTime()); });
     }
-    // 終極防白屏：捕捉任何未預期的致命錯誤並顯示
-    window.addEventListener('error', function(e) {
-      document.getElementById('fallback-error').style.display = 'block';
-      document.getElementById('fallback-error-msg').innerText = e.message;
-    });
   </script>
 </head>
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 select-none">
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 select-none m-0 p-0">
   
-  <!-- 系統崩潰備用畫面 (再也不怕純白屏) -->
-  <div id="fallback-error" style="display: none; padding: 20px; text-align: center; color: #ef4444; margin-top: 20vh;">
-    <h2 style="font-size: 1.5rem; font-weight: bold;">系統載入失敗</h2>
-    <p style="margin-top: 10px;">錯誤代碼：<span id="fallback-error-msg"></span></p>
-    <p class="mt-4 text-sm text-slate-500">請清除瀏覽器快取紀錄後重新整理網頁。</p>
+  <!-- ================= 絕對防白屏：原生載入中畫面 ================= -->
+  <div id="native-loading" style="position: fixed; inset: 0; z-index: 99999; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif;">
+    <div style="width: 45px; height: 45px; border: 5px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
+    <h2 style="font-size: 1.5rem; font-weight: bold; color: white; margin: 0;">系統啟動中</h2>
+    <p style="color: #94a3b8; font-size: 0.875rem; margin-top: 10px;">正在載入資料庫與環境</p>
+    <button onclick="localStorage.clear(); sessionStorage.clear(); window.location.reload(true);" style="margin-top: 40px; background: #ef4444; color: white; padding: 10px 20px; border-radius: 8px; font-weight: bold; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+      若卡住請點此強制重置
+    </button>
   </div>
 
+  <!-- 系統崩潰備用畫面 -->
+  <div id="fallback-error" style="display: none; position: fixed; inset: 0; z-index: 100000; background: #fff; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center;">
+    <svg style="width:60px; height:60px; color:#ef4444; margin-bottom:15px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+    <h2 style="font-size: 1.5rem; font-weight: bold; color: #1e293b;">系統載入失敗</h2>
+    <p style="margin-top: 10px; color: #64748b; font-size: 0.875rem;">錯誤代碼：<span id="fallback-error-msg" style="color: #ef4444; font-weight:bold;"></span></p>
+    <button onclick="localStorage.clear(); sessionStorage.clear(); window.location.reload(true);" style="margin-top: 30px; background: #3b82f6; color: white; padding: 10px 20px; border-radius: 8px; font-weight: bold; border: none;">清除快取並修復</button>
+  </div>
+
+  <!-- ================= 主程式 ================= -->
   <div id="app" class="max-w-md mx-auto min-h-screen bg-white dark:bg-slate-800 shadow-xl relative pb-[80px]" v-cloak>
     
     <!-- 畫面防窺 (PIN 碼解鎖) -->
@@ -64,7 +93,7 @@
         <i data-lucide="book-open" class="flex-shrink-0"></i> {{ settings.appName || '我的複式帳本' }}
       </h1>
       <div class="flex gap-4 flex-shrink-0 items-center">
-        <button @click="syncWithGoogleDrive(false)" title="同步至 Google Drive" class="relative">
+        <button @click="syncWithGoogleDrive(true)" title="同步至 Google Drive" class="relative">
           <i data-lucide="refresh-cw" :class="{'animate-spin': isSyncing}"></i>
           <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-blue-600" 
                 :class="syncStatus === 'ok' ? 'bg-green-400' : (syncStatus === 'offline' ? 'bg-yellow-400' : 'bg-red-500')"></span>
@@ -129,7 +158,7 @@
           <button @click="entryMode = 'invest'" :class="entryMode==='invest' ? 'bg-white dark:bg-slate-800 shadow text-orange-600 dark:text-orange-400 font-bold' : 'text-slate-600 dark:text-slate-300'" class="flex-1 py-2 rounded-md text-sm transition">投資</button>
         </div>
 
-        <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700 space-y-3">
+        <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700 space-y-4">
           
           <div class="flex gap-2">
             <input type="date" v-model="newTx.date" class="border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none w-36 text-sm">
@@ -145,21 +174,21 @@
             </button>
           </div>
 
-          <!-- 支出模式 -->
+          <!-- 支出模式表單 -->
           <template v-if="entryMode === 'expense'">
             <div class="flex gap-2">
-              <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
+              <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
                 <option value="" disabled>主類別</option>
                 <option v-for="cat in expenseCategories" :key="cat" :value="cat">{{ cat }}</option>
               </select>
-              <select v-model="newTx.subAccount" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
+              <select v-model="newTx.subAccount" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
                 <option value="" disabled>子類別</option>
                 <option v-for="acc in getSubAccounts('Expense', newTx.mainCategory)" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
               </select>
             </div>
             <select v-model="newTx.paymentAcc" class="w-full border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
               <option value="" disabled>扣款帳戶 (下拉顯示餘額)</option>
-              <option v-for="acc in accountsWithBalance(paymentAccounts)" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
+              <option v-for="acc in paymentAccountsWithBalance" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
             </select>
             
             <div class="space-y-2 pt-2 border-t dark:border-slate-700">
@@ -181,7 +210,6 @@
                       <span @click="newTx.faMonths=36; newTx.faName='手機'" class="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded cursor-pointer hover:bg-blue-100 transition">3C/手機(36月)</span>
                       <span @click="newTx.faMonths=60; newTx.faName='家電'" class="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded cursor-pointer hover:bg-blue-100 transition">家電/電視(60月)</span>
                       <span @click="newTx.faMonths=60; newTx.faName='汽車'" class="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded cursor-pointer hover:bg-blue-100 transition">汽車(60月)</span>
-                      <span @click="newTx.faMonths=36; newTx.faName='機車'" class="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded cursor-pointer hover:bg-blue-100 transition">機車(36月)</span>
                     </div>
                     <div v-if="newTx.amount && newTx.faMonths" class="text-xs text-blue-600 dark:text-blue-400 font-bold">自動試算：每月折舊 ${{ formatNumber(Math.round(newTx.amount / newTx.faMonths)) }}</div>
                   </div>
@@ -190,68 +218,68 @@
             </div>
           </template>
 
-          <!-- 收入模式 -->
+          <!-- 收入模式表單 -->
           <template v-if="entryMode === 'income'">
             <div class="flex gap-2">
-              <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
+              <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
                 <option value="" disabled>主類別</option>
                 <option v-for="cat in incomeCategories" :key="cat" :value="cat">{{ cat }}</option>
               </select>
-              <select v-model="newTx.subAccount" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
+              <select v-model="newTx.subAccount" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
                 <option value="" disabled>子類別</option>
                 <option v-for="acc in getSubAccounts('Income', newTx.mainCategory)" :key="acc.id" :value="acc.id">{{ acc.name }}</option>
               </select>
             </div>
             <select v-model="newTx.paymentAcc" class="w-full border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
               <option value="" disabled>入帳帳戶 (下拉顯示餘額)</option>
-              <option v-for="acc in accountsWithBalance(assetAccounts)" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
+              <option v-for="acc in assetAccountsWithBalance" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
             </select>
           </template>
 
-          <!-- 轉帳模式 -->
+          <!-- 轉帳模式表單 -->
           <template v-if="entryMode === 'transfer'">
             <div class="flex gap-2 items-center">
               <select v-model="newTx.fromAcc" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
                 <option value="" disabled>轉出帳戶</option>
-                <option v-for="acc in accountsWithBalance(paymentAccounts)" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
+                <option v-for="acc in paymentAccountsWithBalance" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
               </select>
               <i data-lucide="arrow-right" class="w-5 h-5 text-slate-400 font-bold"></i>
               <select v-model="newTx.toAcc" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
                 <option value="" disabled>轉入帳戶</option>
-                <option v-for="acc in accountsWithBalance(paymentAccounts)" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
+                <option v-for="acc in paymentAccountsWithBalance" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
               </select>
             </div>
           </template>
 
-          <!-- 投資模式 -->
+          <!-- 投資模式表單 -->
           <template v-if="entryMode === 'invest'">
             <div class="flex gap-2 mb-2">
               <button @click="newTx.investAction = 'buy'" :class="newTx.investAction==='buy' ? 'bg-red-500 text-white shadow-inner' : 'bg-slate-100 text-slate-500 dark:bg-slate-700'" class="flex-1 py-1.5 rounded-lg font-bold transition">買進</button>
               <button @click="newTx.investAction = 'sell'" :class="newTx.investAction==='sell' ? 'bg-green-500 text-white shadow-inner' : 'bg-slate-100 text-slate-500 dark:bg-slate-700'" class="flex-1 py-1.5 rounded-lg font-bold transition">賣出</button>
             </div>
             <div class="flex gap-2">
-              <input type="text" v-model="newTx.symbol" placeholder="代號 (如 2330.TW)" class="border p-2 rounded-lg w-1/3 dark:bg-slate-700 dark:border-slate-600 outline-none">
-              <input type="text" v-model="newTx.stockName" placeholder="股票名稱 (如 台積電)" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
+              <input type="text" v-model="newTx.symbol" placeholder="代號(如 2330.TW)" class="border p-2 rounded-lg w-1/3 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+              <input type="text" v-model="newTx.stockName" placeholder="股票名稱(如 台積電)" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
             </div>
             <div class="flex gap-2">
-              <input type="number" v-model.number="newTx.shares" placeholder="成交股數" class="border p-2 rounded-lg w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none">
-              <input type="number" step="0.01" v-model.number="newTx.price" placeholder="成交單價" class="border p-2 rounded-lg w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none">
+              <input type="number" v-model.number="newTx.shares" placeholder="成交股數" class="border p-2 rounded-lg w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+              <input type="number" step="0.01" v-model.number="newTx.price" placeholder="成交單價" class="border p-2 rounded-lg w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
             </div>
             <div class="flex gap-2">
               <input type="number" v-model.number="newTx.fee" placeholder="手續費(選填)" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
               <input type="number" v-model.number="newTx.tax" placeholder="證交稅(選填)" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm" v-if="newTx.investAction==='sell'">
             </div>
-            <div class="flex justify-between items-center px-1 bg-slate-50 dark:bg-slate-900 p-2 rounded">
-              <span class="text-xs text-slate-500 font-bold">總交割金額 (自動精算)</span>
+            <div class="flex justify-between items-center px-2 py-1 bg-slate-50 dark:bg-slate-900 rounded">
+              <span class="text-xs text-slate-500 font-bold">總交割金額</span>
               <span class="font-bold text-lg text-orange-600 dark:text-orange-400">${{ formatNumber(getInvestTotalAmount()) }}</span>
             </div>
             <select v-model="newTx.paymentAcc" class="w-full border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
               <option value="" disabled>扣款 / 入帳交割戶</option>
-              <option v-for="acc in accountsWithBalance(assetAccounts)" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
+              <option v-for="acc in assetAccountsWithBalance" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
             </select>
           </template>
 
-          <input type="text" v-model="newTx.desc" placeholder="輸入備註 / 摘要說明" class="w-full border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none mt-2">
+          <input type="text" v-model="newTx.desc" placeholder="輸入備註 / 摘要說明" class="w-full border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none mt-2 text-sm">
           
           <template v-if="entryMode !== 'invest'">
             <input type="number" v-model.number="newTx.amount" placeholder="輸入總金額" class="w-full border p-3 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-2xl font-bold tracking-wider mt-2 shadow-inner bg-slate-50 dark:bg-slate-900">
@@ -264,7 +292,7 @@
         </div>
       </div>
 
-      <!-- ================= 3. 明細 Tab ================= -->
+      <!-- ================= 3. 明細 Tab (History) ================= -->
       <div v-show="activeTab === 'history'" class="space-y-4">
         <div class="flex justify-between items-center border-b pb-2">
           <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> 明細查詢</h2>
@@ -295,7 +323,7 @@
           <i data-lucide="search" class="w-12 h-12 mb-3 opacity-30"></i> 查無符合條件的明細
         </div>
         
-        <div v-for="tx in filteredTransactions" :key="tx.id" class="p-3.5 border rounded-xl flex justify-between items-center mb-3 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm relative overflow-hidden transition-all hover:border-blue-300">
+        <div v-for="tx in filteredTransactions" :key="tx.id" class="p-3.5 border rounded-xl flex justify-between items-center mb-3 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm relative overflow-hidden transition-all">
           <div class="absolute left-0 top-0 bottom-0 w-1.5" :class="getTxColorBand(tx)"></div>
           <div class="pl-2 flex-1 pr-2">
             <div class="font-bold text-[15px] truncate">{{ getTxDesc(tx) }} <span v-if="tx.scope==='family'" class="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded ml-1 align-top">家庭</span></div>
@@ -309,10 +337,9 @@
         </div>
       </div>
 
-      <!-- ================= 4. 資產 Tab ================= -->
+      <!-- ================= 4. 資產 Tab (Assets) ================= -->
       <div v-show="activeTab === 'assets'" class="space-y-6">
         
-        <!-- 帳戶現況總覽 -->
         <h2 class="text-xl font-bold border-b pb-2 flex items-center gap-2 text-blue-700 dark:text-blue-400"><i data-lucide="wallet-cards" class="w-5 h-5"></i> 帳戶現況與負債</h2>
         <div class="grid grid-cols-2 gap-3">
           <div v-for="acc in balanceAccounts" :key="acc.id" class="p-3.5 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl shadow-sm flex flex-col justify-between">
@@ -321,7 +348,6 @@
           </div>
         </div>
 
-        <!-- 股票管理 -->
         <div class="flex justify-between items-center border-b pb-2 mt-8 text-indigo-700 dark:text-indigo-400">
           <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="trending-up" class="w-5 h-5"></i> 股票庫存估值</h2>
           <div class="flex gap-2">
@@ -346,7 +372,6 @@
           </div>
         </div>
 
-        <!-- 固定資產與除列 -->
         <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2 text-teal-700 dark:text-teal-400"><i data-lucide="monitor" class="w-5 h-5"></i> 固定資產與除列</h2>
         <div v-if="safeFixedAssets.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-6 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
           <i data-lucide="monitor" class="w-8 h-8 mb-2 opacity-30"></i> 目前無固定資產
@@ -358,12 +383,11 @@
           </div>
           <div class="text-sm text-slate-500 mt-2 bg-slate-50 dark:bg-slate-900 p-2 rounded">原價: ${{ formatNumber(fa.original_cost) }} | 月折舊: ${{ formatNumber(fa.monthly_depreciation) }}</div>
           <div class="text-xs mt-2 text-slate-500 flex justify-between items-center">
-            <span>最後折舊: <span class="font-mono bg-slate-100 dark:bg-slate-700 px-1 rounded">{{ fa.last_depreciation_date || '尚未提列' }}</span></span>
+            <span>最後折舊: <span class="font-mono bg-slate-100 dark:bg-slate-700 px-1 rounded">{{ fa.last_depreciation_date || '尚未' }}</span></span>
             <span class="font-bold text-teal-600 dark:text-teal-400">目前淨值: ${{ formatNumber(getFABookValue(fa)) }}</span>
           </div>
         </div>
 
-        <!-- 進行中分期 -->
         <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2 text-orange-600 dark:text-orange-400"><i data-lucide="calendar-clock" class="w-5 h-5"></i> 進行中分期排程</h2>
         <div v-if="activeInstallments.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-6 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
           <i data-lucide="check-circle" class="w-8 h-8 mb-2 opacity-30"></i> 目前無未結清之分期
@@ -384,7 +408,7 @@
         </div>
       </div>
 
-      <!-- ================= 5. 設定 Tab ================= -->
+      <!-- ================= 5. 設定 Tab (Settings) ================= -->
       <div v-show="activeTab === 'settings'" class="space-y-8">
         
         <section>
@@ -399,20 +423,20 @@
         <section>
           <h2 class="text-lg font-bold border-b pb-2 mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2"><i data-lucide="cloud" class="w-5 h-5"></i> 雲端同步 (Google Drive)</h2>
           <div class="space-y-3 bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm">
-            <div class="text-xs text-slate-500">請輸入您的 Google Client ID 以開啟自動備份與多裝置同步功能。</div>
-            <input type="text" v-model="settings.googleClientId" @change="saveSettings" placeholder="Google Client ID (xxx.apps.googleusercontent.com)" class="w-full border p-2 rounded-lg dark:bg-slate-900 outline-none text-sm">
+            <div class="text-xs text-slate-500">請輸入 Google Client ID 開啟自動備份與多裝置同步。</div>
+            <input type="text" v-model="settings.googleClientId" @change="saveSettings" placeholder="Client ID (xxx.apps.googleusercontent.com)" class="w-full border p-2 rounded-lg dark:bg-slate-900 outline-none text-sm font-mono">
             
             <div class="flex items-center gap-2 mt-4 pt-4 border-t dark:border-slate-700">
               <div class="flex-1">
                 <div class="text-sm font-bold flex items-center gap-1" :class="settings.googleToken ? 'text-green-600' : 'text-slate-500'">
                   <i :data-lucide="settings.googleToken ? 'check-circle' : 'x-circle'" class="w-4 h-4"></i> 
-                  {{ settings.googleToken ? '已授權連結' : '未授權' }}
+                  {{ settings.googleToken ? '已連結' : '未授權' }}
                 </div>
               </div>
-              <button v-if="!settings.googleToken" @click="handleGoogleAuth" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition shadow">使用 Google 登入</button>
-              <button v-if="settings.googleToken" @click="handleGoogleSignout" class="bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg font-bold text-sm transition">登出</button>
+              <button v-if="!settings.googleToken" @click="handleGoogleAuth" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition">使用 Google 登入</button>
+              <button v-if="settings.googleToken" @click="handleGoogleSignout" class="bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg font-bold text-sm transition">登出</button>
             </div>
-            <button v-if="settings.googleToken" @click="syncWithGoogleDrive(true)" class="w-full bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-lg font-bold flex justify-center items-center gap-2 shadow mt-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 立即強制同步</button>
+            <button v-if="settings.googleToken" @click="syncWithGoogleDrive(true)" class="w-full bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-lg font-bold flex justify-center items-center gap-2 shadow mt-2 transition"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 立即強制同步</button>
           </div>
         </section>
 
@@ -427,24 +451,27 @@
           <div class="space-y-4">
             <div class="flex gap-2">
               <input type="text" v-model="newMainCat" placeholder="新增主類別" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 outline-none text-sm">
-              <button @click="addMainCategory" class="bg-slate-200 dark:bg-slate-600 px-3 rounded-lg font-bold text-sm shadow-sm">新增</button>
+              <button @click="addMainCategory" class="bg-slate-200 dark:bg-slate-600 px-3 rounded-lg font-bold text-sm shadow-sm hover:bg-slate-300 transition">新增</button>
             </div>
             <div class="flex gap-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800">
-              <select v-model="newSubCat.main" class="border p-2 rounded-lg w-1/3 dark:bg-slate-700 outline-none text-sm"><option value="" disabled>選主類</option><option v-for="cat in currentSettingCategories" :key="cat" :value="cat">{{ cat }}</option></select>
+              <select v-model="newSubCat.main" class="border p-2 rounded-lg w-1/3 dark:bg-slate-700 outline-none text-sm">
+                <option value="" disabled>選主類</option>
+                <option v-for="cat in currentSettingCategories" :key="cat" :value="cat">{{ cat }}</option>
+              </select>
               <input type="text" v-model="newSubCat.name" placeholder="新增子類別" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 outline-none text-sm">
-              <button @click="addSubCategory" class="bg-blue-600 text-white px-3 rounded-lg font-bold text-sm shadow-sm">+</button>
+              <button @click="addSubCategory" class="bg-blue-600 hover:bg-blue-700 transition text-white px-3 rounded-lg font-bold text-sm shadow-sm">+</button>
             </div>
             <div class="border rounded-lg p-2 dark:border-slate-700 bg-white dark:bg-slate-800 max-h-64 overflow-y-auto">
               <div v-for="cat in currentSettingCategories" :key="cat" class="mb-3 last:mb-0">
                 <div class="font-bold text-sm bg-slate-100 dark:bg-slate-700 px-2 py-1.5 rounded flex justify-between items-center shadow-sm">
-                  {{ cat }} <button @click="deleteMainCategory(settingCategoryMode, cat)" class="text-slate-400 hover:text-red-500 bg-white dark:bg-slate-800 p-0.5 rounded"><i data-lucide="x" class="w-3 h-3"></i></button>
+                  {{ cat }} <button @click="deleteMainCategory(settingCategoryMode, cat)" class="text-slate-400 hover:text-red-500 bg-white dark:bg-slate-800 p-0.5 rounded transition"><i data-lucide="x" class="w-3 h-3"></i></button>
                 </div>
                 <div class="pl-3 mt-1 space-y-1">
                   <div v-for="acc in getSubAccounts(settingCategoryMode, cat, true)" :key="acc.id" class="flex justify-between items-center text-sm py-1.5 border-b dark:border-slate-700 last:border-0" :class="{'opacity-50': acc.is_hidden}">
                     <span>{{ acc.name }} <span v-if="acc.is_hidden" class="text-[10px] text-red-400 border border-red-400 px-1 rounded ml-1">停用</span></span>
                     <div class="flex gap-2">
-                      <button @click="toggleAccountVisibility(acc.id)" class="text-slate-400 hover:text-blue-500 bg-slate-50 dark:bg-slate-900 p-1 rounded"><i :data-lucide="acc.is_hidden ? 'eye-off' : 'eye'" class="w-3 h-3"></i></button>
-                      <button @click="deleteAccount(acc.id)" class="text-slate-400 hover:text-red-500 bg-slate-50 dark:bg-slate-900 p-1 rounded"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                      <button @click="toggleAccountVisibility(acc.id)" class="text-slate-400 hover:text-blue-500 bg-slate-50 dark:bg-slate-900 p-1 rounded transition"><i :data-lucide="acc.is_hidden ? 'eye-off' : 'eye'" class="w-3 h-3"></i></button>
+                      <button @click="deleteAccount(acc.id)" class="text-slate-400 hover:text-red-500 bg-slate-50 dark:bg-slate-900 p-1 rounded transition"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
                     </div>
                   </div>
                 </div>
@@ -457,11 +484,11 @@
           <h2 class="text-lg font-bold border-b pb-2 mb-3 text-blue-600 dark:text-blue-400">記帳快捷標籤</h2>
           <div class="flex gap-2 mb-3">
             <input type="text" v-model="newPreset" placeholder="標籤名稱 (須對應子類別名稱)" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 outline-none text-sm">
-            <button @click="addPreset" class="bg-slate-200 dark:bg-slate-600 px-4 rounded-lg font-bold text-sm shadow-sm">新增</button>
+            <button @click="addPreset" class="bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 transition px-4 rounded-lg font-bold text-sm shadow-sm">新增</button>
           </div>
           <div class="flex flex-wrap gap-2">
             <span v-for="(p, idx) in safeQuickTags" :key="idx" class="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-1 shadow-sm">
-              {{ p }} <button @click="removePreset(idx)" class="hover:text-red-600 font-bold ml-1 rounded-full bg-white dark:bg-slate-800 p-0.5"><i data-lucide="x" class="w-3 h-3"></i></button>
+              {{ p }} <button @click="removePreset(idx)" class="hover:text-red-600 font-bold ml-1 rounded-full bg-white dark:bg-slate-800 p-0.5 transition"><i data-lucide="x" class="w-3 h-3"></i></button>
             </span>
           </div>
         </section>
@@ -488,7 +515,7 @@
 
     </main>
 
-    <!-- 期初股票彈窗 -->
+    <!-- 彈窗區塊 -->
     <div v-if="showInitialStockModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
       <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
         <h3 class="text-xl font-bold mb-4 border-b pb-2">期初股票建倉 (不扣款)</h3>
@@ -507,7 +534,6 @@
       </div>
     </div>
 
-    <!-- 處分固定資產彈窗 -->
     <div v-if="showDisposalModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
       <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
         <h3 class="text-xl font-bold mb-2 border-b pb-2 flex items-center gap-2 text-red-600"><i data-lucide="trash" class="w-5 h-5"></i> 處分固定資產</h3>
@@ -522,43 +548,37 @@
             <button @click="disposalForm.type = 'scrap'" :class="disposalForm.type==='scrap' ? 'bg-white dark:bg-slate-800 shadow text-red-600 font-bold' : 'text-slate-500'" class="flex-1 py-1.5 rounded-md text-sm transition">純報廢</button>
             <button @click="disposalForm.type = 'sell'" :class="disposalForm.type==='sell' ? 'bg-white dark:bg-slate-800 shadow text-green-600 font-bold' : 'text-slate-500'" class="flex-1 py-1.5 rounded-md text-sm transition">二手出售</button>
           </div>
-          
           <template v-if="disposalForm.type === 'sell'">
             <input type="number" v-model.number="disposalForm.price" placeholder="出售取得金額" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none font-bold text-lg">
             <select v-model="disposalForm.account" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm">
               <option value="" disabled>選擇入帳帳戶</option>
-              <option v-for="acc in balanceAccounts" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
+              <option v-for="acc in assetAccountsWithBalance" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
             </select>
             <div class="text-right text-xs font-bold" :class="(disposalForm.price||0) - getFABookValue(disposalAsset) >= 0 ? 'text-green-600' : 'text-red-500'">
               試算損益: ${{ formatNumber((disposalForm.price||0) - getFABookValue(disposalAsset)) }}
             </div>
           </template>
-          
           <template v-if="disposalForm.type === 'scrap'">
-            <div class="text-sm text-red-500 font-bold text-center bg-red-50 dark:bg-red-900/20 p-2 rounded">
-              將認列處分損失: ${{ formatNumber(getFABookValue(disposalAsset)) }}
-            </div>
+            <div class="text-sm text-red-500 font-bold text-center bg-red-50 dark:bg-red-900/20 p-2 rounded">將認列處分損失: ${{ formatNumber(getFABookValue(disposalAsset)) }}</div>
           </template>
-
           <div class="flex gap-2 mt-5">
-            <button @click="showDisposalModal = false" class="flex-1 bg-slate-200 text-slate-700 p-2 rounded-lg font-bold">取消</button>
-            <button @click="submitDisposal" class="flex-1 bg-red-600 text-white p-2 rounded-lg font-bold shadow-md">確認執行</button>
+            <button @click="showDisposalModal = false" class="flex-1 bg-slate-200 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+            <button @click="submitDisposal" class="flex-1 bg-red-600 text-white p-2 rounded-lg font-bold shadow-md transition">確認執行</button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 底部導覽列 -->
+    <!-- 底部導覽列 (修復高亮與樣式) -->
     <nav class="fixed bottom-0 w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-1 py-1.5 z-40 shadow-[0_-5px_15px_rgba(0,0,0,0.03)] pb-[calc(env(safe-area-inset-bottom)+6px)]">
-      <button @click="activeTab='dashboard'" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="layout-dashboard" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">總覽</span></button>
-      <button @click="activeTab='entry'" :class="activeTab==='entry' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="edit-3" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">記帳</span></button>
-      <button @click="activeTab='history'" :class="activeTab==='history' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="list" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">明細</span></button>
-      <button @click="activeTab='assets'" :class="activeTab==='assets' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="wallet" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">資產</span></button>
-      <button @click="activeTab='settings'" :class="activeTab==='settings' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center hover:bg-slate-50 dark:hover:bg-slate-700 p-1.5 rounded-xl transition"><i data-lucide="settings" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">設定</span></button>
+      <button @click="activeTab='dashboard'" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center p-1.5 transition"><i data-lucide="layout-dashboard" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">總覽</span></button>
+      <button @click="activeTab='entry'" :class="activeTab==='entry' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center p-1.5 transition"><i data-lucide="edit-3" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">記帳</span></button>
+      <button @click="activeTab='history'" :class="activeTab==='history' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center p-1.5 transition"><i data-lucide="list" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">明細</span></button>
+      <button @click="activeTab='assets'" :class="activeTab==='assets' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center p-1.5 transition"><i data-lucide="wallet" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">資產</span></button>
+      <button @click="activeTab='settings'" :class="activeTab==='settings' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center p-1.5 transition"><i data-lucide="settings" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">設定</span></button>
     </nav>
   </div>
 
-  <!-- 主程式邏輯 -->
   <script type="text/javascript">
     const { createApp, ref, reactive, computed, onMounted, watch, nextTick, onErrorCaptured } = Vue;
 
@@ -570,8 +590,12 @@
         // Vue 崩潰捕捉器
         onErrorCaptured((err) => {
           console.error("Vue Runtime Error:", err);
-          document.getElementById('fallback-error').style.display = 'block';
-          document.getElementById('fallback-error-msg').innerText = err.message;
+          let loading = document.getElementById('native-loading');
+          let errScreen = document.getElementById('fallback-error');
+          let errMsg = document.getElementById('fallback-error-msg');
+          if(loading) loading.style.display = 'none';
+          if(errScreen) errScreen.style.display = 'flex';
+          if(errMsg) errMsg.innerText = err.message || '未知錯誤';
           return false;
         });
 
@@ -612,7 +636,7 @@
 
         let tokenClient = null;
 
-        // ================= 強制向下相容資料遷移 =================
+        // ================= 強制資料結構還原防呆 =================
         const migrateLegacyData = () => {
           if(!data.transactions) data.transactions = [];
           if(!data.investments) data.investments = [];
@@ -652,17 +676,16 @@
         };
 
         // ================= Core Computed (Safe Access) =================
-        const assetAccounts = computed(() => (data.accounts || []).filter(a => a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && !a.is_hidden));
-        const paymentAccounts = computed(() => (data.accounts || []).filter(a => ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201') || a.type === 'Liability') && !a.is_hidden));
-        const activeInstallments = computed(() => (data.installments || []).filter(i => i.paid_periods < i.periods));
-        const getSubAccounts = (type, mainCat, incHidden = false) => (data.accounts || []).filter(a => a.type === type && a.category === mainCat && (incHidden || !a.is_hidden));
+        const assetAccounts = computed(() => { let list = data.accounts || []; return list.filter(a => a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && !a.is_hidden); });
+        const paymentAccounts = computed(() => { let list = data.accounts || []; return list.filter(a => ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201') || a.type === 'Liability') && !a.is_hidden); });
+        const activeInstallments = computed(() => { let list = data.installments || []; return list.filter(i => i.paid_periods < i.periods); });
+        const getSubAccounts = (type, mainCat, incHidden = false) => { let list = data.accounts || []; return list.filter(a => a.type === type && a.category === mainCat && (incHidden || !a.is_hidden)); };
         const safeQuickTags = computed(() => data.quick_tags || []);
         const safeInvestments = computed(() => data.investments || []);
-        const safeFixedAssets = computed(() => (data.fixed_assets || []).filter(fa => !fa.is_disposed));
+        const safeFixedAssets = computed(() => { let list = data.fixed_assets || []; return list.filter(fa => !fa.is_disposed); });
 
         const calculateBalance = (id) => {
-          let bal = 0;
-          let list = data.transactions || [];
+          let bal = 0; let list = data.transactions || [];
           for(let i=0; i<list.length; i++) {
             let tx = list[i];
             if(tx && tx.debits) { for(let j=0; j<tx.debits.length; j++){ if (tx.debits[j].account_id === id) bal += Number(tx.debits[j].amount)||0; } }
@@ -672,9 +695,9 @@
           return (acc && (acc.type === 'Asset' || acc.type === 'Expense')) ? bal : -bal;
         };
 
-        const accountsWithBalance = (accList) => {
-          return accList.map(a => ({...a, balance: calculateBalance(a.id)}));
-        };
+        const accountsWithBalance = (accList) => accList.map(a => ({ id: a.id, name: a.name, type: a.type, category: a.category, is_hidden: a.is_hidden, balance: calculateBalance(a.id) }));
+        const paymentAccountsWithBalance = computed(() => accountsWithBalance((data.accounts || []).filter(a => ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201') || a.type === 'Liability') && !a.is_hidden)));
+        const assetAccountsWithBalance = computed(() => accountsWithBalance((data.accounts || []).filter(a => a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && !a.is_hidden)));
         const balanceAccounts = computed(() => accountsWithBalance((data.accounts || []).filter(a => ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201') || a.type === 'Liability') && !a.is_hidden)));
 
         const totalAssets = computed(() => {
@@ -686,16 +709,23 @@
 
         const totalLiabilities = computed(() => (data.accounts || []).filter(a => a.type === 'Liability').reduce((sum, a) => sum + calculateBalance(a.id), 0));
         const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
-        const sortedTransactions = computed(() => (data.transactions || []).slice().sort((a,b) => new Date(b.date||0) - new Date(a.date||0)));
         
-        const filteredTransactions = computed(() => sortedTransactions.value.filter(tx => {
-          if(!tx) return false;
-          let kw = (historyFilter.keyword || '').toLowerCase(), desc = (tx.description || '').toLowerCase(), accD = (getDebitAccName(tx) || '').toLowerCase(), accC = (getCreditAccName(tx) || '').toLowerCase();
-          return (!kw || desc.includes(kw) || accD.includes(kw) || accC.includes(kw)) && (historyFilter.scope === 'all' || tx.scope === historyFilter.scope) && (!historyFilter.dateFrom || (tx.date||'') >= historyFilter.dateFrom) && (!historyFilter.dateTo || (tx.date||'') <= historyFilter.dateTo);
-        }));
+        const sortedTransactions = computed(() => { let list = data.transactions || []; return list.slice().sort((a,b) => { let d1 = a && a.date ? new Date(a.date).getTime() : 0; let d2 = b && b.date ? new Date(b.date).getTime() : 0; return d2 - d1; }); });
+        
+        const filteredTransactions = computed(() => {
+          return sortedTransactions.value.filter(tx => {
+            if(!tx) return false;
+            let kw = (historyFilter.keyword || '').toLowerCase(), desc = (tx.description || '').toLowerCase(), accD = (getDebitAccName(tx) || '').toLowerCase(), accC = (getCreditAccName(tx) || '').toLowerCase();
+            let matchKw = !kw || desc.includes(kw) || accD.includes(kw) || accC.includes(kw);
+            let matchScope = historyFilter.scope === 'all' || tx.scope === historyFilter.scope;
+            let txDate = tx.date || '';
+            let matchDate = (!historyFilter.dateFrom || txDate >= historyFilter.dateFrom) && (!historyFilter.dateTo || txDate <= historyFilter.dateTo);
+            return matchKw && matchScope && matchDate;
+          });
+        });
 
         const getAccName = (id) => { if(!id) return '未知'; return (data.accounts || []).find(a => a.id === id)?.name || String(id); };
-        const formatNumber = (num) => Math.round(Number(num)||0).toLocaleString('en-US');
+        const formatNumber = (num) => { let n = Number(num); return isNaN(n) ? '0' : Math.round(n).toLocaleString('en-US'); };
 
         // --- View Helpers ---
         const getTxDesc = (tx) => { return (tx && tx.description) ? tx.description : '無摘要'; };
@@ -714,13 +744,15 @@
         const getFABookValue = (fa) => { return fa ? (Number(fa.original_cost)||0) - getFAAccDep(fa) : 0; };
 
         const getTxColorBand = (tx) => {
-          let tD = tx && tx.debits && tx.debits[0] ? (data.accounts || []).find(a => a.id === tx.debits[0].account_id)?.type : null;
-          let tC = tx && tx.credits && tx.credits[0] ? (data.accounts || []).find(a => a.id === tx.credits[0].account_id)?.type : null;
+          let tD = null, tC = null; let list = data.accounts || [];
+          if(tx && tx.debits && tx.debits[0]) { let acc = list.find(a => a.id === tx.debits[0].account_id); if(acc) tD = acc.type; }
+          if(tx && tx.credits && tx.credits[0]) { let acc = list.find(a => a.id === tx.credits[0].account_id); if(acc) tC = acc.type; }
           let desc = (tx && tx.description) ? tx.description : '';
           return tD === 'Expense' ? 'bg-red-500' : (tC === 'Income' ? 'bg-green-500' : (desc.includes('買進')||desc.includes('賣出') ? 'bg-orange-500' : 'bg-purple-500'));
         };
         const getTxAmountColor = (tx) => {
-          let tD = tx && tx.debits && tx.debits[0] ? (data.accounts || []).find(a => a.id === tx.debits[0].account_id)?.type : null;
+          let tD = null; let list = data.accounts || [];
+          if(tx && tx.debits && tx.debits[0]) { let acc = list.find(a => a.id === tx.debits[0].account_id); if(acc) tD = acc.type; }
           let desc = (tx && tx.description) ? tx.description : '';
           return tD === 'Expense' ? 'text-red-500' : (tD === 'Asset' && !desc.includes('轉帳') ? 'text-green-600 dark:text-green-400' : 'text-slate-700 dark:text-slate-300');
         };
@@ -740,13 +772,13 @@
           
           if (entryMode.value === 'expense') {
             if (!newTx.subAccount || !newTx.paymentAcc || !newTx.amount) return txError.value = '欄位不完整';
-            if(data.smart_tags && newTx.desc) data.smart_tags[newTx.desc] = newTx.paymentAcc; // Smart Tag Memory
+            if(data.smart_tags && newTx.desc) data.smart_tags[newTx.desc] = newTx.paymentAcc;
             
             if (newTx.isInst && newTx.periods > 1) {
               let perAmt = Math.round(newTx.amount / newTx.periods);
               if(!data.installments) data.installments = [];
-              let nextM = newTx.date.length >= 7 ? newTx.date.substring(0,7) : new Date().toISOString().substring(0,7);
-              let nextD = newTx.date.length >= 10 ? newTx.date.substring(8,10) : '01';
+              let nextM = newTx.date && newTx.date.length >= 7 ? newTx.date.substring(0,7) : new Date().toISOString().substring(0,7);
+              let nextD = newTx.date && newTx.date.length >= 10 ? newTx.date.substring(8,10) : '01';
               data.installments.push({ id: 'inst_'+Date.now(), desc: newTx.desc||'無摘要', total_amount: newTx.amount, periods: newTx.periods, amount_per_period: perAmt, paid_periods: 0, next_month: nextM, date_day: nextD, debit_acc: newTx.subAccount, credit_acc: newTx.paymentAcc, scope: newTx.scope });
               runAutoTasks(); newTx.amount = null; newTx.desc = ''; newTx.isInst = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 分期建立成功！'); return;
             } else {
@@ -757,7 +789,6 @@
                let monthlyDep = Math.round(newTx.amount / newTx.faMonths);
                if(!data.fixed_assets) data.fixed_assets = [];
                data.fixed_assets.push({ id: 'fa_'+Date.now(), name: newTx.faName||newTx.desc, purchase_date: newTx.date, original_cost: newTx.amount, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: newTx.date });
-               // Capitalize asset (reclass Expense to Asset)
                txObj.debits[0].account_id = '1201';
                txObj.desc = `購入固定資產: ${newTx.faName||newTx.desc}`;
                newTx.isFA = false; newTx.faMonths = 60; newTx.faName = '';
@@ -769,7 +800,8 @@
           } else if (entryMode.value === 'transfer') {
             if (!newTx.fromAcc || !newTx.toAcc || !newTx.amount) return txError.value = '欄位不完整';
             if (newTx.fromAcc === newTx.toAcc) return txError.value = '轉出入不可相同';
-            txObj.debits.push({ account_id: newTx.toAcc, amount: newTx.amount }); txObj.credits.push({ account_id: newTx.fromAcc, amount: newTx.amount });
+            txObj.debits.push({ account_id: newTx.toAcc, amount: newTx.amount });
+            txObj.credits.push({ account_id: newTx.fromAcc, amount: newTx.amount });
             if(txObj.desc === '無摘要') txObj.desc = '轉帳';
           } else if (entryMode.value === 'invest') {
             if (!newTx.symbol || !newTx.shares || !newTx.price || !newTx.paymentAcc) return txError.value = '欄位不完整';
@@ -810,6 +842,7 @@
 
           if(!data.transactions) data.transactions = [];
           data.transactions.push(txObj);
+          
           newTx.amount = null; newTx.desc = ''; newTx.shares = null; newTx.price = null; newTx.fee = null; newTx.tax = null;
           autoBackup(); updateCharts(); refreshIcons();
           alert('✅ 記帳成功！'); 
@@ -838,7 +871,7 @@
           let fa = disposalAsset.value; let bookValue = getFABookValue(fa); let accDep = getFAAccDep(fa);
           let txObj = { id: 'tx_disp_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'family', desc: `處分資產: ${fa.name}`, debits: [{ account_id: '1201-DEP', amount: accDep }], credits: [{ account_id: '1201', amount: fa.original_cost }] };
           if (disposalForm.type === 'scrap') {
-             if(bookValue > 0) txObj.debits.push({ account_id: '4201', amount: bookValue }); // Loss on scrap
+             if(bookValue > 0) txObj.debits.push({ account_id: '4201', amount: bookValue });
              txObj.desc = `報廢資產: ${fa.name}`;
           } else {
              txObj.debits.push({ account_id: disposalForm.account, amount: disposalForm.price });
@@ -846,6 +879,7 @@
              if(gain > 0) txObj.credits.push({ account_id: '4201', amount: gain });
              else if (gain < 0) txObj.debits.push({ account_id: '4201', amount: Math.abs(gain) });
           }
+          if(!data.transactions) data.transactions = [];
           data.transactions.push(txObj); fa.is_disposed = true; showDisposalModal.value = false; autoBackup(); updateCharts(); alert('✅ 處分完成！');
         };
 
@@ -859,8 +893,7 @@
         const deleteAccount = (id) => { let list = data.transactions || []; let isUsed = false; for(let i=0; i<list.length; i++){ let tx = list[i]; if(tx && tx.debits) { for(let j=0; j<tx.debits.length; j++){ if(tx.debits[j].account_id === id) isUsed = true; } } if(tx && tx.credits) { for(let j=0; j<tx.credits.length; j++){ if(tx.credits[j].account_id === id) isUsed = true; } } } if (isUsed) return alert("已有紀錄，請改用隱藏"); if (confirm("確定刪除?")) { data.accounts = (data.accounts || []).filter(a => a.id !== id); autoBackup(); } };
 
         const runAutoTasks = () => {
-          let curM = new Date().toISOString().substring(0,7); let g = 0;
-          // Auto Depreciation
+          let curM = new Date().toISOString().substring(0,7);
           let faList = data.fixed_assets || [];
           for(let i=0; i<faList.length; i++) {
             let fa = faList[i]; if(!fa || fa.is_disposed) continue;
@@ -870,10 +903,9 @@
               let accDep = getFAAccDep(fa);
               if (accDep + fa.monthly_depreciation > fa.original_cost) continue; // Fully depreciated
               data.transactions.push({ id: 'tx_dep_'+Date.now()+Math.random(), date: new Date().toISOString().split('T')[0], desc: `${fa.name} 自動折舊`, scope: 'family', auto_generated: true, asset_id: fa.id, debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }], credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }] });
-              fa.last_depreciation_date = new Date().toISOString().split('T')[0]; g++;
+              fa.last_depreciation_date = new Date().toISOString().split('T')[0];
             }
           }
-          // Auto Installments
           let instList = data.installments || [];
           for(let i=0; i<instList.length; i++) {
             let inst = instList[i]; if(!inst || !inst.next_month || inst.next_month.length < 7) continue;
@@ -882,10 +914,8 @@
               let day = inst.date_day || '01';
               data.transactions.push({ id: 'tx_inst_'+Date.now()+Math.random(), date: `${inst.next_month}-${day}`, desc: `${inst.desc} (${inst.paid_periods+1}/${inst.periods}期)`, scope: inst.scope, auto_generated: true, inst_id: inst.id, debits: [{ account_id: inst.debit_acc, amount: inst.amount_per_period }], credits: [{ account_id: inst.credit_acc, amount: inst.amount_per_period }] });
               inst.paid_periods++; let parts = inst.next_month.split('-'); if(parts.length >= 2) { let y = Number(parts[0]); let m = Number(parts[1]); m++; if(m > 12) { m = 1; y++; } let mm = m < 10 ? '0' + m : '' + m; inst.next_month = `${y}-${mm}`; }
-              g++;
             }
           }
-          if (g > 0) { console.log(`自動排程產生 ${g} 筆紀錄`); autoBackup(); }
         };
 
         // ================= Google Drive API Sync =================
@@ -921,7 +951,7 @@
                settings.fileId = fileId; saveSettings();
                if(isManual) { // Manual Download
                   let fileRes = await gapi.client.request({ path: `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, method: 'GET' });
-                  if(fileRes.result) { Object.assign(data, fileRes.result); migrateLegacyData(); runAutoTasks(); updateCharts(); if(isManual) alert('雲端資料已還原'); }
+                  if(fileRes.result) { Object.assign(data, fileRes.result); migrateLegacyData(); runAutoTasks(); updateCharts(); if(isManual) alert('雲端資料已同步還原'); }
                } else { // Auto Upload
                   let content = JSON.stringify(data);
                   await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${settings.googleToken}`, 'Content-Type': 'application/json' }, body: content });
@@ -946,13 +976,20 @@
         const updateStockPrices = async () => {
           try {
             const res = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL'); const twseData = await res.json();
-            (data.investments || []).forEach(inv => { if(inv.currency!=='USD'){ const s = twseData.find(st=>st.Code===(inv.symbol||'').replace('.TW','')); if(s) inv.last_price = parseFloat(s.ClosingPrice); } });
+            let invList = data.investments || [];
+            for(let i=0; i<invList.length; i++) {
+              let inv = invList[i];
+              if(inv && inv.currency !== 'USD') {
+                let s = twseData.find(st => st && st.Code === (inv.symbol || '').replace('.TW',''));
+                if (s) inv.last_price = parseFloat(s.ClosingPrice);
+              }
+            }
             alert('股價更新完成'); autoBackup();
           } catch (e) { alert('無法連線證交所'); }
         };
 
         const setHistoryToCurrentMonth = () => {
-          const now = new Date(); const y = now.getFullYear(); const m = now.getMonth() + 1; const mStr = m < 10 ? '0'+m : ''+m; const d = new Date(y, m, 0).getDate();
+          const now = new Date(); const y = now.getFullYear(); const m = now.getMonth() + 1; const mStr = m < 10 ? '0' + m : '' + m; const d = new Date(y, m, 0).getDate();
           historyFilter.dateFrom = `${y}-${mStr}-01`; historyFilter.dateTo = `${y}-${mStr}-${d}`;
         };
 
@@ -967,50 +1004,66 @@
           if (activeTab.value !== 'dashboard') return;
           nextTick(() => {
             try {
-              const ctx1 = document.getElementById('expenseChart'); const expMonth = expenseMonth.value || ''; const exp = {}; let tot = 0;
+              const ctx1 = document.getElementById('expenseChart');
+              const expMonth = expenseMonth.value || ''; const exp = {}; let tot = 0;
               let txList = data.transactions || [];
               for(let i=0; i<txList.length; i++) {
                 let tx = txList[i]; let txDate = tx && tx.date ? tx.date : '';
                 if (txDate.length >= 7 && expMonth.length >= 7 && txDate.substring(0,7) === expMonth.substring(0,7)) {
                   let dList = tx.debits || [];
                   for(let j=0; j<dList.length; j++) {
-                    let a = (data.accounts || []).find(ac => ac && ac.id === dList[j].account_id);
-                    if(a && a.type === 'Expense') { let cat = a.category || '未分類'; let amt = Number(dList[j].amount) || 0; if(!exp[cat]) exp[cat] = 0; exp[cat] += amt; tot += amt; }
+                    let d = dList[j]; let accList = data.accounts || []; let a = accList.find(ac => ac && ac.id === d.account_id);
+                    if(a && a.type === 'Expense') { let cat = a.category || '未分類'; let amt = Number(d.amount) || 0; if(!exp[cat]) exp[cat] = 0; exp[cat] += amt; tot += amt; }
                   }
                 }
               }
               hasExpensesThisMonth.value = tot > 0;
               if (hasExpensesThisMonth.value && ctx1) {
                 if (expenseChartInstance.value) expenseChartInstance.value.destroy();
-                let labels = [], values = []; for(let key in exp) { labels.push(key); values.push(exp[key]); }
+                let labels = []; let values = []; for(let key in exp) { labels.push(key); values.push(exp[key]); }
                 expenseChartInstance.value = new Chart(ctx1, { type: 'doughnut', data: { labels: labels, datasets: [{ data: values, backgroundColor: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } });
               } else if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
 
               const ctx2 = document.getElementById('assetChart');
-              if (totalAssets.value <= 0) { if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; } } 
-              else if (ctx2) {
+              if (totalAssets.value <= 0) {
+                if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
+              } else if (ctx2) {
                 let cTot=0, sTot=0;
-                for(let i=0; i<(data.accounts||[]).length; i++){ let a = data.accounts[i]; if(a && a.type==='Asset' && !a.is_contra && a.id!=='1103' && a.id!=='1201') cTot += calculateBalance(a.id); }
-                for(let i=0; i<(data.investments||[]).length; i++){ sTot += getInvCurrentValue(data.investments[i]); }
+                let accList = data.accounts || [];
+                for(let i=0; i<accList.length; i++){ let a = accList[i]; if(a && a.type==='Asset' && !a.is_contra && a.id!=='1103' && a.id!=='1201') cTot += calculateBalance(a.id); }
+                let invList = data.investments || [];
+                for(let i=0; i<invList.length; i++){ let inv = invList[i]; sTot += getInvCurrentValue(inv); }
                 let fTot = calculateBalance('1201') + calculateBalance('1201-DEP');
                 if (assetChartInstance.value) assetChartInstance.value.destroy();
-                assetChartInstance.value = new Chart(ctx2, { type: 'pie', data: { labels: ['現金存款', '股票現值', '固定資產淨值'], datasets: [{ data: [Math.max(0,cTot), sTot, Math.max(0,fTot)], backgroundColor: ['#3b82f6', '#8b5cf6', '#14b8a6'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } });
+                assetChartInstance.value = new Chart(ctx2, { type: 'pie', data: { labels: ['現金存款', '股票現值', '固定資產'], datasets: [{ data: [Math.max(0,cTot), sTot, Math.max(0,fTot)], backgroundColor: ['#3b82f6', '#8b5cf6', '#14b8a6'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right' } } } });
               }
             } catch (err) { console.error("Chart Render Error:", err); }
           });
         };
 
         const refreshIcons = () => { nextTick(() => { try { if (window.lucide) lucide.createIcons(); } catch(e){} }); };
+
         watch(activeTab, () => { if(activeTab.value === 'dashboard') updateCharts(); refreshIcons(); });
 
         const initData = async () => {
-          try { const backup = localStorage.getItem('ledger_backup'); if (backup) { const p = JSON.parse(backup); if(p && typeof p === 'object') Object.assign(data, p); } } catch(e) {}
-          migrateLegacyData(); setHistoryToCurrentMonth();
-          try { const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD'); const fx = await res.json(); if(fx && fx.rates && fx.rates.TWD) fxRate.value = fx.rates.TWD; } catch(e){}
+          try {
+            const backup = localStorage.getItem('ledger_backup');
+            if (backup) { const p = JSON.parse(backup); if(p && typeof p === 'object') Object.assign(data, p); }
+          } catch(e) {}
+          
+          migrateLegacyData();
+          setHistoryToCurrentMonth();
+          await fetchExchangeRate();
+          
+          // 關閉原生載入畫面
+          let loadingScreen = document.getElementById('native-loading');
+          if(loadingScreen) loadingScreen.style.display = 'none';
           
           if(window.google) initGoogleAuth(); else setTimeout(initGoogleAuth, 2000);
           
-          runAutoTasks(); if (activeTab.value === 'dashboard') updateCharts(); refreshIcons();
+          runAutoTasks();
+          if (activeTab.value === 'dashboard') updateCharts();
+          refreshIcons();
         };
 
         onMounted(() => { loadSettings(); if(isUnlocked.value) initData(); });
@@ -1021,7 +1074,7 @@
 
         return { 
           accounts: data.accounts, assetAccounts, paymentAccounts, balanceAccounts, activeInstallments, activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGoogleDrive, handleGoogleAuth, handleGoogleSignout, data, newTx, txError, submitTransaction, deleteTransaction, formatNumber, applyQuickTag, getSubAccounts, netWorth, totalAssets, totalLiabilities, updateStockPrices, hasExpensesThisMonth, exportData, importData, sortedTransactions, filteredTransactions, historyFilter, getTxColorBand, getTxAmountColor, settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, toggleAccountVisibility, deleteAccount, showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, initFA, submitFixedAsset,
-          getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getInvestTotalAmount, getInvCurrentValue, getUnrealizedGain, expenseCategories, incomeCategories, currentSettingCategories, safeQuickTags, safeInvestments, safeFixedAssets, accountsWithBalance, getFAAccDep, getFABookValue, disposalAsset, disposalForm, openDisposalModal, submitDisposal,
+          getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getInvestTotalAmount, getInvCurrentValue, getUnrealizedGain, expenseCategories, incomeCategories, currentSettingCategories, safeQuickTags, safeInvestments, safeFixedAssets, accountsWithBalance, getFAAccDep, getFABookValue, disposalAsset, disposalForm, openDisposalModal, submitDisposal, paymentAccountsWithBalance, assetAccountsWithBalance,
           showAmounts, expenseMonth, updateCharts, setHistoryToCurrentMonth
         };
       }
