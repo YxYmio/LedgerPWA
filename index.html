@@ -9,7 +9,6 @@
   <meta name="theme-color" content="#0f172a">
   
   <style>
-    /* 原生載入動畫與防閃爍 */
     ::-webkit-scrollbar { width: 0px; background: transparent; }
     @keyframes spin { 100% { transform: rotate(360deg); } }
     body { margin: 0; padding: 0; background-color: #f8fafc; }
@@ -58,7 +57,7 @@
 </head>
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 select-none">
   
-  <!-- ================= 絕對防白屏：原生載入中畫面 ================= -->
+  <!-- 原生載入中畫面 -->
   <div id="native-loading" style="position: fixed; inset: 0; z-index: 99999; background: #0f172a; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: sans-serif;">
     <div style="width: 45px; height: 45px; border: 5px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;"></div>
     <h2 style="font-size: 1.5rem; font-weight: bold; color: white; margin: 0;">系統啟動中</h2>
@@ -95,7 +94,7 @@
           <i data-lucide="book-open" class="flex-shrink-0"></i> {{ settings.appName || '我的複式帳本' }}
         </h1>
         <div class="flex gap-4 flex-shrink-0 items-center">
-          <button @click="syncWithGoogleDrive(false)" title="同步至 Google Drive" class="relative">
+          <button @click="syncWithGoogleDrive(true)" title="強制同步至 Google Drive" class="relative">
             <i data-lucide="refresh-cw" :class="{'animate-spin': isSyncing}"></i>
             <span class="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-blue-600" 
                   :class="syncStatus === 'ok' ? 'bg-green-400' : (syncStatus === 'offline' ? 'bg-yellow-400' : 'bg-red-500')"></span>
@@ -108,7 +107,7 @@
         <!-- 未綁定 Banner 提示 -->
         <div v-if="!settings.googleToken" @click="activeTab = 'settings'" class="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded-lg mb-4 flex items-center cursor-pointer hover:bg-yellow-100 transition shadow-sm dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-300">
           <i data-lucide="alert-triangle" class="w-5 h-5 mr-2 flex-shrink-0"></i>
-          <span class="text-xs font-bold">目前為單機模式（資料存於本地）。點此開啟雲端同步</span>
+          <span class="text-xs font-bold">目前為單機模式。點此前往設定開啟 Google Drive 雲端同步</span>
         </div>
 
         <!-- ================= 1. 總覽 Tab (Dashboard) ================= -->
@@ -163,7 +162,7 @@
           <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700 space-y-4">
             
             <div class="flex gap-2">
-              <input type="date" v-model="newTx.date" class="border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none w-36 text-sm">
+              <input type="date" v-model="newTx.date" class="border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none w-36 text-sm font-mono">
               <select v-model="newTx.scope" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
                 <option value="personal">個人</option>
                 <option value="family">家庭</option>
@@ -260,7 +259,7 @@
                 <button @click="newTx.investAction = 'sell'" :class="newTx.investAction==='sell' ? 'bg-green-500 text-white shadow-inner' : 'bg-slate-100 text-slate-500 dark:bg-slate-700'" class="flex-1 py-1.5 rounded-lg font-bold transition">賣出</button>
               </div>
               <div class="flex gap-2">
-                <input type="text" v-model="newTx.symbol" placeholder="代號(如 2330.TW)" class="border p-2 rounded-lg w-1/3 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
+                <input type="text" v-model="newTx.symbol" placeholder="代號(如 2330.TW)" class="border p-2 rounded-lg w-1/3 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm font-mono">
                 <input type="text" v-model="newTx.stockName" placeholder="名稱(如 台積電)" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm">
               </div>
               <div class="flex gap-2">
@@ -294,7 +293,7 @@
           </div>
         </div>
 
-        <!-- ================= 3. 明細 Tab (History) ================= -->
+        <!-- ================= 3. 明細 Tab ================= -->
         <div v-show="activeTab === 'history'" class="space-y-4">
           <div class="flex justify-between items-center border-b pb-2">
             <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> 明細查詢</h2>
@@ -311,9 +310,9 @@
               </select>
             </div>
             <div class="flex gap-2 items-center text-sm">
-              <input type="date" v-model="historyFilter.dateFrom" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
+              <input type="date" v-model="historyFilter.dateFrom" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none font-mono">
               <span class="text-slate-400 font-bold">至</span>
-              <input type="date" v-model="historyFilter.dateTo" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none">
+              <input type="date" v-model="historyFilter.dateTo" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none font-mono">
             </div>
           </div>
           
@@ -339,7 +338,7 @@
           </div>
         </div>
 
-        <!-- ================= 4. 資產 Tab (Assets) ================= -->
+        <!-- ================= 4. 資產 Tab ================= -->
         <div v-show="activeTab === 'assets'" class="space-y-6">
           
           <!-- 帳戶現況總覽 -->
@@ -351,12 +350,73 @@
             </div>
           </div>
 
+          <!-- 智慧貸款管理 -->
+          <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2 text-rose-600 dark:text-rose-400">
+            <i data-lucide="building-2" class="w-5 h-5"></i> 智慧貸款管理
+          </h2>
+          <button @click="showAddLoanModal = true" class="w-full mt-2 text-sm border border-dashed border-slate-400 text-slate-500 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition font-bold">+ 建立新貸款帳戶</button>
+          
+          <div v-if="safeLoans.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-6 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
+            <i data-lucide="check-circle" class="w-8 h-8 mb-2 opacity-30"></i> 目前無貸款負債
+          </div>
+          <div v-for="loan in safeLoans" :key="loan.id" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm mt-3 border-l-4 border-l-rose-500 relative">
+            <div class="flex justify-between items-start">
+              <div class="font-bold text-lg">{{ loan.name }}</div>
+              <button @click="openRateModal(loan)" class="text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 px-2 py-1 rounded shadow-sm transition">調利率</button>
+            </div>
+            <div class="text-sm text-slate-500 mt-2 bg-slate-50 dark:bg-slate-900 p-2 rounded space-y-1">
+              <div class="flex justify-between"><span>當前年利率:</span> <span class="font-mono text-rose-600 font-bold">{{ loan.interest_rate }}%</span></div>
+              <div class="flex justify-between"><span>約定月繳:</span> <span>${{ formatNumber(loan.monthly_payment) }}</span></div>
+            </div>
+            <div class="flex justify-between items-center mt-3">
+              <div class="text-rose-600 dark:text-rose-400 font-bold text-lg">剩餘本金: ${{ formatNumber(Math.abs(calculateBalance(loan.liability_acc_id))) }}</div>
+              <button @click="openPayLoanModal(loan)" class="text-sm bg-rose-600 text-white px-3 py-1.5 rounded-lg font-bold shadow hover:bg-rose-700 transition">執行繳款</button>
+            </div>
+          </div>
+
+          <!-- 進行中分期 -->
+          <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2 text-orange-600 dark:text-orange-400"><i data-lucide="calendar-clock" class="w-5 h-5"></i> 進行中分期排程</h2>
+          <div v-if="activeInstallments.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-6 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
+            <i data-lucide="check-circle" class="w-8 h-8 mb-2 opacity-30"></i> 目前無未結清之分期
+          </div>
+          <div v-for="inst in activeInstallments" :key="inst.id" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm mt-3 border-l-4 border-l-orange-400">
+            <div class="font-bold text-[15px]">{{ inst.desc }}</div>
+            <div class="flex justify-between items-end mt-3 bg-slate-50 dark:bg-slate-900 p-2 rounded">
+              <div class="text-xs text-slate-500 space-y-1">
+                <div>總額: ${{ formatNumber(inst.total_amount) }}</div>
+                <div>進度: <span class="font-bold text-slate-700 dark:text-slate-200">{{ inst.paid_periods }} / {{ inst.periods }} 期</span></div>
+                <div class="text-orange-600 dark:text-orange-400 font-bold font-mono">下次扣款: {{ inst.next_month }}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs text-slate-500 mb-0.5">剩餘待繳</div>
+                <div class="font-bold text-red-500 text-lg">${{ formatNumber(inst.total_amount - (inst.paid_periods * inst.amount_per_period)) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 固定資產與除列 -->
+          <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2 text-teal-700 dark:text-teal-400"><i data-lucide="monitor" class="w-5 h-5"></i> 固定資產與除列</h2>
+          <div v-if="safeFixedAssets.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-6 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
+            <i data-lucide="monitor" class="w-8 h-8 mb-2 opacity-30"></i> 目前無固定資產
+          </div>
+          <div v-for="fa in safeFixedAssets" :key="fa.id" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm mt-3 relative overflow-hidden border-l-4 border-l-teal-500">
+            <div class="flex justify-between items-start">
+              <div class="font-bold text-lg">{{ fa.name }}</div>
+              <button @click="openDisposalModal(fa)" class="text-xs bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded font-bold shadow-sm transition">處分/報廢</button>
+            </div>
+            <div class="text-sm text-slate-500 mt-2 bg-slate-50 dark:bg-slate-900 p-2 rounded">原價: ${{ formatNumber(fa.original_cost) }} | 月折舊: ${{ formatNumber(fa.monthly_depreciation) }}</div>
+            <div class="text-xs mt-2 text-slate-500 flex justify-between items-center">
+              <span>最後折舊: <span class="font-mono bg-slate-100 dark:bg-slate-700 px-1 rounded">{{ fa.last_depreciation_date || '尚未' }}</span></span>
+              <span class="font-bold text-teal-600 dark:text-teal-400">目前淨值: ${{ formatNumber(getFABookValue(fa)) }}</span>
+            </div>
+          </div>
+
           <!-- 股票管理 -->
           <div class="flex justify-between items-center border-b pb-2 mt-8 text-indigo-700 dark:text-indigo-400">
             <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="trending-up" class="w-5 h-5"></i> 股票庫存估值</h2>
             <div class="flex gap-2">
-              <button @click="showInitialStockModal = true" class="text-xs bg-green-100 text-green-700 px-2.5 py-1.5 rounded-lg hover:bg-green-200 font-bold shadow-sm">+ 期初建倉</button>
-              <button @click="updateStockPrices" class="text-xs bg-indigo-100 text-indigo-700 px-2.5 py-1.5 rounded-lg hover:bg-indigo-200 font-bold shadow-sm flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3 h-3"></i> 更新</button>
+              <button @click="showInitialStockModal = true" class="text-xs bg-green-100 text-green-700 px-2.5 py-1.5 rounded-lg hover:bg-green-200 font-bold shadow-sm transition">+ 期初建倉</button>
+              <button @click="updateStockPrices" class="text-xs bg-indigo-100 text-indigo-700 px-2.5 py-1.5 rounded-lg hover:bg-indigo-200 font-bold shadow-sm flex items-center gap-1 transition"><i data-lucide="refresh-cw" class="w-3 h-3"></i> 更新</button>
             </div>
           </div>
 
@@ -375,43 +435,6 @@
               </span>
             </div>
           </div>
-
-          <!-- 固定資產與除列 -->
-          <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2 text-teal-700 dark:text-teal-400"><i data-lucide="monitor" class="w-5 h-5"></i> 固定資產與除列</h2>
-          <div v-if="safeFixedAssets.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-6 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
-            <i data-lucide="monitor" class="w-8 h-8 mb-2 opacity-30"></i> 目前無固定資產
-          </div>
-          <div v-for="fa in safeFixedAssets" :key="fa.id" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm mt-3 relative overflow-hidden border-l-4 border-l-teal-500">
-            <div class="flex justify-between items-start">
-              <div class="font-bold text-lg">{{ fa.name }}</div>
-              <button @click="openDisposalModal(fa)" class="text-xs bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded font-bold shadow-sm">處分/報廢</button>
-            </div>
-            <div class="text-sm text-slate-500 mt-2 bg-slate-50 dark:bg-slate-900 p-2 rounded">原價: ${{ formatNumber(fa.original_cost) }} | 月折舊: ${{ formatNumber(fa.monthly_depreciation) }}</div>
-            <div class="text-xs mt-2 text-slate-500 flex justify-between items-center">
-              <span>最後折舊: <span class="font-mono bg-slate-100 dark:bg-slate-700 px-1 rounded">{{ fa.last_depreciation_date || '尚未提列' }}</span></span>
-              <span class="font-bold text-teal-600 dark:text-teal-400">目前淨值: ${{ formatNumber(getFABookValue(fa)) }}</span>
-            </div>
-          </div>
-
-          <!-- 進行中分期 -->
-          <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2 text-orange-600 dark:text-orange-400"><i data-lucide="calendar-clock" class="w-5 h-5"></i> 進行中分期排程</h2>
-          <div v-if="activeInstallments.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-6 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
-            <i data-lucide="check-circle" class="w-8 h-8 mb-2 opacity-30"></i> 目前無未結清之分期
-          </div>
-          <div v-for="inst in activeInstallments" :key="inst.id" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm mt-3 border-l-4 border-l-orange-400">
-            <div class="font-bold text-[15px]">{{ inst.desc }}</div>
-            <div class="flex justify-between items-end mt-3 bg-slate-50 dark:bg-slate-900 p-2 rounded">
-              <div class="text-xs text-slate-500 space-y-1">
-                <div>總額: ${{ formatNumber(inst.total_amount) }}</div>
-                <div>進度: <span class="font-bold text-slate-700 dark:text-slate-200">{{ inst.paid_periods }} / {{ inst.periods }} 期</span></div>
-                <div class="text-orange-600 dark:text-orange-400 font-bold">下次扣款: {{ inst.next_month }}</div>
-              </div>
-              <div class="text-right">
-                <div class="text-xs text-slate-500 mb-0.5">剩餘待繳</div>
-                <div class="font-bold text-red-500 text-lg">${{ formatNumber(inst.total_amount - (inst.paid_periods * inst.amount_per_period)) }}</div>
-              </div>
-            </div>
-          </div>
         </div>
 
         <!-- ================= 5. 設定 Tab ================= -->
@@ -422,27 +445,6 @@
             <div class="flex items-center gap-3 bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm">
               <span class="w-16 text-sm font-bold text-slate-500">App 名稱</span>
               <input type="text" v-model="settings.appName" @change="saveSettings" placeholder="例如: 我的複式帳本" class="flex-1 border-b dark:border-slate-600 bg-transparent outline-none focus:border-blue-500 font-bold text-lg">
-            </div>
-          </section>
-
-          <!-- Google Drive 同步設定 -->
-          <section>
-            <h2 class="text-lg font-bold border-b pb-2 mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2"><i data-lucide="cloud" class="w-5 h-5"></i> 雲端同步 (Google Drive)</h2>
-            <div class="space-y-3 bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm">
-              <div class="text-xs text-slate-500">請輸入 Google Client ID 開啟自動備份與多裝置同步。</div>
-              <input type="text" v-model="settings.googleClientId" @change="saveSettings" placeholder="Client ID (xxx.apps.googleusercontent.com)" class="w-full border p-2 rounded-lg dark:bg-slate-900 outline-none text-sm font-mono">
-              
-              <div class="flex items-center gap-2 mt-4 pt-4 border-t dark:border-slate-700">
-                <div class="flex-1">
-                  <div class="text-sm font-bold flex items-center gap-1" :class="settings.googleToken ? 'text-green-600' : 'text-slate-500'">
-                    <i :data-lucide="settings.googleToken ? 'check-circle' : 'x-circle'" class="w-4 h-4"></i> 
-                    {{ settings.googleToken ? '已連結' : '未授權' }}
-                  </div>
-                </div>
-                <button v-if="!settings.googleToken" @click="handleGoogleAuth" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition">使用 Google 登入</button>
-                <button v-if="settings.googleToken" @click="handleGoogleSignout" class="bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg font-bold text-sm transition">登出</button>
-              </div>
-              <button v-if="settings.googleToken" @click="syncWithGoogleDrive(true)" class="w-full bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-lg font-bold flex justify-center items-center gap-2 shadow mt-2 transition"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 立即強制同步</button>
             </div>
           </section>
 
@@ -499,9 +501,29 @@
             </div>
           </section>
 
-          <!-- 安全與備份 -->
+          <!-- Google Drive 同步設定 -->
           <section>
-            <h2 class="text-lg font-bold border-b pb-2 mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2"><i data-lucide="shield-check" class="w-5 h-5"></i> 安全與備份</h2>
+            <h2 class="text-lg font-bold border-b pb-2 mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2"><i data-lucide="cloud" class="w-5 h-5"></i> 雲端同步 (Google Drive)</h2>
+            <div class="space-y-3 bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm">
+              <div class="text-xs text-slate-500">輸入 Google Client ID 以開啟自動備份與多裝置同步。</div>
+              <input type="text" v-model="settings.googleClientId" @change="saveSettings" placeholder="Client ID (xxx.apps.googleusercontent.com)" class="w-full border p-2 rounded-lg dark:bg-slate-900 outline-none text-sm font-mono">
+              
+              <div class="flex items-center gap-2 mt-4 pt-4 border-t dark:border-slate-700">
+                <div class="flex-1">
+                  <div class="text-sm font-bold flex items-center gap-1" :class="settings.googleToken ? 'text-green-600' : 'text-slate-500'">
+                    <i :data-lucide="settings.googleToken ? 'check-circle' : 'x-circle'" class="w-4 h-4"></i> 
+                    {{ settings.googleToken ? '已連結' : '未授權' }}
+                  </div>
+                </div>
+                <button v-if="!settings.googleToken" @click="handleGoogleAuth" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition">Google 登入</button>
+                <button v-if="settings.googleToken" @click="handleGoogleSignout" class="bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg font-bold text-sm transition">登出</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- 資料管理與危險操作區 -->
+          <section>
+            <h2 class="text-lg font-bold border-b pb-2 mb-3 text-red-600 dark:text-red-400 flex items-center gap-2"><i data-lucide="alert-octagon" class="w-5 h-5"></i> 資料管理與危險操作</h2>
             <div class="flex items-center justify-between border p-3.5 rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 mb-3 shadow-sm">
               <span class="font-bold text-sm">App PIN 碼防窺鎖</span>
               <input type="checkbox" v-model="settings.pinEnabled" @change="saveSettings" class="w-5 h-5 accent-blue-600 cursor-pointer">
@@ -509,24 +531,99 @@
             <div v-if="settings.pinEnabled" class="mb-3">
               <input type="password" v-model="settings.pinCode" placeholder="4位數新 PIN 碼" maxlength="4" class="w-full border p-2 rounded-xl dark:bg-slate-700 text-center tracking-widest text-xl font-bold shadow-inner outline-none focus:border-blue-500">
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2 mb-4">
               <button @click="exportData" class="flex-1 bg-green-600 hover:bg-green-700 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-1 text-sm shadow transition"><i data-lucide="download" class="w-4 h-4"></i> 匯出 JSON</button>
               <label class="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-1 cursor-pointer text-sm shadow transition">
-                <i data-lucide="upload" class="w-4 h-4"></i> 匯入備份
+                <i data-lucide="upload" class="w-4 h-4"></i> 匯入覆蓋
                 <input type="file" @change="importData" class="hidden" accept=".json">
               </label>
             </div>
+
+            <button @click="showResetModal = true" class="w-full bg-red-100 hover:bg-red-200 text-red-700 dark:bg-red-900/30 dark:text-red-400 p-3 rounded-xl font-bold flex items-center justify-center gap-2 transition border border-red-200 dark:border-red-800 shadow-sm">
+              <i data-lucide="trash-2" class="w-5 h-5"></i> 清空所有帳本資料 (重置)
+            </button>
           </section>
         </div>
 
       </main>
 
-      <!-- 彈窗區塊 -->
+      <!-- ================= 彈窗區塊 ================= -->
+      
+      <!-- 新增貸款彈窗 -->
+      <div v-if="showAddLoanModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
+          <h3 class="text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2 text-rose-600"><i data-lucide="building-2" class="w-5 h-5"></i> 新增貸款</h3>
+          <div class="space-y-3 text-sm">
+            <input type="text" v-model="initLoan.name" placeholder="貸款名稱 (如: 台灣銀行學貸)" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            <input type="number" v-model.number="initLoan.principal" placeholder="初始剩餘本金" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            <div class="flex gap-2">
+              <input type="number" step="0.01" v-model.number="initLoan.rate" placeholder="年利率 (%)" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
+              <input type="number" v-model.number="initLoan.payment" placeholder="約定月繳金額" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            </div>
+            <div class="flex gap-2 mt-5">
+              <button @click="showAddLoanModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+              <button @click="submitAddLoan" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-lg font-bold transition shadow-md">確認建立</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 調整利率彈窗 -->
+      <div v-if="showRateModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
+          <h3 class="text-xl font-bold mb-4 border-b pb-2 flex items-center gap-2"><i data-lucide="percent" class="w-5 h-5"></i> 調整利率</h3>
+          <div class="mb-3 text-sm text-slate-500">修改 <span class="font-bold text-slate-800 dark:text-white">{{ activeLoan?.name }}</span> 的年利率</div>
+          <input type="number" step="0.01" v-model.number="rateData.rate" placeholder="新年利率 (%)" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-lg font-bold">
+          <div class="flex gap-2 mt-5">
+            <button @click="showRateModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+            <button @click="submitRateAdjust" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg font-bold transition shadow-md">儲存修改</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 執行繳款拆分彈窗 -->
+      <div v-if="showPayLoanModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
+          <h3 class="text-xl font-bold mb-2 border-b pb-2 flex items-center gap-2 text-rose-600"><i data-lucide="receipt" class="w-5 h-5"></i> 執行貸款繳款</h3>
+          <div class="mb-4 text-sm bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border dark:border-slate-700">
+            <div class="font-bold mb-1 text-base">{{ activeLoan?.name }}</div>
+            <div>繳款前本金: ${{ formatNumber(payLoanData.current_principal) }}</div>
+            <div>適用年利率: {{ activeLoan?.interest_rate }}%</div>
+          </div>
+          <div class="space-y-3">
+            <input type="date" v-model="payLoanData.date" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm font-mono">
+            <div class="flex gap-2">
+              <div class="flex-1">
+                <div class="text-xs text-slate-500 mb-1">當期利息 (自動)</div>
+                <input type="number" v-model.number="payLoanData.interest" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-red-500 font-bold bg-red-50 dark:bg-red-900/20">
+              </div>
+              <div class="flex-1">
+                <div class="text-xs text-slate-500 mb-1">償還本金 (自動)</div>
+                <input type="number" v-model.number="payLoanData.principal" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-green-600 font-bold bg-green-50 dark:bg-green-900/20">
+              </div>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500 mb-1">約定扣款總額</div>
+              <input type="number" v-model.number="payLoanData.total" @input="recalcLoanSplit" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-lg font-bold">
+            </div>
+            <select v-model="payLoanData.paymentAcc" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm">
+              <option value="" disabled>選擇繳款扣款帳戶</option>
+              <option v-for="acc in paymentAccountsWithBalance" :key="acc.id" :value="acc.id">{{ acc.name }} ($ {{ formatNumber(acc.balance) }})</option>
+            </select>
+            <div class="flex gap-2 mt-5">
+              <button @click="showPayLoanModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+              <button @click="submitPayLoan" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white p-2 rounded-lg font-bold shadow-md transition">確認扣款</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 期初股票彈窗 -->
       <div v-if="showInitialStockModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
           <h3 class="text-xl font-bold mb-4 border-b pb-2">期初股票建倉 (不扣款)</h3>
           <div class="space-y-3">
-            <input type="text" v-model="initStock.symbol" placeholder="代號 (如: 2330.TW)" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            <input type="text" v-model="initStock.symbol" placeholder="代號 (如: 2330.TW)" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none font-mono">
             <input type="text" v-model="initStock.name" placeholder="名稱 (如: 台積電)" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
             <div class="flex gap-2">
               <input type="number" v-model.number="initStock.shares" placeholder="持有股數" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
@@ -540,24 +637,7 @@
         </div>
       </div>
 
-      <div v-if="showAddFixedAssetModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
-          <h3 class="text-xl font-bold mb-4 border-b pb-2">登錄新固定資產</h3>
-          <div class="space-y-3 text-sm">
-            <input type="text" v-model="initFA.name" placeholder="設備名稱" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
-            <input type="date" v-model="initFA.date" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
-            <div class="flex gap-2">
-              <input type="number" v-model.number="initFA.cost" placeholder="購入原價" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
-              <input type="number" v-model.number="initFA.months" placeholder="折舊月數" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
-            </div>
-            <div class="flex gap-2 mt-5">
-              <button @click="showAddFixedAssetModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
-              <button @click="submitFixedAsset" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg font-bold transition shadow-md">確認登錄</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
+      <!-- 處分固定資產彈窗 -->
       <div v-if="showDisposalModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
           <h3 class="text-xl font-bold mb-2 border-b pb-2 flex items-center gap-2 text-red-600"><i data-lucide="trash" class="w-5 h-5"></i> 處分固定資產</h3>
@@ -593,6 +673,20 @@
         </div>
       </div>
 
+      <!-- 重置防呆彈窗 -->
+      <div v-if="showResetModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl border-2 border-red-500">
+          <h3 class="text-xl font-bold mb-2 border-b pb-2 flex items-center gap-2 text-red-600"><i data-lucide="alert-triangle" class="w-5 h-5"></i> 嚴重警告</h3>
+          <p class="text-sm text-slate-600 dark:text-slate-300 mt-3 mb-5 leading-relaxed">
+            此操作將<strong class="text-red-500">永久清空</strong>本機以及 Google Drive 上的所有帳本紀錄與設定，且無法復原。<br><br>您確定要繼續嗎？
+          </p>
+          <div class="flex gap-2 mt-5">
+            <button @click="showResetModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消，保留資料</button>
+            <button @click="executeFactoryReset" class="flex-1 bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg font-bold shadow-md transition">我確定要清空</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 底部導覽列 -->
       <nav class="fixed bottom-0 w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-1 py-1.5 z-40 shadow-[0_-5px_15px_rgba(0,0,0,0.03)] pb-[calc(env(safe-area-inset-bottom)+6px)]">
         <button @click="activeTab='dashboard'" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'" class="flex-1 flex flex-col items-center p-1.5 transition"><i data-lucide="layout-dashboard" class="w-6 h-6"></i><span class="text-[10px] mt-1 font-bold">總覽</span></button>
@@ -622,9 +716,14 @@
         const showAmounts = ref(true);
         const expenseMonth = ref(new Date().toISOString().substring(0,7));
 
+        // Modals state
         const showInitialStockModal = ref(false);
         const showAddFixedAssetModal = ref(false);
         const showDisposalModal = ref(false);
+        const showAddLoanModal = ref(false);
+        const showRateModal = ref(false);
+        const showPayLoanModal = ref(false);
+        const showResetModal = ref(false);
         
         const expenseChartInstance = ref(null);
         const assetChartInstance = ref(null);
@@ -633,8 +732,8 @@
         const settings = reactive({ appName: '我的複式帳本', googleClientId: '', googleToken: '', fileId: '', pinEnabled: false, pinCode: '0000' });
 
         const data = reactive({
-          version: "4.0.0", quick_tags: [], smart_tags: {}, main_categories: { Expense: [], Income: [] },
-          accounts: [], transactions: [], fixed_assets: [], investments: [], installments: []
+          version: "5.0.0", quick_tags: [], smart_tags: {}, main_categories: { Expense: [], Income: [] },
+          accounts: [], transactions: [], fixed_assets: [], investments: [], installments: [], loans: []
         });
 
         const newTx = reactive({ date: new Date().toISOString().split('T')[0], scope: 'personal', desc: '', amount: null, mainCategory: '', subAccount: '', paymentAcc: '', fromAcc: '', toAcc: '', investAction: 'buy', symbol: '', stockName: '', shares: null, price: null, fee: null, tax: null, isInst: false, periods: 3, isFA: false, faName: '', faMonths: 60 });
@@ -642,10 +741,16 @@
         const historyFilter = reactive({ keyword: '', scope: 'all', dateFrom: '', dateTo: '' });
         const settingCategoryMode = ref('Expense');
         const newPreset = ref(''); const newMainCat = ref(''); const newSubCat = reactive({ main: '', name: '' });
+        
+        // Modal forms data
         const initStock = reactive({ symbol: '', name: '', shares: null, cost: null });
         const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60 });
         const disposalAsset = ref(null);
         const disposalForm = reactive({ type: 'scrap', price: null, account: '' });
+        const initLoan = reactive({ name: '', principal: null, rate: null, payment: null });
+        const activeLoan = ref(null);
+        const rateData = reactive({ rate: null });
+        const payLoanData = reactive({ date: '', interest: 0, principal: 0, total: 0, paymentAcc: '', current_principal: 0 });
 
         let tokenClient = null;
 
@@ -655,6 +760,7 @@
           if(!data.investments) data.investments = [];
           if(!data.fixed_assets) data.fixed_assets = [];
           if(!data.installments) data.installments = [];
+          if(!data.loans) data.loans = [];
           if(!data.smart_tags) data.smart_tags = {};
           
           if(!data.accounts || data.accounts.length === 0) {
@@ -663,10 +769,12 @@
               { id: "1103", name: "股票投資", type: "Asset", is_hidden: false }, { id: "1201", name: "固定資產", type: "Asset", is_hidden: false },
               { id: "1201-DEP", name: "累計折舊", type: "Asset", is_contra: true, is_hidden: false }, { id: "2101", name: "信用卡", type: "Liability", is_hidden: false },
               { id: "3101", name: "期初權益", type: "Equity", is_hidden: false }, { id: "4201", name: "處分資產損益", type: "Income", is_hidden: false },
-              { id: "5102", name: "折舊費用", type: "Expense", category: "生活用品", is_hidden: false }
+              { id: "5102", name: "折舊費用", type: "Expense", category: "生活用品", is_hidden: false },
+              { id: "5103", name: "利息支出", type: "Expense", category: "生活用品", is_hidden: false }
             ];
           }
           if(!data.accounts.find(a=>a.id==='4201')) data.accounts.push({ id: "4201", name: "處分資產損益", type: "Income", is_hidden: false });
+          if(!data.accounts.find(a=>a.id==='5103')) data.accounts.push({ id: "5103", name: "利息支出", type: "Expense", category: "生活用品", is_hidden: false });
           
           if(!data.main_categories) data.main_categories = { Expense: [], Income: [] };
           if(Object.keys(data.main_categories).length === 0) {
@@ -696,6 +804,7 @@
         const safeQuickTags = computed(() => data.quick_tags || []);
         const safeInvestments = computed(() => data.investments || []);
         const safeFixedAssets = computed(() => { let list = data.fixed_assets || []; return list.filter(fa => fa && !fa.is_disposed); });
+        const safeLoans = computed(() => data.loans || []);
 
         const calculateBalance = (id) => {
           let bal = 0; let list = data.transactions || [];
@@ -753,6 +862,7 @@
         const getAccName = (id) => { if(!id) return '未知'; let list = data.accounts || []; let acc = list.find(a => a && a.id === id); return acc ? acc.name : String(id); };
         const formatNumber = (num) => { let n = Number(num); return isNaN(n) ? '0' : Math.round(n).toLocaleString('en-US'); };
 
+        // --- View Helpers ---
         const getTxDesc = (tx) => { return (tx && tx.description) ? tx.description : '無摘要'; };
         const getDebitAccName = (tx) => { return (tx && tx.debits && tx.debits[0]) ? getAccName(tx.debits[0].account_id) : '未知'; };
         const getCreditAccName = (tx) => { return (tx && tx.credits && tx.credits[0]) ? getAccName(tx.credits[0].account_id) : '未知'; };
@@ -883,15 +993,7 @@
           showInitialStockModal.value = false; initStock.symbol = ''; initStock.name = ''; initStock.shares = null; initStock.cost = null; autoBackup(); updateCharts();
         };
 
-        const submitFixedAsset = () => {
-          if(!initFA.name || !initFA.cost || !initFA.months) return alert("請填寫完整");
-          if(!data.fixed_assets) data.fixed_assets = []; if(!data.transactions) data.transactions = [];
-          let monthlyDep = Math.round(initFA.cost / initFA.months);
-          data.fixed_assets.push({ id: 'fa_'+Date.now(), name: initFA.name, purchase_date: initFA.date, original_cost: initFA.cost, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: null });
-          data.transactions.push({ id: 'tx_fa_'+Date.now(), date: initFA.date, scope: 'family', desc: `購入固定資產 ${initFA.name}`, debits: [{ account_id: '1201', amount: initFA.cost }], credits: [{ account_id: '3101', amount: initFA.cost }] });
-          showAddFixedAssetModal.value = false; initFA.name = ''; initFA.cost = null; initFA.months = 60; autoBackup(); updateCharts();
-        };
-
+        // Fixed Asset Disposal Logic
         const openDisposalModal = (fa) => { disposalAsset.value = fa; disposalForm.type = 'scrap'; disposalForm.price = null; disposalForm.account = ''; showDisposalModal.value = true; };
         const submitDisposal = () => {
           if (disposalForm.type === 'sell' && (disposalForm.price === null || !disposalForm.account)) return alert("請填寫出售金額與入帳帳戶");
@@ -912,6 +1014,55 @@
           data.transactions.push(txObj); fa.is_disposed = true; showDisposalModal.value = false; autoBackup(); updateCharts(); alert('✅ 處分完成！');
         };
 
+        // Loan Management Logic
+        const submitAddLoan = () => {
+          if(!initLoan.name || !initLoan.principal || !initLoan.rate || !initLoan.payment) return alert("請填妥所有貸款欄位");
+          if(!data.loans) data.loans = []; if(!data.transactions) data.transactions = []; if(!data.accounts) data.accounts = [];
+          let accId = '2201_' + Date.now();
+          data.accounts.push({ id: accId, name: initLoan.name, type: 'Liability', is_hidden: false });
+          data.loans.push({ id: 'loan_' + Date.now(), name: initLoan.name, liability_acc_id: accId, interest_rate: initLoan.rate, monthly_payment: initLoan.payment });
+          data.transactions.push({ id: 'tx_loan_init_'+Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初貸款本金: ${initLoan.name}`, debits: [{ account_id: '3101', amount: initLoan.principal }], credits: [{ account_id: accId, amount: initLoan.principal }] });
+          showAddLoanModal.value = false;
+          initLoan.name = ''; initLoan.principal = null; initLoan.rate = null; initLoan.payment = null;
+          autoBackup(); updateCharts(); alert('✅ 貸款建立成功！');
+        };
+
+        const openRateModal = (loan) => {
+          activeLoan.value = loan; rateData.rate = loan.interest_rate; showRateModal.value = true;
+        };
+        const submitRateAdjust = () => {
+          if(!rateData.rate) return alert("請輸入利率");
+          activeLoan.value.interest_rate = rateData.rate; showRateModal.value = false; autoBackup(); alert('✅ 利率修改成功！');
+        };
+
+        const openPayLoanModal = (loan) => {
+          activeLoan.value = loan;
+          payLoanData.current_principal = Math.abs(calculateBalance(loan.liability_acc_id));
+          payLoanData.date = new Date().toISOString().split('T')[0];
+          payLoanData.total = loan.monthly_payment;
+          payLoanData.paymentAcc = '';
+          recalcLoanSplit();
+          showPayLoanModal.value = true;
+        };
+
+        const recalcLoanSplit = () => {
+          if(!activeLoan.value) return;
+          payLoanData.interest = Math.round(payLoanData.current_principal * (activeLoan.value.interest_rate / 100 / 12));
+          payLoanData.principal = (payLoanData.total || 0) - payLoanData.interest;
+          if (payLoanData.principal > payLoanData.current_principal) {
+             payLoanData.principal = payLoanData.current_principal;
+             payLoanData.total = payLoanData.principal + payLoanData.interest;
+          }
+        };
+
+        const submitPayLoan = () => {
+          if(!payLoanData.paymentAcc || !payLoanData.total || !payLoanData.date) return alert("請選擇扣款帳戶與日期");
+          if(!data.transactions) data.transactions = [];
+          data.transactions.push({ id: 'tx_loan_pay_'+Date.now(), date: payLoanData.date, scope: 'personal', desc: `貸款繳款: ${activeLoan.value.name}`, debits: [{ account_id: activeLoan.value.liability_acc_id, amount: payLoanData.principal }, { account_id: '5103', amount: payLoanData.interest }], credits: [{ account_id: payLoanData.paymentAcc, amount: payLoanData.total }] });
+          showPayLoanModal.value = false; autoBackup(); updateCharts(); alert('✅ 繳款成功！');
+        };
+
+        // Settings Management
         const addMainCategory = () => { let list = data.main_categories[settingCategoryMode.value] || []; if (newMainCat.value && !list.includes(newMainCat.value)) { data.main_categories[settingCategoryMode.value].push(newMainCat.value); newMainCat.value = ''; autoBackup(); } };
         const deleteMainCategory = (type, name) => { if(getSubAccounts(type, name, true).length > 0) return alert("請先清空子類別"); data.main_categories[type] = (data.main_categories[type] || []).filter(c => c !== name); autoBackup(); };
         const addSubCategory = () => { if (newSubCat.name && newSubCat.main) { if(!data.accounts) data.accounts = []; data.accounts.push({ id: 'acc_'+Date.now(), name: newSubCat.name, type: settingCategoryMode.value, category: newSubCat.main, is_hidden: false }); newSubCat.name = ''; autoBackup(); refreshIcons(); } };
@@ -957,7 +1108,7 @@
           }
         };
 
-        // ================= Google Drive API Sync =================
+        // ================= Google Drive API Sync & Factory Reset =================
         const autoBackup = () => { localStorage.setItem('ledger_backup', JSON.stringify(data)); if(settings.googleToken) syncWithGoogleDrive(false); };
         
         const initGoogleAuth = () => {
@@ -1011,6 +1162,25 @@
           } finally { isSyncing.value = false; }
         };
 
+        const executeFactoryReset = async () => {
+          // 清空所有陣列
+          data.transactions = []; data.accounts = []; data.fixed_assets = []; data.investments = []; data.installments = []; data.loans = []; data.quick_tags = []; data.smart_tags = {}; data.main_categories = { Expense: [], Income: [] };
+          // 重建預設帳戶
+          migrateLegacyData();
+          
+          // 如果有綁定 Google Drive，同步上傳清空的狀態
+          if (settings.googleToken && settings.fileId && typeof gapi !== 'undefined') {
+             try {
+                let content = JSON.stringify(data);
+                await fetch(`https://www.googleapis.com/upload/drive/v3/files/${settings.fileId}?uploadType=media`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${settings.googleToken}`, 'Content-Type': 'application/json' }, body: content });
+             } catch(e) { console.error("GDrive Reset Failed", e); }
+          }
+          
+          // 清除本地儲存並強制重整
+          localStorage.removeItem('ledger_backup');
+          window.location.reload(true);
+        };
+
         const updateStockPrices = async () => {
           try {
             const res = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL'); const twseData = await res.json();
@@ -1036,7 +1206,7 @@
         const unlockApp = () => { if (pinInput.value === settings.pinCode) { isUnlocked.value = true; initData(); } else { pinError.value = "PIN錯誤"; } };
         const saveSettings = () => { localStorage.setItem('ledger_settings', JSON.stringify(settings)); alert('儲存成功'); if (settings.googleToken && settings.googleClientId) initGoogleAuth(); };
         const exportData = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); a.download = `LedgerBackup_${new Date().toISOString().split('T')[0]}.json`; a.click(); };
-        const importData = (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { try { const p = JSON.parse(ev.target.result); if (p && typeof p === 'object') { Object.assign(data, p); migrateLegacyData(); autoBackup(); updateCharts(); alert("成功匯入"); } } catch(err) { alert("檔案錯誤"); } }; r.readAsText(f); };
+        const importData = (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { try { const p = JSON.parse(ev.target.result); if (p && typeof p === 'object') { Object.assign(data, p); migrateLegacyData(); autoBackup(); updateCharts(); alert("成功覆蓋匯入"); } } catch(err) { alert("檔案錯誤"); } }; r.readAsText(f); };
 
         const updateCharts = () => {
           if (activeTab.value !== 'dashboard') return;
@@ -1129,12 +1299,12 @@
         return { 
           isAppReady, accounts: data.accounts, assetAccounts, paymentAccounts, balanceAccounts, activeInstallments, activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGoogleDrive, handleGoogleAuth, handleGoogleSignout, data, newTx, txError, submitTransaction, deleteTransaction, formatNumber, applyQuickTag, getSubAccounts, netWorth, totalAssets, totalLiabilities, updateStockPrices, hasExpensesThisMonth, exportData, importData, sortedTransactions, filteredTransactions, historyFilter, getTxColorBand, getTxAmountColor, settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, toggleAccountVisibility, deleteAccount, showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, initFA, submitFixedAsset,
           getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getInvestTotalAmount, getInvCurrentValue, getUnrealizedGain, expenseCategories, incomeCategories, currentSettingCategories, safeQuickTags, safeInvestments, safeFixedAssets, accountsWithBalance, getFAAccDep, getFABookValue, disposalAsset, disposalForm, openDisposalModal, submitDisposal, paymentAccountsWithBalance, assetAccountsWithBalance,
-          showAmounts, expenseMonth, updateCharts, setHistoryToCurrentMonth
+          showAmounts, expenseMonth, updateCharts, setHistoryToCurrentMonth,
+          safeLoans, showAddLoanModal, showRateModal, showPayLoanModal, showResetModal, initLoan, activeLoan, rateData, payLoanData, submitAddLoan, openRateModal, submitRateAdjust, openPayLoanModal, recalcLoanSplit, submitPayLoan, executeFactoryReset, calculateBalance
         };
       }
     });
 
-    // 捕捉 Vue 的所有內部錯誤，並顯示在畫面上
     app.config.errorHandler = function(err, vm, info) {
       console.error("Vue Global Error:", err, info);
       var loading = document.getElementById('native-loading');
