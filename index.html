@@ -38,7 +38,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   
-  <!-- 雙重備援 Vue 載入，徹底解決 Vue is not defined -->
+  <!-- 雙重備援 Vue 載入 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
   <script>
     if (typeof Vue === 'undefined') {
@@ -49,7 +49,6 @@
   <script>
     tailwind.config = { darkMode: 'class' };
     if ('serviceWorker' in navigator) {
-      // 強制清除舊快取
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
         for(let r of registrations) { r.unregister(); }
       });
@@ -295,7 +294,7 @@
           </div>
         </div>
 
-        <!-- ================= 3. 明細 Tab ================= -->
+        <!-- ================= 3. 明細 Tab (History) ================= -->
         <div v-show="activeTab === 'history'" class="space-y-4">
           <div class="flex justify-between items-center border-b pb-2">
             <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="search" class="w-5 h-5"></i> 明細查詢</h2>
@@ -340,9 +339,10 @@
           </div>
         </div>
 
-        <!-- ================= 4. 資產 Tab ================= -->
+        <!-- ================= 4. 資產 Tab (Assets) ================= -->
         <div v-show="activeTab === 'assets'" class="space-y-6">
           
+          <!-- 帳戶現況總覽 -->
           <h2 class="text-xl font-bold border-b pb-2 flex items-center gap-2 text-blue-700 dark:text-blue-400"><i data-lucide="wallet-cards" class="w-5 h-5"></i> 帳戶現況與負債</h2>
           <div class="grid grid-cols-2 gap-3">
             <div v-for="acc in balanceAccounts" :key="acc.id" class="p-3.5 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl shadow-sm flex flex-col justify-between">
@@ -351,6 +351,7 @@
             </div>
           </div>
 
+          <!-- 股票管理 -->
           <div class="flex justify-between items-center border-b pb-2 mt-8 text-indigo-700 dark:text-indigo-400">
             <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="trending-up" class="w-5 h-5"></i> 股票庫存估值</h2>
             <div class="flex gap-2">
@@ -375,6 +376,7 @@
             </div>
           </div>
 
+          <!-- 固定資產與除列 -->
           <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2 text-teal-700 dark:text-teal-400"><i data-lucide="monitor" class="w-5 h-5"></i> 固定資產與除列</h2>
           <div v-if="safeFixedAssets.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-6 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
             <i data-lucide="monitor" class="w-8 h-8 mb-2 opacity-30"></i> 目前無固定資產
@@ -386,11 +388,12 @@
             </div>
             <div class="text-sm text-slate-500 mt-2 bg-slate-50 dark:bg-slate-900 p-2 rounded">原價: ${{ formatNumber(fa.original_cost) }} | 月折舊: ${{ formatNumber(fa.monthly_depreciation) }}</div>
             <div class="text-xs mt-2 text-slate-500 flex justify-between items-center">
-              <span>最後折舊: <span class="font-mono bg-slate-100 dark:bg-slate-700 px-1 rounded">{{ fa.last_depreciation_date || '尚未' }}</span></span>
+              <span>最後折舊: <span class="font-mono bg-slate-100 dark:bg-slate-700 px-1 rounded">{{ fa.last_depreciation_date || '尚未提列' }}</span></span>
               <span class="font-bold text-teal-600 dark:text-teal-400">目前淨值: ${{ formatNumber(getFABookValue(fa)) }}</span>
             </div>
           </div>
 
+          <!-- 進行中分期 -->
           <h2 class="text-xl font-bold mt-8 border-b pb-2 flex items-center gap-2 text-orange-600 dark:text-orange-400"><i data-lucide="calendar-clock" class="w-5 h-5"></i> 進行中分期排程</h2>
           <div v-if="activeInstallments.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-6 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
             <i data-lucide="check-circle" class="w-8 h-8 mb-2 opacity-30"></i> 目前無未結清之分期
@@ -537,6 +540,24 @@
         </div>
       </div>
 
+      <div v-if="showAddFixedAssetModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
+          <h3 class="text-xl font-bold mb-4 border-b pb-2">登錄新固定資產</h3>
+          <div class="space-y-3 text-sm">
+            <input type="text" v-model="initFA.name" placeholder="設備名稱" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            <input type="date" v-model="initFA.date" class="w-full border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            <div class="flex gap-2">
+              <input type="number" v-model.number="initFA.cost" placeholder="購入原價" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
+              <input type="number" v-model.number="initFA.months" placeholder="折舊月數" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none">
+            </div>
+            <div class="flex gap-2 mt-5">
+              <button @click="showAddFixedAssetModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+              <button @click="submitFixedAsset" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-lg font-bold transition shadow-md">確認登錄</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div v-if="showDisposalModal" class="fixed inset-0 bg-black/60 z-[999] flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-5 shadow-2xl">
           <h3 class="text-xl font-bold mb-2 border-b pb-2 flex items-center gap-2 text-red-600"><i data-lucide="trash" class="w-5 h-5"></i> 處分固定資產</h3>
@@ -565,8 +586,8 @@
               <div class="text-sm text-red-500 font-bold text-center bg-red-50 dark:bg-red-900/20 p-2 rounded">將認列處分損失: ${{ formatNumber(getFABookValue(disposalAsset)) }}</div>
             </template>
             <div class="flex gap-2 mt-5">
-              <button @click="showDisposalModal = false" class="flex-1 bg-slate-200 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
-              <button @click="submitDisposal" class="flex-1 bg-red-600 text-white p-2 rounded-lg font-bold shadow-md transition">確認執行</button>
+              <button @click="showDisposalModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg font-bold transition">取消</button>
+              <button @click="submitDisposal" class="flex-1 bg-red-600 hover:bg-red-700 text-white p-2 rounded-lg font-bold shadow-md transition">確認執行</button>
             </div>
           </div>
         </div>
@@ -584,7 +605,7 @@
   </div>
 
   <script type="text/javascript">
-    const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
+    const { createApp, ref, reactive, computed, onMounted, watch, nextTick, onErrorCaptured } = Vue;
 
     const b64EncodeUnicode = (str) => { try { return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1))); } catch(e){ return ""; } };
     const b64DecodeUnicode = (str) => { try { return decodeURIComponent(Array.prototype.map.call(atob(str.replace(/\n/g, '')), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')); } catch(e){ return "{}"; } };
@@ -628,7 +649,7 @@
 
         let tokenClient = null;
 
-        // ================= 強制向下相容資料遷移 =================
+        // ================= 強制資料結構還原防呆 =================
         const migrateLegacyData = () => {
           if(!data.transactions) data.transactions = [];
           if(!data.investments) data.investments = [];
@@ -667,7 +688,7 @@
           }
         };
 
-        // ================= Core Computed =================
+        // ================= Core Computed (Safe Access) =================
         const assetAccounts = computed(() => { let list = data.accounts || []; return list.filter(a => a && a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && !a.is_hidden); });
         const paymentAccounts = computed(() => { let list = data.accounts || []; return list.filter(a => a && ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201') || a.type === 'Liability') && !a.is_hidden); });
         const activeInstallments = computed(() => { let list = data.installments || []; return list.filter(i => i && i.paid_periods < i.periods); });
@@ -862,6 +883,15 @@
           showInitialStockModal.value = false; initStock.symbol = ''; initStock.name = ''; initStock.shares = null; initStock.cost = null; autoBackup(); updateCharts();
         };
 
+        const submitFixedAsset = () => {
+          if(!initFA.name || !initFA.cost || !initFA.months) return alert("請填寫完整");
+          if(!data.fixed_assets) data.fixed_assets = []; if(!data.transactions) data.transactions = [];
+          let monthlyDep = Math.round(initFA.cost / initFA.months);
+          data.fixed_assets.push({ id: 'fa_'+Date.now(), name: initFA.name, purchase_date: initFA.date, original_cost: initFA.cost, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: null });
+          data.transactions.push({ id: 'tx_fa_'+Date.now(), date: initFA.date, scope: 'family', desc: `購入固定資產 ${initFA.name}`, debits: [{ account_id: '1201', amount: initFA.cost }], credits: [{ account_id: '3101', amount: initFA.cost }] });
+          showAddFixedAssetModal.value = false; initFA.name = ''; initFA.cost = null; initFA.months = 60; autoBackup(); updateCharts();
+        };
+
         const openDisposalModal = (fa) => { disposalAsset.value = fa; disposalForm.type = 'scrap'; disposalForm.price = null; disposalForm.account = ''; showDisposalModal.value = true; };
         const submitDisposal = () => {
           if (disposalForm.type === 'sell' && (disposalForm.price === null || !disposalForm.account)) return alert("請填寫出售金額與入帳帳戶");
@@ -927,7 +957,7 @@
           }
         };
 
-        const getGitHubUrl = () => `https://api.github.com/repos/${settings.githubUser}/${settings.githubRepo}/contents/transactions.json`;
+        // ================= Google Drive API Sync =================
         const autoBackup = () => { localStorage.setItem('ledger_backup', JSON.stringify(data)); if(settings.googleToken) syncWithGoogleDrive(false); };
         
         const initGoogleAuth = () => {
