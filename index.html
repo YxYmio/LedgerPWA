@@ -3,15 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>智慧帳本 - 資產與記帳管理</title>
+  <title>智慧帳本 - 專業版</title>
   
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231e293b'/%3E%3Cstop offset='100%25' stop-color='%230f172a'/%3E%3C/linearGradient%3E%3ClinearGradient id='gold' x1='0%25' y1='0%25' x2='100%25' y2='0%25'%3E%3Cstop offset='0%25' stop-color='%23fbbf24'/%3E%3Cstop offset='100%25' stop-color='%23d97706'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='118' fill='url(%23bg)'/%3E%3Cpath d='M96 360 L192 260 L272 320 L416 160' fill='none' stroke='url(%23gold)' stroke-width='36' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='416' cy='160' r='24' fill='%23fbbf24'/%3E%3Cpath d='M110 390 H402' stroke='%23334155' stroke-width='16' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%231e293b'/%3E%3Cstop offset='100%25' stop-color='%230f172a'/%3E%3C/linearGradient%3E%3ClinearGradient id='gold' x1='0%25' y1='0%25' x2='100%25' y2='0%25'%3E%3Cstop offset='0%25' stop-color='%23fbbf24'/%3E%3Cstop offset='100%25' stop-color='%23d97706'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='118' fill='url(%23bg)'/%3E%3Cpath d='M96 360 L192 260 L272 320 L416 160' fill='none' stroke='url(%23gold)' stroke-width='36' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='416' cy='160' r='24' fill='%23fbbf24'/%3E%3Cpath d='M110 390 H402' stroke='%23334155' stroke-width='16' stroke-linecap='round'/%3E%3C/svg%3E">
 
-  <!-- PWA Manifest -->
   <script>
     const manifestData = {
-      "name": "智慧帳本 - 資產與記帳管理",
+      "name": "智慧帳本 - 專業版",
       "short_name": "智慧帳本",
       "start_url": "./index.html",
       "display": "standalone",
@@ -36,7 +35,6 @@
     .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
   </style>
 
-  <!-- 全域錯誤防護 -->
   <script>
     window.addEventListener('error', function(e) {
       var loading = document.getElementById('native-loading');
@@ -48,7 +46,6 @@
     });
   </script>
 
-  <!-- 依賴庫 -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -234,7 +231,6 @@
               </select>
             </div>
 
-            <!-- 支出與收入快捷標籤 -->
             <div v-show="['expense', 'income'].includes(entryMode) && safeQuickTags.length > 0" class="flex flex-wrap gap-2 pt-1 pb-1">
               <button v-for="tag in safeQuickTags" :key="tag" @click="applyQuickTag(tag)" class="bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600 text-xs px-3 py-1.5 rounded-full transition shadow-sm whitespace-nowrap font-bold">
                 {{ tag }}
@@ -267,14 +263,12 @@
                 <option v-for="acc in paymentAccountsWithBalance" :key="acc ? acc.id : ''" :value="acc ? acc.id : ''">{{ acc ? acc.name : '' }} (餘額: {{ acc ? acc.currency : '' }} ${{ formatNumber(acc ? acc.balance : 0) }})</option>
               </select>
               
-              <!-- 智慧分期與折舊 -->
               <div class="space-y-3 pt-3 border-t dark:border-slate-700 mt-2">
                 <div class="flex items-center gap-2">
                   <input type="checkbox" v-model="newTx.isInst" id="isInst" class="w-4 h-4 accent-blue-600 cursor-pointer">
                   <label for="isInst" class="text-sm font-bold select-none cursor-pointer text-slate-700 dark:text-slate-300">啟用分期排程 (首期自動吸收餘數)</label>
                   <input v-if="newTx.isInst" type="number" v-model.number="newTx.periods" placeholder="期數" class="border rounded p-1.5 w-20 text-center text-sm dark:bg-slate-700 dark:border-slate-600 outline-none ml-auto">
                 </div>
-                <!-- 僅正常支出可勾選固定資產 -->
                 <div class="flex items-start gap-2 pt-1" v-if="!newTx.isReimbursement">
                   <input type="checkbox" v-model="newTx.isFA" id="isFA" class="w-4 h-4 accent-teal-600 cursor-pointer mt-1">
                   <div class="flex-1">
@@ -339,12 +333,10 @@
                   <i data-lucide="plus" class="w-4 h-4 mr-1"></i> 新增
                 </button>
               </div>
-              
               <select v-model="newTx.paymentAcc" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white">
                 <option value="" disabled>請選擇扣款銀行帳戶</option>
                 <option v-for="acc in paymentAccountsWithBalance" :key="acc ? acc.id : ''" :value="acc ? acc.id : ''">{{ acc ? acc.name : '' }} (餘額: ${{ formatNumber(acc ? acc.balance : 0) }})</option>
               </select>
-              
               <div v-if="newTx.loanId && newTx.amount" class="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 p-3.5 rounded-lg mt-3 shadow-inner">
                 <div class="text-xs text-rose-600 dark:text-rose-400 font-bold mb-1.5 flex items-center"><i data-lucide="calculator" class="w-3.5 h-3.5 mr-1"></i> 智慧本息自動拆分預覽</div>
                 <div class="text-sm font-bold text-slate-800 dark:text-slate-200 leading-relaxed">
@@ -513,7 +505,6 @@
             </div>
           </section>
 
-          <!-- 儲蓄目標計畫管理 -->
           <section>
             <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2 mb-3 text-pink-700 dark:text-pink-400">
               <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="crosshair" class="w-5 h-5"></i> 儲蓄目標計畫</h2>
@@ -814,7 +805,6 @@
             </div>
           </section>
 
-          <!-- 帳本切換 (多帳本) -->
           <section>
             <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-indigo-600 dark:text-indigo-400 flex items-center gap-2"><i data-lucide="book-copy" class="w-5 h-5"></i> 多帳本切換</h2>
             <div class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm flex items-center gap-2">
@@ -825,7 +815,6 @@
             </div>
           </section>
 
-          <!-- 銀行與資產帳戶管理 -->
           <section>
             <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2"><i data-lucide="piggy-bank" class="w-5 h-5"></i> 自訂資產帳戶管理</h2>
             <div class="space-y-4">
@@ -851,7 +840,6 @@
             </div>
           </section>
 
-          <!-- 週期性排程管理 -->
           <section>
             <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-emerald-600 dark:text-emerald-400 flex items-center gap-2"><i data-lucide="repeat" class="w-5 h-5"></i> 週期性自動排程</h2>
             <div class="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800 space-y-3 shadow-inner">
@@ -871,7 +859,6 @@
               </select>
               <button @click="addRecurring" class="w-full bg-emerald-600 hover:bg-emerald-700 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-md mt-2 flex justify-center items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> 建立排程</button>
             </div>
-            <!-- 清單 -->
             <div class="mt-3 border rounded-xl p-2 dark:border-slate-700 bg-white dark:bg-slate-800 max-h-48 overflow-y-auto custom-scrollbar shadow-sm">
               <div v-if="safeRecurring.length === 0" class="text-center text-slate-400 text-xs py-4">目前無週期排程</div>
               <div v-for="rec in safeRecurring" :key="rec.id" class="flex justify-between items-center text-sm py-2 px-2 border-b dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded transition">
@@ -886,7 +873,6 @@
             </div>
           </section>
 
-          <!-- 預算設定 -->
           <section>
             <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-green-600 dark:text-green-400 flex items-center gap-2"><i data-lucide="target" class="w-5 h-5"></i> 每月預算設定 (信封)</h2>
             <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700 space-y-3">
@@ -897,7 +883,6 @@
             </div>
           </section>
 
-          <!-- 新增固定資產 (移至設定頁) -->
           <section>
             <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-teal-600 dark:text-teal-400 flex items-center gap-2"><i data-lucide="monitor" class="w-5 h-5"></i> 固定資產建檔</h2>
             <button @click="showAddFixedAssetModal = true" class="w-full bg-teal-50 hover:bg-teal-100 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400 border border-dashed border-teal-300 dark:border-teal-700 p-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-sm">
@@ -905,7 +890,6 @@
             </button>
           </section>
 
-          <!-- Google Drive 同步設定 -->
           <section>
             <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2"><i data-lucide="cloud" class="w-5 h-5"></i> 雲端同步 (Google Drive)</h2>
             <div class="space-y-3 bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm">
@@ -926,7 +910,6 @@
             </div>
           </section>
 
-          <!-- 會計科目與常用標籤 -->
           <section>
             <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-blue-600 dark:text-blue-400 flex justify-between items-center">
               <span><i data-lucide="tags" class="w-5 h-5 inline mr-1"></i> 會計科目管理</span>
@@ -979,7 +962,6 @@
             </div>
           </section>
 
-          <!-- 資料管理 -->
           <section>
             <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2"><i data-lucide="database" class="w-5 h-5"></i> 資料管理</h2>
             <div class="flex items-center justify-between border p-3.5 rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 mb-4 shadow-sm">
@@ -1262,7 +1244,7 @@
         </div>
       </div>
 
-      <!-- 底部導覽列 (升級為 6 個 Tab) -->
+      <!-- 底部導覽列 -->
       <nav class="fixed bottom-0 w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-1 py-2 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-[calc(env(safe-area-inset-bottom)+8px)] rounded-t-2xl">
         <button @click="activeTab='dashboard'" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200"><i data-lucide="layout-dashboard" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">總覽</span></button>
         <button @click="activeTab='entry'" :class="activeTab==='entry' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200"><i data-lucide="edit-3" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">記帳</span></button>
@@ -1387,7 +1369,6 @@
               { id: "1101", name: "現金錢包", type: "Asset", currency: "TWD", is_hidden: false },
               { id: "1102", name: "常用銀行存款", type: "Asset", currency: "TWD", is_hidden: false },
               { id: "2101", name: "信用卡", type: "Liability", currency: "TWD", is_hidden: false },
-              // System accounts
               { id: "1103", name: "股票投資", type: "Asset", currency: "TWD", is_hidden: false }, 
               { id: "1201", name: "固定資產", type: "Asset", currency: "TWD", is_hidden: false },
               { id: "1201-DEP", name: "累計折舊", type: "Asset", currency: "TWD", is_contra: true, is_hidden: false },
@@ -1399,7 +1380,6 @@
               { id: "5103", name: "利息支出", type: "Expense", category: "系統", is_hidden: false }
             ];
           }
-          // Ensure specific accounts exist
           if(!data.accounts.find(a=>a && a.id==='4201')) data.accounts.push({ id: "4201", name: "處分資產損益", type: "Income", currency: "TWD", is_hidden: false });
           if(!data.accounts.find(a=>a && a.id==='4202')) data.accounts.push({ id: "4202", name: "股利收入", type: "Income", currency: "TWD", is_hidden: false });
           if(!data.accounts.find(a=>a && a.id==='5103')) data.accounts.push({ id: "5103", name: "利息支出", type: "Expense", category: "系統", is_hidden: false });
@@ -1712,7 +1692,7 @@
            
            let invBal = 0;
            (data.investments||[]).forEach(i => { if(i) invBal += getInvCurrentValue(i); });
-           if(invBal !== 0) { nonCurAssts.push({ name: '投資組合現值', amount: invBal }); tAssets += invBal; retainedEarn += invBal - calcBalAsOf('1103', ed); } // Add unrealized gain to RE to balance
+           if(invBal !== 0) { nonCurAssts.push({ name: '投資組合現值', amount: invBal }); tAssets += invBal; retainedEarn += invBal - calcBalAsOf('1103', ed); }
            
            let faNet = calcBalAsOf('1201', ed) - Math.abs(calcBalAsOf('1201-DEP', ed));
            if(faNet !== 0) { nonCurAssts.push({ name: '固定資產淨值', amount: faNet }); tAssets += faNet; }
@@ -1754,7 +1734,6 @@
             };
 
             let startCash = 0, endCash = 0;
-            // Approximate start cash by getting end cash of the day prior to sd
             let sdObj = new Date(sd); sdObj.setDate(sdObj.getDate() - 1);
             let prevD = sdObj.toISOString().split('T')[0];
             
@@ -1798,10 +1777,9 @@
 
         // ================= Core Actions =================
         const switchBook = () => {
-          autoBackup(); // save current before switch
+          autoBackup();
           const newBackup = localStorage.getItem('ledger_backup_' + currentBookId.value);
           
-          // STRICT BUG FIX: Deep clear all data reactive properties to avoid residual states
           data.transactions = []; data.accounts = []; data.fixed_assets = []; data.investments = [];
           data.installments = []; data.loans = []; data.savings_goals = []; data.recurring = [];
           data.quick_tags = []; data.smart_tags = {}; data.main_categories = { Expense: [], Income: [] };
@@ -1865,7 +1843,6 @@
                let monthlyDep = Math.round(newTx.amount / newTx.faMonths);
                if(!data.fixed_assets) data.fixed_assets = [];
                data.fixed_assets.push({ id: 'fa_'+Date.now(), name: newTx.faName||newTx.desc, purchase_date: newTx.date, original_cost: newTx.amount, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: newTx.date });
-               // Capitalize asset
                txObj.debits[0].account_id = '1201';
                txObj.desc = `購入固定資產: ${newTx.faName||newTx.desc}`;
                newTx.isFA = false; newTx.faMonths = 60; newTx.faName = '';
@@ -1918,7 +1895,7 @@
             txObj.loan_id = loan.id;
             txObj.desc = newTx.desc || `貸款還款: ${loan.name}`;
             txObj.debits.push({ account_id: loan.liability_acc_id, amount: preview.principal });
-            txObj.debits.push({ account_id: '5103', amount: preview.interest }); // Interest Expense
+            txObj.debits.push({ account_id: '5103', amount: preview.interest });
             txObj.credits.push({ account_id: newTx.paymentAcc, amount: newTx.amount });
           }
 
@@ -2004,7 +1981,6 @@
           data.transactions.push({ id: 'tx_loan_init_'+Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初貸款本金: ${initLoan.name}`, debits: [{ account_id: '3101', amount: initLoan.principal }], credits: [{ account_id: accId, amount: initLoan.principal }] });
           
           newTx.loanId = loanId;
-          
           initLoan.name = ''; initLoan.principal = null; initLoan.rate = null; initLoan.payment = null;
           showAddLoanModal.value = false;
           autoBackup(); updateCharts(); alert('✅ 貸款建立成功！');
@@ -2266,4 +2242,103 @@
 
               const canvas3 = document.getElementById('netWorthChart');
               if(canvas3) {
-                 const ctx3 = canvas3我是一个语言模型，这超出了我的设计用途。
+                 const ctx3 = canvas3.getContext('2d');
+                 let histLabels = []; let histData = [];
+                 let d = new Date();
+                 for(let i=5; i>=0; i--) {
+                    let tempDate = new Date(d.getFullYear(), d.getMonth() - i, 1);
+                    let mStr = tempDate.getFullYear() + '-' + String(tempDate.getMonth()+1).padStart(2,'0');
+                    histLabels.push(mStr);
+                    let endOfMonth = mStr + '-31'; 
+                    let aSum=0, lSum=0;
+                    for(let k=0; k<data.accounts.length; k++){
+                       let a = data.accounts[k]; if(!a) continue;
+                       let bal=0;
+                       for(let t=0; t<data.transactions.length; t++){
+                          let tx = data.transactions[t]; if(!tx || tx.date > endOfMonth) continue;
+                          if(tx.debits) tx.debits.forEach(db=>{if(db.account_id===a.id) bal+=Number(db.amount)||0;});
+                          if(tx.credits) tx.credits.forEach(cr=>{if(cr.account_id===a.id) bal-=Number(cr.amount)||0;});
+                       }
+                       if(a.type==='Asset') aSum += (a.type==='Expense'||a.type==='Asset'? bal : -bal);
+                       else if(a.type==='Liability') lSum += (a.type==='Expense'||a.type==='Asset'? bal : -bal);
+                    }
+                    histData.push(aSum - lSum);
+                 }
+                 if(netWorthChartInstance.value) netWorthChartInstance.value.destroy();
+                 netWorthChartInstance.value = new Chart(ctx3, { type: 'line', data: { labels: histLabels, datasets: [{ label: '淨資產', data: histData, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.2)', fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { color: '#94a3b8' } }, x: { ticks: { color: '#94a3b8' } } } } });
+              }
+
+            } catch (err) { console.error("Chart Render Error:", err); }
+          });
+        };
+
+        const refreshIcons = () => { nextTick(() => { try { if (window.lucide) lucide.createIcons(); } catch(e){} }); };
+
+        watch(activeTab, () => {
+          if(activeTab.value === 'dashboard' || activeTab.value === 'reports') updateCharts();
+          refreshIcons();
+        });
+        watch(dashboardScope, () => updateCharts());
+
+        const initData = async () => {
+          try {
+            const backup = localStorage.getItem('ledger_backup_' + currentBookId.value);
+            if (backup) { const p = JSON.parse(backup); if(p && typeof p === 'object') Object.assign(data, p); }
+          } catch(e) {}
+          
+          migrateLegacyData();
+          setHistoryToCurrentMonth();
+          await fetchExchangeRate();
+          
+          isAppReady.value = true;
+          let loadingScreen = document.getElementById('native-loading');
+          if(loadingScreen) loadingScreen.style.display = 'none';
+
+          if(window.google) initGoogleAuth(); else setTimeout(initGoogleAuth, 2000);
+          
+          runAutoTasks();
+          if (activeTab.value === 'dashboard' || activeTab.value === 'reports') updateCharts();
+          refreshIcons();
+        };
+
+        onMounted(() => {
+          loadSettings();
+          if(isUnlocked.value) { initData(); } 
+          else {
+            isAppReady.value = true;
+            let loadingScreen = document.getElementById('native-loading');
+            if(loadingScreen) loadingScreen.style.display = 'none';
+            refreshIcons();
+          }
+        });
+
+        const expenseCategories = computed(() => (data.main_categories && data.main_categories.Expense) ? data.main_categories.Expense : []);
+        const incomeCategories = computed(() => (data.main_categories && data.main_categories.Income) ? data.main_categories.Income : []);
+        const currentSettingCategories = computed(() => (data.main_categories && data.main_categories[settingCategoryMode.value]) ? data.main_categories[settingCategoryMode.value] : []);
+
+        return { 
+          isAppReady, accounts: data.accounts, assetAccounts, paymentAccounts, balanceAccounts, activeInstallments, activeTab, entryMode, isUnlocked, pinInput, pinError, unlockApp, settings, saveSettings, syncStatus, isSyncing, syncWithGoogleDrive, handleGoogleAuth, handleGoogleSignout, data, newTx, txError, submitTransaction, deleteTransaction, formatNumber, applyQuickTag, getSubAccounts, netWorth, totalAssets, totalLiabilities, updateStockPrices, hasExpensesThisMonth, exportData, importData, sortedTransactions, filteredTransactions, historyFilter, getTxColorBand, getTxAmountColor, settingCategoryMode, newPreset, addPreset, removePreset, newMainCat, addMainCategory, deleteMainCategory, newSubCat, addSubCategory, toggleAccountVisibility, deleteAccount, showInitialStockModal, initStock, submitInitialStock, showAddFixedAssetModal, submitFixedAsset, initFA,
+          getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getInvestTotalAmount, getInvCurrentValue, getUnrealizedGain, expenseCategories, incomeCategories, currentSettingCategories, safeQuickTags, safeInvestments, safeFixedAssets, accountsWithBalance, getFAAccDep, getFABookValue, disposalAsset, disposalForm, openDisposalModal, submitDisposal, paymentAccountsWithBalance, assetAccountsWithBalance, liquidAccountsWithBalance, liabilityAccountsWithBalance, totalLiquidAssets, newAssetAcc, submitNewAssetAccount, autoBackup,
+          showAmounts, expenseMonth, updateCharts, setHistoryToCurrentMonth, getAccumulatedInterest, loanRepayPreview,
+          safeLoans, showAddLoanModal, showRateModal, showResetModal, initLoan, activeLoan, rateData, submitAddLoan, openRateModal, submitRateAdjust, executeFactoryReset, calculateBalance, dashboardScope, dashboardMonth, upcomingBillsTotal, cashflowWarning, dashboardBudgets, ytdDividend, newRecurring, addRecurring, deleteRecurring, safeRecurring, currentBookId, availableBooks, showNewBookModal, newBookName, switchBook, createNewBook, submitNewBook, activeBookName,
+          currentHoldings, historicalHoldings, onDividendSymbolChange, refundTransaction,
+          showAddGoalModal, showUpdateGoalModal, initGoal, activeGoal, updateGoalData, safeSavingsGoals, submitAddGoal, openUpdateGoalModal, submitUpdateGoal, deleteGoal,
+          reportView, reportPeriod, reportStartDate, reportEndDate, bsData, isData, cfData, showManualStockModal, submitManualStockUpdate
+        };
+      }
+    });
+
+    app.config.errorHandler = function(err, vm, info) {
+      console.error("Vue Global Error:", err, info);
+      var loading = document.getElementById('native-loading');
+      var errorScreen = document.getElementById('fallback-error');
+      var errorMsg = document.getElementById('fallback-error-msg');
+      if(loading) loading.style.display = 'none';
+      if(errorScreen) errorScreen.style.display = 'flex';
+      if(errorMsg) errorMsg.innerText = err.message + '\n(' + info + ')';
+    };
+
+    app.mount('#app');
+  </script>
+</body>
+</html>
