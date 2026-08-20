@@ -308,11 +308,13 @@ const app = createApp({
       return hist;
     });
 
+    // 加入 scope 過濾，讓餘額能精準拆分
     const calculateBalance = (id, scope = 'all') => {
       let bal = 0; let list = data.transactions || [];
       for(let i=0; i<list.length; i++) {
         let tx = list[i];
         if(!tx) continue;
+        // 如果指定了 scope，僅計算該範圍內的交易
         if (scope !== 'all' && tx.scope !== scope) continue;
         
         if(tx.debits) { for(let j=0; j<tx.debits.length; j++){ if (tx.debits[j] && tx.debits[j].account_id === id) bal += Number(tx.debits[j].amount)||0; } }
@@ -330,12 +332,12 @@ const app = createApp({
       return baseBalance * rate;
     };
 
+    // 實體帳戶清單強制使用全域 scope ('all') 顯示總額，避免被截斷
     const accountsWithBalance = (accList) => { 
-        let scope = dashboardScope.value;
         return accList.map(a => ({ 
             id: a.id, name: a.name, type: a.type, category: a.category, currency: a.currency||'TWD', is_hidden: a.is_hidden, 
-            balance: calculateBalance(a.id, scope), 
-            baseBalance: getBaseBalance(a.id, calculateBalance(a.id, scope)) 
+            balance: calculateBalance(a.id, 'all'), 
+            baseBalance: getBaseBalance(a.id, calculateBalance(a.id, 'all')) 
         })); 
     };
     
@@ -367,24 +369,53 @@ const app = createApp({
 
     const cashflowWarning = computed(() => totalLiquidAssets.value < upcomingBillsTotal.value * 1.2);
 
+    // 總資產計算：依據 dashboardScope 嚴格切分，並等比例分配未實現損益
     const totalAssets = computed(() => {
       let scope = dashboardScope.value;
-      let sum = 0; let accList = data.accounts || []; let invList = data.investments || [];
-      for(let i=0; i<accList.length; i++) { if(accList[i] && accList[i].type === 'Asset') sum += getBaseBalance(accList[i].id, calculateBalance(accList[i].id, scope)); }
-      for(let i=0; i<invList.length; i++) { let inv = invList[i]; if(inv) { let rate = data.currencyRates[inv.currency||'TWD'] || 1; sum += ((Number(inv.shares)||0) * (Number(inv.last_price)||0) * rate) - (Number(inv.total_cost)||0); } }
+      let sum = 0; let accList = data.accounts || []; 
+      
+      for(let i=0; i<accList.length; i++) { 
+          if(accList[i] && accList[i].type === 'Asset') {
+              sum += getBaseBalance(accList[i].id, calculateBalance(accList[i].id, scope)); 
+          }
+      }
+      
+      // 計算該 Scope 應分配之投資未實現損益
+      let allStockCost = calculateBalance('1103', 'all');
+      let scopeStockCost = calculateBalance('1103', scope);
+      let scopeRatio = allStockCost ? (scopeStockCost / allStockCost) : 0;
+      
+      let totalInvMV = 0; let totalInvCost = 0;
+      let invList = data.investments || [];
+      for(let i=0; i<invList.length; i++) { 
+          let inv = invList[i]; 
+          if(inv) { 
+              let rate = data.currencyRates[inv.currency||'TWD'] || 1; 
+              totalInvMV += (Number(inv.shares)||0) * (Number(inv.last_price)||0) * rate;
+              totalInvCost += Number(inv.total_cost)||0;
+          } 
+      }
+      let unrealizedGain = totalInvMV - totalInvCost;
+      sum += (unrealizedGain * scopeRatio);
+      
       return sum;
     });
 
+    // 總負債計算：依據 dashboardScope 嚴格切分
     const totalLiabilities = computed(() => {
       let scope = dashboardScope.value;
       let sum = 0; let accList = data.accounts || [];
-      for(let i=0; i<accList.length; i++){ if(accList[i] && accList[i].type === 'Liability') sum += getBaseBalance(accList[i].id, calculateBalance(accList[i].id, scope)); }
+      for(let i=0; i<accList.length; i++){ 
+          if(accList[i] && accList[i].type === 'Liability') {
+              sum += getBaseBalance(accList[i].id, calculateBalance(accList[i].id, scope)); 
+          }
+      }
       return sum;
     });
 
     const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
     
-    // 明細排序: 日期新到舊，同日期依 ID(時間戳)新到舊
+    // 明細排序: 先比對日期(新到舊)，若同日則比對 ID(時間戳)新到舊
     const sortedTransactions = computed(() => {
       let list = data.transactions || [];
       return list.slice().sort((a,b) => {
@@ -493,7 +524,7 @@ const app = createApp({
     };
     const getInvCurrentValue = (inv) => { if (!inv) return 0; let rate = data.currencyRates[inv.currency||'TWD'] || 1; return (Number(inv.shares)||0) * (Number(inv.last_price)||0) * rate; };
     const getUnrealizedGain = (inv) => { if (!inv) return 0; return getInvCurrentValue(inv) - (Number(inv.total_cost) || 0); };
-    const getFAAccDep = (fa) => { return fa ? Math.abs(calculateBalance(fa.accumulated_dep_account_id)) : 0; };
+    const getFAAccDep = (fa) => { return fa ? Math.abs(calculateBalance(fa.accumulated_dep_account_id, 'all')) : 0; };
     const getFABookValue = (fa) => { return fa ? (Number(fa.original_cost)||0) - getFAAccDep(fa) : 0; };
 
     const getAccumulatedInterest = (loanId) => {
@@ -511,7 +542,7 @@ const app = createApp({
       let list = data.loans || [];
       let loan = list.find(l => l && l.id === newTx.loanId);
       if(!loan || !newTx.amount) return { interest: 0, principal: 0, current_principal: 0 };
-      let current_principal = Math.abs(calculateBalance(loan.liability_acc_id));
+      let current_principal = Math.abs(calculateBalance(loan.liability_acc_id, 'all'));
       let interest = Math.round(current_principal * ((loan.interest_rate || 0) / 100 / 12));
       let principal = (newTx.amount || 0) - interest;
       if(principal > current_principal) principal = current_principal;
@@ -575,12 +606,12 @@ const app = createApp({
        }
     }, { immediate: true });
 
-    // ==== 財務報表專用：計算至指定日期的餘額 ====
+    // ==== 報表專用餘額推算 ====
     const calcBalAsOf = (accId, dateStr) => {
        let b = 0; let txs = data.transactions || [];
        for(let i=0; i<txs.length; i++){
            let tx = txs[i];
-           if (!tx || tx.date > dateStr || tx.is_refunded) continue;
+           if (!tx || tx.date > dateStr) continue;
            if (tx.debits) tx.debits.forEach(d => { if (d && d.account_id===accId) b += (Number(d.amount)||0); });
            if (tx.credits) tx.credits.forEach(c => { if (c && c.account_id===accId) b -= (Number(c.amount)||0); });
        }
@@ -637,7 +668,7 @@ const app = createApp({
         let rev = {}, exp = {};
         let txs = data.transactions || [];
         txs.forEach(tx => {
-            if (!tx || tx.date < sd || tx.date > ed || tx.is_refunded) return;
+            if (!tx || tx.date < sd || tx.date > ed) return;
             (tx.credits||[]).forEach(c => {
                let a = data.accounts.find(ac=>ac && ac.id===c.account_id);
                if (a && a.type === 'Income') rev[a.name] = (rev[a.name]||0) + Number(c.amount);
@@ -677,7 +708,7 @@ const app = createApp({
 
         let txs = data.transactions || [];
         txs.forEach(tx => {
-            if (!tx || tx.date < sd || tx.date > ed || tx.is_refunded) return;
+            if (!tx || tx.date < sd || tx.date > ed) return;
             
             let cashChange = 0;
             let nonCashTypes = new Set();
@@ -1335,6 +1366,18 @@ const app = createApp({
                  let scope = dashboardScope.value;
                  let histLabels = []; let histData = [];
                  let d = new Date();
+                 
+                 let allStockCost = calculateBalance('1103', 'all');
+                 let scopeStockCost = calculateBalance('1103', scope);
+                 let scopeRatio = allStockCost ? (scopeStockCost / allStockCost) : 0;
+                 let totalInvMV = 0; let totalInvCost = 0;
+                 (data.investments||[]).forEach(inv => { 
+                     let rate = data.currencyRates[inv.currency||'TWD'] || 1;
+                     totalInvMV += (Number(inv.shares)||0) * (Number(inv.last_price)||0) * rate; 
+                     totalInvCost += Number(inv.total_cost)||0; 
+                 });
+                 let scopeUnrealizedGain = (totalInvMV - totalInvCost) * scopeRatio;
+
                  for(let i=5; i>=0; i--) {
                     let tempDate = new Date(d.getFullYear(), d.getMonth() - i, 1);
                     let mStr = tempDate.getFullYear() + '-' + String(tempDate.getMonth()+1).padStart(2,'0');
@@ -1350,9 +1393,10 @@ const app = createApp({
                           if(tx.debits) tx.debits.forEach(db=>{if(db && db.account_id===a.id) bal+=Number(db.amount)||0;});
                           if(tx.credits) tx.credits.forEach(cr=>{if(cr && cr.account_id===a.id) bal-=Number(cr.amount)||0;});
                        }
-                       if(a.type==='Asset') aSum += (a.type==='Expense'||a.type==='Asset'? bal : -bal);
-                       else if(a.type==='Liability') lSum += (a.type==='Expense'||a.type==='Asset'? bal : -bal);
+                       if(a.type==='Asset') aSum += getBaseBalance(a.id, bal);
+                       else if(a.type==='Liability') lSum += getBaseBalance(a.id, -bal);
                     }
+                    aSum += scopeUnrealizedGain;
                     histData.push(aSum - lSum);
                  }
                  netWorthChartInstance.value = new Chart(ctx3, { type: 'line', data: { labels: histLabels, datasets: [{ label: '淨資產', data: histData, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.2)', fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { color: '#94a3b8' } }, x: { ticks: { color: '#94a3b8' } } } } });
