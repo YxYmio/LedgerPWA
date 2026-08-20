@@ -62,6 +62,7 @@ const app = createApp({
     const showUpdateGoalModal = ref(false);
     const showManualStockModal = ref(false);
     const showRefundModal = ref(false);
+    const showReimburseModal = ref(false);
 
     // ------------------------------------------------------------------------
     // 4. 設定與全域資料模型 (Data Models)
@@ -108,22 +109,37 @@ const app = createApp({
       isReimbursement: false, investDividendSymbol: '', manualSymbol: '', manualName: ''
     });
     
-    // 智慧股票名稱對照表與 Watcher
+    // 智慧股票名稱對照表 (增強版)
     const commonStocks = {
-        '2330': '台積電', '0050': '元大台灣50', '00878': '國泰永續高股息',
-        '2603': '長榮', '2454': '聯發科', '2317': '鴻海', '2881': '富邦金', '2882': '國泰金',
-        '0056': '元大高股息', '00929': '復華台灣科技優息'
+        '2330': '台積電', '0050': '元大台灣50', '0056': '元大高股息', '00878': '國泰永續高股息',
+        '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2317': '鴻海', '2454': '聯發科',
+        '2603': '長榮', '2881': '富邦金', '2882': '國泰金', '2886': '兆豐金'
     };
+
     watch(() => newTx.symbol, (val) => {
         if (!val) return;
         let symbol = val.replace('.TW', '').toUpperCase();
-        if (commonStocks[symbol] && !newTx.stockName) {
+        if (commonStocks[symbol]) {
             newTx.stockName = commonStocks[symbol];
         } else {
             let invList = data.investments || [];
             let existing = invList.find(i => i && i.symbol && i.symbol.replace('.TW', '').toUpperCase() === symbol);
             if (existing && !newTx.stockName) {
-                newTx.stockName = existing.name;
+                newTx.stockName = (existing.name || '').replace(/^\[.*?\]\s*/, '');
+            }
+        }
+    });
+
+    watch(() => initStock.symbol, (val) => {
+        if (!val) return;
+        let symbol = val.replace('.TW', '').toUpperCase();
+        if (commonStocks[symbol]) {
+            initStock.name = commonStocks[symbol];
+        } else {
+            let invList = data.investments || [];
+            let existing = invList.find(i => i && i.symbol && i.symbol.replace('.TW', '').toUpperCase() === symbol);
+            if (existing && !initStock.name) {
+                initStock.name = (existing.name || '').replace(/^\[.*?\]\s*/, '');
             }
         }
     });
@@ -147,8 +163,12 @@ const app = createApp({
     const initGoal = reactive({ name: '', target: null, deadline: '' });
     const activeGoal = ref(null);
     const updateGoalData = reactive({ amount: null, type: 'add' });
+    
     const activeRefundTx = ref(null);
     const refundData = reactive({ amount: 0, maxAmount: 0, account: '' });
+    
+    const activeReimburseTx = ref(null);
+    const reimburseData = reactive({ account: '' });
 
     let tokenClient = null;
 
@@ -265,12 +285,20 @@ const app = createApp({
     const safeRecurring = computed(() => data.recurring || []);
     const safeSavingsGoals = computed(() => data.savings_goals || []);
 
-    const currentHoldings = computed(() => { return safeInvestments.value.filter(i => i && i.shares > 0); });
+    const currentHoldings = computed(() => { 
+        return safeInvestments.value.filter(i => i && i.shares > 0).map(i => ({
+            symbol: i.symbol,
+            name: `[${i.symbol}] ${(i.name || '').replace(/^\[.*?\]\s*/, '')}`
+        })); 
+    });
+    
     const historicalHoldings = computed(() => {
       let currentSyms = currentHoldings.value.map(i => i ? i.symbol : '');
       let hist = [];
       safeInvestments.value.forEach(inv => {
-         if (inv && inv.shares === 0 && !currentSyms.includes(inv.symbol)) hist.push({ symbol: inv.symbol, name: inv.name });
+         if (inv && inv.shares === 0 && !currentSyms.includes(inv.symbol)) {
+             hist.push({ symbol: inv.symbol, name: `[${inv.symbol}] ${(inv.name || '').replace(/^\[.*?\]\s*/, '')}` });
+         }
       });
       return hist;
     });
@@ -504,7 +532,7 @@ const app = createApp({
       } else {
          let invList = data.investments || [];
          let inv = invList.find(i => i && i.symbol === newTx.investDividendSymbol);
-         if (inv) newTx.stockName = inv.name;
+         if (inv) newTx.stockName = (inv.name || '').replace(/^\[.*?\]\s*/, '');
       }
     };
 
@@ -676,6 +704,7 @@ const app = createApp({
       
       migrateLegacyData();
       runAutoTasks();
+      setHistoryToCurrentMonth();
 
       // 強制清空舊圖表，等待畫面渲染後重新繪製
       if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
@@ -816,7 +845,7 @@ const app = createApp({
       alert('✅ 記帳成功！'); 
     };
 
-    // ================= 退款機制 (部分退款) =================
+    // ================= 退款與報銷機制 =================
     const openRefundModal = (tx) => {
       if (!tx) return;
       activeRefundTx.value = tx;
@@ -864,6 +893,39 @@ const app = createApp({
       
       closeRefundModal();
       autoBackup(); updateCharts(); alert('✅ 退款沖銷成功！');
+    };
+
+    const openReimburseModal = (tx) => {
+        activeReimburseTx.value = tx;
+        reimburseData.account = '';
+        showReimburseModal.value = true;
+    };
+    const closeReimburseModal = () => {
+        showReimburseModal.value = false;
+        activeReimburseTx.value = null;
+    };
+    const submitReimburse = () => {
+        if (!activeReimburseTx.value) return;
+        if (!reimburseData.account) return alert('請選擇入帳帳戶');
+        reimburseTx(activeReimburseTx.value, reimburseData.account);
+        closeReimburseModal();
+    };
+    const reimburseTx = (tx, toAccountId) => {
+         if (!tx || !toAccountId) return;
+         let origAmount = getDebitAmount(tx);
+         let txObj = {
+            id: 'tx_reimb_' + Date.now(),
+            date: new Date().toISOString().split('T')[0],
+            scope: tx.scope,
+            desc: `[代墊報銷] ${(tx.desc || tx.description || '')}`,
+            debits: [{ account_id: toAccountId, amount: origAmount }],
+            credits: [{ account_id: '1104', amount: origAmount }],
+            ref_tx_id: tx.id
+        };
+        if(!data.transactions) data.transactions = [];
+        data.transactions.push(txObj);
+        tx.is_reimbursed = true;
+        autoBackup(); updateCharts(); alert('✅ 報銷沖銷成功！');
     };
 
     const deleteTransaction = (id) => {
@@ -1076,6 +1138,7 @@ const app = createApp({
                 migrateLegacyData(); 
                 runAutoTasks(); 
                 localStorage.setItem('ledger_backup_' + currentBookId.value, JSON.stringify(data));
+                
                 if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
                 if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
                 if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
@@ -1102,7 +1165,7 @@ const app = createApp({
            if(isManual) alert('雲端備份已建立');
         }
       } catch (e) {
-        syncStatus.value = 'error'; console.error("GDrive Sync Error", e);
+        syncStatus.value = 'error'; console.warn("GDrive Sync Error", e);
         if(e.status === 401) { settings.googleToken = ''; saveSettings(false); if(isManual) alert("權限過期，請重新登入"); }
       } finally { isSyncing.value = false; }
     };
@@ -1138,7 +1201,7 @@ const app = createApp({
         }
         alert('股價自動更新完成！'); autoBackup(); updateCharts();
       } catch (e) { 
-        console.error("Stock API Error:", e);
+        console.warn("Stock API Error:", e);
         alert('無法連線證交所或連線逾時。請手動輸入最新報價！');
         showManualStockModal.value = true;
       }
@@ -1177,12 +1240,14 @@ const app = createApp({
     };
     
     const unlockApp = () => { if (pinInput.value === settings.pinCode) { isUnlocked.value = true; initData(); } else { pinError.value = "PIN錯誤"; } };
+    
     const saveSettings = (showAlert = true) => { 
       settings.currentBookId = currentBookId.value;
       localStorage.setItem('ledger_settings', JSON.stringify(settings)); 
       if (showAlert) alert('設定已儲存'); 
       if (settings.googleToken && settings.googleClientId) initGoogleAuth(); 
     };
+    
     const exportData = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); a.download = `Ledger_${currentBookId.value}_${new Date().toISOString().split('T')[0]}.json`; a.click(); };
     const importData = (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { try { const p = JSON.parse(ev.target.result); if (p && typeof p === 'object') { resetData(); Object.assign(data, p); migrateLegacyData(); autoBackup(); updateCharts(); alert("成功覆蓋匯入"); } } catch(err) { alert("檔案錯誤"); } }; r.readAsText(f); };
 
@@ -1194,23 +1259,25 @@ const app = createApp({
           if (canvas1) {
             const ctx1 = canvas1.getContext('2d');
             if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
-            const expMonth = dashboardMonth.value || ''; const exp = {}; let tot = 0;
-            let txList = data.transactions || [];
-            for(let i=0; i<txList.length; i++) {
-              let tx = txList[i]; let txDate = tx && tx.date ? tx.date : '';
-              if (tx && !tx.is_refunded && !tx.is_refund && txDate.length >= 7 && expMonth.length >= 7 && txDate.substring(0,7) === expMonth.substring(0,7)) {
-                if (dashboardScope.value !== 'all' && tx.scope !== dashboardScope.value) continue;
-                let dList = tx.debits || [];
-                for(let j=0; j<dList.length; j++) {
-                  let d = dList[j]; let accList = data.accounts || []; let a = accList.find(ac => ac && ac.id === d.account_id);
-                  if(a && a.type === 'Expense') { let cat = a.category || '未分類'; let amt = Number(d.amount) || 0; if(!exp[cat]) exp[cat] = 0; exp[cat] += amt; tot += amt; }
+            if (canvas1.width > 0 && canvas1.height > 0 && ctx1) {
+                const expMonth = dashboardMonth.value || ''; const exp = {}; let tot = 0;
+                let txList = data.transactions || [];
+                for(let i=0; i<txList.length; i++) {
+                  let tx = txList[i]; let txDate = tx && tx.date ? tx.date : '';
+                  if (tx && !tx.is_refunded && !tx.is_refund && txDate.length >= 7 && expMonth.length >= 7 && txDate.substring(0,7) === expMonth.substring(0,7)) {
+                    if (dashboardScope.value !== 'all' && tx.scope !== dashboardScope.value) continue;
+                    let dList = tx.debits || [];
+                    for(let j=0; j<dList.length; j++) {
+                      let d = dList[j]; let accList = data.accounts || []; let a = accList.find(ac => ac && ac.id === d.account_id);
+                      if(a && a.type === 'Expense') { let cat = a.category || '未分類'; let amt = Number(d.amount) || 0; if(!exp[cat]) exp[cat] = 0; exp[cat] += amt; tot += amt; }
+                    }
+                  }
                 }
-              }
-            }
-            hasExpensesThisMonth.value = tot > 0;
-            if (hasExpensesThisMonth.value) {
-              let labels = []; let values = []; for(let key in exp) { labels.push(key); values.push(exp[key]); }
-              expenseChartInstance.value = new Chart(ctx1, { type: 'doughnut', data: { labels: labels, datasets: [{ data: values, backgroundColor: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: '#94a3b8'} } } } });
+                hasExpensesThisMonth.value = tot > 0;
+                if (hasExpensesThisMonth.value) {
+                  let labels = []; let values = []; for(let key in exp) { labels.push(key); values.push(exp[key]); }
+                  expenseChartInstance.value = new Chart(ctx1, { type: 'doughnut', data: { labels: labels, datasets: [{ data: values, backgroundColor: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: '#94a3b8'} } } } });
+                }
             }
           }
 
@@ -1218,15 +1285,17 @@ const app = createApp({
           if (canvas2) {
             const ctx2 = canvas2.getContext('2d');
             if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
-            if (totalAssets.value > 0) {
-              let cTot=0, sTot=0;
-              let accList = data.accounts || [];
-              for(let i=0; i<accList.length; i++){ let a = accList[i]; if(a && a.type==='Asset' && !a.is_contra && a.id!=='1103' && a.id!=='1201' && a.id!=='1104') cTot += getBaseBalance(a.id, calculateBalance(a.id)); }
-              let invList = data.investments || [];
-              for(let i=0; i<invList.length; i++){ let inv = invList[i]; sTot += getInvCurrentValue(inv); }
-              let fTot = calculateBalance('1201') + calculateBalance('1201-DEP');
-              
-              assetChartInstance.value = new Chart(ctx2, { type: 'pie', data: { labels: ['流動資金總額', '股票現值', '固定資產'], datasets: [{ data: [Math.max(0,cTot), sTot, Math.max(0,fTot)], backgroundColor: ['#3b82f6', '#8b5cf6', '#14b8a6'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: '#94a3b8'} } } } });
+            if (canvas2.width > 0 && canvas2.height > 0 && ctx2) {
+                if (totalAssets.value > 0) {
+                  let cTot=0, sTot=0;
+                  let accList = data.accounts || [];
+                  for(let i=0; i<accList.length; i++){ let a = accList[i]; if(a && a.type==='Asset' && !a.is_contra && a.id!=='1103' && a.id!=='1201' && a.id!=='1104') cTot += getBaseBalance(a.id, calculateBalance(a.id)); }
+                  let invList = data.investments || [];
+                  for(let i=0; i<invList.length; i++){ let inv = invList[i]; sTot += getInvCurrentValue(inv); }
+                  let fTot = calculateBalance('1201') + calculateBalance('1201-DEP');
+                  
+                  assetChartInstance.value = new Chart(ctx2, { type: 'pie', data: { labels: ['流動資金總額', '股票現值', '固定資產'], datasets: [{ data: [Math.max(0,cTot), sTot, Math.max(0,fTot)], backgroundColor: ['#3b82f6', '#8b5cf6', '#14b8a6'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: '#94a3b8'} } } } });
+                }
             }
           }
 
@@ -1234,31 +1303,34 @@ const app = createApp({
           if(canvas3) {
              const ctx3 = canvas3.getContext('2d');
              if(netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
-             let histLabels = []; let histData = [];
-             let d = new Date();
-             for(let i=5; i>=0; i--) {
-                let tempDate = new Date(d.getFullYear(), d.getMonth() - i, 1);
-                let mStr = tempDate.getFullYear() + '-' + String(tempDate.getMonth()+1).padStart(2,'0');
-                histLabels.push(mStr);
-                let endOfMonth = mStr + '-31'; 
-                let aSum=0, lSum=0;
-                for(let k=0; k<data.accounts.length; k++){
-                   let a = data.accounts[k]; if(!a) continue;
-                   let bal=0;
-                   for(let t=0; t<data.transactions.length; t++){
-                      let tx = data.transactions[t]; if(!tx || tx.date > endOfMonth) continue;
-                      if(tx.debits) tx.debits.forEach(db=>{if(db && db.account_id===a.id) bal+=Number(db.amount)||0;});
-                      if(tx.credits) tx.credits.forEach(cr=>{if(cr && cr.account_id===a.id) bal-=Number(cr.amount)||0;});
-                   }
-                   if(a.type==='Asset') aSum += (a.type==='Expense'||a.type==='Asset'? bal : -bal);
-                   else if(a.type==='Liability') lSum += (a.type==='Expense'||a.type==='Asset'? bal : -bal);
-                }
-                histData.push(aSum - lSum);
+             if (canvas3.width > 0 && canvas3.height > 0 && ctx3) {
+                 let histLabels = []; let histData = [];
+                 let d = new Date();
+                 for(let i=5; i>=0; i--) {
+                    let tempDate = new Date(d.getFullYear(), d.getMonth() - i, 1);
+                    let mStr = tempDate.getFullYear() + '-' + String(tempDate.getMonth()+1).padStart(2,'0');
+                    histLabels.push(mStr);
+                    let endOfMonth = mStr + '-31'; 
+                    let aSum=0, lSum=0;
+                    for(let k=0; k<data.accounts.length; k++){
+                       let a = data.accounts[k]; if(!a) continue;
+                       let bal=0;
+                       for(let t=0; t<data.transactions.length; t++){
+                          let tx = data.transactions[t]; if(!tx || tx.date > endOfMonth) continue;
+                          if(tx.debits) tx.debits.forEach(db=>{if(db && db.account_id===a.id) bal+=Number(db.amount)||0;});
+                          if(tx.credits) tx.credits.forEach(cr=>{if(cr && cr.account_id===a.id) bal-=Number(cr.amount)||0;});
+                       }
+                       if(a.type==='Asset') aSum += (a.type==='Expense'||a.type==='Asset'? bal : -bal);
+                       else if(a.type==='Liability') lSum += (a.type==='Expense'||a.type==='Asset'? bal : -bal);
+                    }
+                    histData.push(aSum - lSum);
+                 }
+                 netWorthChartInstance.value = new Chart(ctx3, { type: 'line', data: { labels: histLabels, datasets: [{ label: '淨資產', data: histData, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.2)', fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { color: '#94a3b8' } }, x: { ticks: { color: '#94a3b8' } } } } });
              }
-             netWorthChartInstance.value = new Chart(ctx3, { type: 'line', data: { labels: histLabels, datasets: [{ label: '淨資產', data: histData, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.2)', fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { color: '#94a3b8' } }, x: { ticks: { color: '#94a3b8' } } } } });
           }
-
-        } catch (err) { console.error("Chart Render Error:", err); }
+        } catch (err) { 
+            console.warn("Chart Render Error:", err); 
+        }
       });
     };
 
@@ -1307,8 +1379,8 @@ const app = createApp({
       syncStatus, isSyncing, showAmounts, expenseMonth, dashboardMonth, fxRate,
       reportView, reportPeriod, reportStartDate, reportEndDate,
       showAddAccountModal, showInitialStockModal, showAddFixedAssetModal, showDisposalModal, showAddLoanModal, showRateModal, 
-      showResetModal, showNewBookModal, showAddGoalModal, showUpdateGoalModal, showManualStockModal, showRefundModal,
-      activeRefundTx, refundData, hasExpensesThisMonth, settings, currentBookId, newBookName, data, newTx, txError, 
+      showResetModal, showNewBookModal, showAddGoalModal, showUpdateGoalModal, showManualStockModal, showRefundModal, showReimburseModal,
+      activeRefundTx, refundData, activeReimburseTx, reimburseData, hasExpensesThisMonth, settings, currentBookId, newBookName, data, newTx, txError, 
       historyFilter, settingCategoryMode, newPreset, newMainCat, newSubCat, newAssetAcc, initStock, initFA, 
       disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
       changeTab, unlockApp, saveSettings, exportData, importData,
@@ -1322,6 +1394,7 @@ const app = createApp({
       getInvCurrentValue, getUnrealizedGain, getFAAccDep, getFABookValue, getAccumulatedInterest, loanRepayPreview, 
       getTxColorBand, getTxAmountColor, applyQuickTag, onDividendSymbolChange, calcBalAsOf, bsData, isData, cfData,
       switchBook, createNewBook, submitNewBook, submitNewAssetAccount, submitTransaction, openRefundModal, closeRefundModal, submitRefund,
+      openReimburseModal, closeReimburseModal, submitReimburse, reimburseTx,
       deleteTransaction, submitInitialStock, submitFixedAsset, openDisposalModal, submitDisposal, submitAddLoan, 
       openRateModal, submitRateAdjust, submitAddGoal, openUpdateGoalModal, submitUpdateGoal, deleteGoal, addRecurring, 
       deleteRecurring, addMainCategory, deleteMainCategory, addSubCategory, addPreset, removePreset, toggleAccountVisibility, 
@@ -1334,7 +1407,7 @@ const app = createApp({
 
 // 全域錯誤捕捉機制
 app.config.errorHandler = function(err, vm, info) {
-  console.error("Vue Global Error:", err, info);
+  console.warn("Vue Global Error:", err, info);
   var loading = document.getElementById('native-loading');
   var errorScreen = document.getElementById('fallback-error');
   var errorMsg = document.getElementById('fallback-error-msg');
