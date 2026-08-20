@@ -109,7 +109,10 @@
             <i data-lucide="list" class="w-5 h-5"></i> 交易明細
           </button>
           <button @click="changeTab('budget')" :class="activeTab==='budget'?'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="target" class="w-5 h-5"></i> 預算管理
+            <i data-lucide="pie-chart" class="w-5 h-5"></i> 預算管理
+          </button>
+          <button @click="changeTab('savings')" :class="activeTab==='savings'?'bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
+            <i data-lucide="crosshair" class="w-5 h-5"></i> 儲蓄目標計畫
           </button>
           <button @click="changeTab('assets')" :class="activeTab==='assets'?'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
             <i data-lucide="wallet" class="w-5 h-5"></i> 資產與貸款
@@ -317,7 +320,7 @@
               <div class="flex gap-2 mb-2">
                 <select v-model="newTx.loanId" class="flex-1 border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20">
                   <option value="" disabled>請選擇繳納項目</option>
-                  <option v-for="loan in safeLoans" :key="loan ? loan.id : ''" :value="loan ? loan.id : ''">{{ loan ? loan.name : '' }} (未還本金: ${{ formatNumber(Math.abs(calculateBalance(loan ? loan.liability_acc_id : ''))) }})</option>
+                  <option v-for="loan in safeLoans" :key="loan ? loan.id : ''" :value="loan ? loan.id : ''">{{ loan ? loan.name : '' }} (未還: ${{ formatNumber(Math.abs(calculateBalance(loan ? loan.liability_acc_id : ''))) }})</option>
                 </select>
                 <button @click="showAddLoanModal = true" class="bg-rose-100 hover:bg-rose-200 text-rose-700 dark:bg-rose-800 dark:text-rose-200 px-3 py-2 rounded-lg font-bold transition shadow-sm whitespace-nowrap text-sm flex items-center">
                   <i data-lucide="plus" class="w-4 h-4 mr-1"></i> 新增貸款
@@ -347,7 +350,7 @@
               
               <div v-if="newTx.investAction !== 'dividend'" class="space-y-2">
                 <div class="flex gap-2">
-                  <input type="text" v-model="newTx.symbol" placeholder="代號(2330.TW)" class="border p-2 rounded-lg w-1/3 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm font-mono uppercase bg-slate-50 dark:text-white">
+                  <input type="text" v-model="newTx.symbol" placeholder="代號(2330)" class="border p-2 rounded-lg w-1/3 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm font-mono uppercase bg-slate-50 dark:text-white">
                   <input type="text" v-model="newTx.stockName" placeholder="名稱(如 台積電)" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white">
                 </div>
                 <div class="flex gap-2">
@@ -500,7 +503,6 @@
               <div class="w-full bg-slate-100 dark:bg-slate-700 h-3 rounded-full overflow-hidden">
                 <div class="h-full rounded-full transition-all duration-500" :class="(bData && bData.pct >= 100) ? 'bg-red-500' : ((bData && bData.pct >= 80) ? 'bg-orange-500' : 'bg-green-500')" :style="{width: Math.min((bData ? bData.pct : 0), 100) + '%'}"></div>
               </div>
-              <div class="text-[10px] text-slate-400 text-right">{{ bData ? bData.pct : 0 }}%</div>
             </div>
           </div>
 
@@ -513,6 +515,37 @@
           </div>
         </div>
 
+        <!-- ================= 獨立：儲蓄目標 Tab (Savings) ================= -->
+        <div v-show="activeTab === 'savings'" class="space-y-4">
+          <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2 mb-3 text-pink-700 dark:text-pink-400">
+            <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="crosshair" class="w-5 h-5"></i> 儲蓄目標計畫</h2>
+            <button @click="showAddGoalModal = true" class="text-xs bg-pink-50 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300 border border-pink-200 dark:border-pink-700 px-2.5 py-1.5 rounded-lg hover:bg-pink-100 font-bold shadow-sm transition">+ 新增目標</button>
+          </div>
+          <div v-if="safeSavingsGoals.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-16 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
+            <i data-lucide="crosshair" class="w-12 h-12 mb-3 opacity-30"></i> 尚未建立任何儲蓄目標
+          </div>
+          <div v-for="goal in safeSavingsGoals" :key="goal ? goal.id : ''" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm mt-3 border-l-4 border-l-pink-500 relative">
+            <div class="flex justify-between items-start">
+              <div class="font-bold text-lg text-slate-800 dark:text-white">{{ goal ? goal.name : '' }}</div>
+              <div class="flex gap-2">
+                <button @click="openUpdateGoalModal(goal)" class="text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 px-2.5 py-1 rounded shadow-sm transition flex items-center gap-1"><i data-lucide="edit" class="w-3 h-3"></i> 記進度</button>
+                <button @click="deleteGoal(goal ? goal.id : '')" class="text-xs text-red-400 hover:text-red-600 bg-slate-50 dark:bg-slate-700 px-2 py-1 rounded transition shadow-sm"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+              </div>
+            </div>
+            <div class="text-sm mt-3 bg-pink-50 dark:bg-pink-900/10 p-3 rounded-lg space-y-2 border border-pink-100 dark:border-pink-800/50">
+              <div class="flex justify-between text-slate-600 dark:text-slate-400"><span>已準備金額:</span> <span class="font-bold">${{ showAmounts ? formatNumber(goal ? goal.saved : 0) : '••••' }}</span></div>
+              <div class="flex justify-between text-slate-600 dark:text-slate-400"><span>目標總額:</span> <span class="font-bold">${{ showAmounts ? formatNumber(goal ? goal.target : 0) : '••••' }}</span></div>
+              <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
+                <div class="h-full bg-pink-500 rounded-full transition-all duration-500" :style="{width: Math.min(((goal ? goal.saved : 0) / (goal && goal.target ? goal.target : 1)) * 100, 100) + '%'}"></div>
+              </div>
+              <div class="flex justify-between mt-2 pt-2 border-t border-pink-200 dark:border-pink-800/50 text-xs font-bold text-pink-700 dark:text-pink-400">
+                <span>達成率: {{ Math.round(((goal ? goal.saved : 0) / (goal ? goal.target : 1)) * 100) }}%</span>
+                <span>目標期限: {{ (goal && goal.deadline) ? goal.deadline : '無期限' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- ================= 5. 資產 Tab (Assets) ================= -->
         <div v-show="activeTab === 'assets'" class="space-y-8">
           <section>
@@ -522,7 +555,7 @@
               </h2>
               <div class="flex items-center gap-3">
                 <div class="text-2xl font-black text-blue-600 dark:text-blue-400">${{ showAmounts ? formatNumber(totalLiquidAssets) : '••••••••' }}</div>
-                <button @click="showAddAccountModal = true" class="text-xs bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-slate-800 dark:border-slate-700 px-2 py-1.5 rounded-lg font-bold shadow-sm transition">+ 新增帳戶</button>
+                <button @click="showAddAccountModal = true" class="text-xs bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 dark:bg-slate-800 dark:border-slate-700 px-2 py-1.5 rounded-lg font-bold shadow-sm transition">+ 新增帳戶/信用卡</button>
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
@@ -542,36 +575,6 @@
               <div v-for="acc in liabilityAccountsWithBalance" :key="acc ? acc.id : ''" class="p-3.5 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl shadow-sm flex flex-col justify-between border-l-4 border-l-red-400">
                 <div class="text-xs text-slate-500 font-bold mb-1 truncate">{{ acc ? acc.name : '' }}</div>
                 <div class="font-bold text-xl text-red-600 dark:text-red-400">$ {{ showAmounts ? formatNumber(acc ? acc.balance : 0) : '••••' }}</div>
-              </div>
-            </div>
-          </section>
-
-          <section>
-            <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2 mb-3 text-pink-700 dark:text-pink-400">
-              <h2 class="text-xl font-bold flex items-center gap-2"><i data-lucide="crosshair" class="w-5 h-5"></i> 儲蓄目標計畫</h2>
-              <button @click="showAddGoalModal = true" class="text-xs bg-pink-50 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300 border border-pink-200 dark:border-pink-700 px-2.5 py-1.5 rounded-lg hover:bg-pink-100 font-bold shadow-sm transition">+ 新增目標</button>
-            </div>
-            <div v-if="safeSavingsGoals.length === 0" class="flex flex-col items-center justify-center text-slate-400 py-6 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-2">
-              <i data-lucide="crosshair" class="w-8 h-8 mb-2 opacity-30"></i> 尚未建立任何儲蓄目標
-            </div>
-            <div v-for="goal in safeSavingsGoals" :key="goal ? goal.id : ''" class="p-4 border rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm mt-3 border-l-4 border-l-pink-500 relative">
-              <div class="flex justify-between items-start">
-                <div class="font-bold text-lg text-slate-800 dark:text-white">{{ goal ? goal.name : '' }}</div>
-                <div class="flex gap-2">
-                  <button @click="openUpdateGoalModal(goal)" class="text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 px-2.5 py-1 rounded shadow-sm transition flex items-center gap-1"><i data-lucide="edit" class="w-3 h-3"></i> 記進度</button>
-                  <button @click="deleteGoal(goal ? goal.id : '')" class="text-xs text-red-400 hover:text-red-600 bg-slate-50 dark:bg-slate-700 px-2 py-1 rounded transition shadow-sm"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
-                </div>
-              </div>
-              <div class="text-sm mt-3 bg-pink-50 dark:bg-pink-900/10 p-3 rounded-lg space-y-2 border border-pink-100 dark:border-pink-800/50">
-                <div class="flex justify-between text-slate-600 dark:text-slate-400"><span>已準備金額:</span> <span class="font-bold">${{ showAmounts ? formatNumber(goal ? goal.saved : 0) : '••••' }}</span></div>
-                <div class="flex justify-between text-slate-600 dark:text-slate-400"><span>目標總額:</span> <span class="font-bold">${{ showAmounts ? formatNumber(goal ? goal.target : 0) : '••••' }}</span></div>
-                <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden">
-                  <div class="h-full bg-pink-500 rounded-full transition-all duration-500" :style="{width: Math.min(((goal ? goal.saved : 0) / (goal && goal.target ? goal.target : 1)) * 100, 100) + '%'}"></div>
-                </div>
-                <div class="flex justify-between mt-2 pt-2 border-t border-pink-200 dark:border-pink-800/50 text-xs font-bold text-pink-700 dark:text-pink-400">
-                  <span>達成率: {{ Math.round(((goal ? goal.saved : 0) / (goal ? goal.target : 1)) * 100) }}%</span>
-                  <span>目標期限: {{ (goal && goal.deadline) ? goal.deadline : '無期限' }}</span>
-                </div>
               </div>
             </div>
           </section>
@@ -641,6 +644,7 @@
               <div class="text-sm text-slate-500 mt-3 bg-teal-50 dark:bg-teal-900/10 p-3 rounded-lg border border-teal-100 dark:border-teal-800/50">
                 <div class="flex justify-between mb-1"><span>購入原價:</span> <span class="font-bold">${{ showAmounts ? formatNumber(fa ? fa.original_cost : 0) : '••••' }}</span></div>
                 <div class="flex justify-between mb-1"><span>累計折舊:</span> <span>${{ formatNumber(getFAAccDep(fa)) }}</span></div>
+                <div class="flex justify-between mb-1"><span>最後提列:</span> <span class="font-mono">{{ (fa && fa.last_depreciation_date) ? fa.last_depreciation_date : '尚未' }}</span></div>
                 <div class="flex justify-between mt-2 pt-2 border-t border-teal-200 dark:border-teal-800 font-bold">
                   <span class="text-teal-700 dark:text-teal-500">目前帳面淨值:</span>
                   <span class="text-teal-600 dark:text-teal-400 text-base">${{ showAmounts ? formatNumber(getFABookValue(fa)) : '••••' }}</span>
@@ -768,7 +772,7 @@
                     <span :class="(isData && isData.net >= 0) ? 'text-green-600 dark:text-green-400' : 'text-red-600'">${{ formatNumber((isData && isData.net) || 0) }}</span>
                   </div>
                   <div class="text-right text-xs font-bold text-slate-500 mt-1 pr-2">
-                    實質儲蓄率: {{ (isData && isData.totalRev > 0) ? Math.round(((isData.net) / isData.totalRev)*100) : 0 }}%
+                    實質儲蓄率: {{ (isData && isData.totalRev > 0) ? Math.round(((isData && isData.net) / isData.totalRev)*100) : 0 }}%
                   </div>
                 </div>
               </div>
@@ -988,20 +992,27 @@
 
       <!-- ================= 8. 彈窗區塊 (Modals) ================= -->
       
-      <!-- 1. 新增資產帳戶彈窗 -->
+      <!-- 1. 新增資產帳戶/信用卡彈窗 -->
       <div v-if="showAddAccountModal" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
           <h3 class="text-xl font-bold mb-5 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-blue-600 dark:text-blue-400">
-            <i data-lucide="plus-circle" class="w-5 h-5"></i> 新增資產帳戶
+            <i data-lucide="plus-circle" class="w-5 h-5"></i> 新增帳戶/信用卡
           </h3>
           <div class="space-y-4 text-sm">
             <div>
-              <div class="text-xs text-slate-500 mb-1 font-bold">帳戶名稱</div>
-              <input type="text" v-model="newAssetAcc.name" placeholder="如: 台新 Richart" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white">
+              <div class="text-xs text-slate-500 mb-1 font-bold">帳戶類型</div>
+              <select v-model="newAssetAcc.type" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white font-bold">
+                <option value="Asset">一般活存帳戶 (資產)</option>
+                <option value="Liability">信用卡/貸款 (負債)</option>
+              </select>
+            </div>
+            <div>
+              <div class="text-xs text-slate-500 mb-1 font-bold">帳戶/卡片名稱</div>
+              <input type="text" v-model="newAssetAcc.name" placeholder="如: 台新 Richart / 國泰 CUBE 卡" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white">
             </div>
             <div class="flex gap-3">
               <div class="flex-1">
-                <div class="text-xs text-slate-500 mb-1 font-bold">期初餘額</div>
+                <div class="text-xs text-slate-500 mb-1 font-bold">期初餘額/欠款</div>
                 <input type="number" v-model.number="newAssetAcc.initBalance" placeholder="如: 10000" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none font-mono bg-slate-50 dark:text-white">
               </div>
               <div class="w-24">
@@ -1013,7 +1024,7 @@
             </div>
             <div class="flex gap-3 mt-6 pt-2">
               <button @click="showAddAccountModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold transition">取消</button>
-              <button @click="submitNewAssetAccount(); showAddAccountModal = false" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-bold transition shadow-lg">確認新增</button>
+              <button @click="submitNewAssetAccount" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-bold transition shadow-lg">確認新增</button>
             </div>
           </div>
         </div>
@@ -1063,7 +1074,59 @@
         </div>
       </div>
 
-      <!-- 4. 登錄固定資產彈窗 -->
+      <!-- 4. 股票期初建倉彈窗 -->
+      <div v-if="showInitialStockModal" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+          <h3 class="text-xl font-bold mb-5 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-indigo-600 dark:text-indigo-400"><i data-lucide="trending-up" class="w-5 h-5"></i> 期初股票建倉 (不扣款)</h3>
+          <div class="space-y-4 text-sm">
+            <div>
+              <div class="text-xs text-slate-500 mb-1 font-bold">股票代號</div>
+              <input type="text" v-model="initStock.symbol" placeholder="如: 2330" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none font-mono uppercase bg-slate-50 dark:text-white">
+            </div>
+            <div>
+              <div class="text-xs text-slate-500 mb-1 font-bold">股票名稱</div>
+              <input type="text" v-model="initStock.name" placeholder="如: 台積電" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white">
+            </div>
+            <div class="flex gap-3">
+              <div class="flex-1">
+                <div class="text-xs text-slate-500 mb-1 font-bold">持有總股數</div>
+                <input type="number" v-model.number="initStock.shares" placeholder="股數" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none font-mono bg-slate-50 dark:text-white">
+              </div>
+              <div class="flex-1">
+                <div class="text-xs text-slate-500 mb-1 font-bold">投入總成本</div>
+                <input type="number" v-model.number="initStock.cost" placeholder="總成本" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none font-mono bg-slate-50 dark:text-white">
+              </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+              <button @click="showInitialStockModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold transition">取消</button>
+              <button @click="submitInitialStock" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl font-bold transition shadow-lg">確認建倉</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. 手動更新股價防呆彈窗 -->
+      <div v-if="showManualStockModal" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+          <h3 class="text-xl font-bold mb-4 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-indigo-600 dark:text-indigo-400"><i data-lucide="trending-up" class="w-5 h-5"></i> 手動更新股價</h3>
+          <p class="text-xs text-slate-500 mb-4">無法連線公開 API，請手動輸入最新收盤價以更新估值。</p>
+          <div class="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2 mb-4">
+            <div v-for="inv in safeInvestments" :key="inv ? inv.id : ''" class="flex items-center justify-between">
+              <span class="font-bold text-sm text-slate-700 dark:text-slate-200 w-24 truncate">{{ inv ? inv.name : '' }}</span>
+              <div class="flex items-center gap-1">
+                <span class="text-slate-400 text-xs">$</span>
+                <input type="number" step="0.01" v-model.number="inv.last_price" class="border p-2 rounded-lg w-24 text-right dark:bg-slate-700 dark:border-slate-600 outline-none text-sm font-mono font-bold bg-slate-50 dark:text-white">
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button @click="showManualStockModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold transition">取消</button>
+            <button @click="submitManualStockUpdate" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl font-bold transition shadow-lg">儲存現價</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. 登錄固定資產彈窗 -->
       <div v-if="showAddFixedAssetModal" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
           <h3 class="text-xl font-bold mb-5 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-teal-600 dark:text-teal-400"><i data-lucide="monitor" class="w-5 h-5"></i> 歷史固定資產建檔</h3>
@@ -1079,11 +1142,11 @@
             <div class="flex gap-3">
               <div class="flex-1">
                 <div class="text-xs text-slate-500 mb-1 font-bold">購入原價</div>
-                <input type="number" v-model.number="initFA.cost" placeholder="原價" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white">
+                <input type="number" v-model.number="initFA.cost" placeholder="原價" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none font-mono bg-slate-50 dark:text-white">
               </div>
               <div class="flex-1">
                 <div class="text-xs text-slate-500 mb-1 font-bold">折舊總月數</div>
-                <input type="number" v-model.number="initFA.months" placeholder="月數" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white">
+                <input type="number" v-model.number="initFA.months" placeholder="月數" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none font-mono bg-slate-50 dark:text-white">
               </div>
             </div>
             <div class="flex gap-3 mt-6">
@@ -1094,7 +1157,7 @@
         </div>
       </div>
 
-      <!-- 5. 處分/報廢資產彈窗 -->
+      <!-- 7. 處分/報廢資產彈窗 -->
       <div v-if="showDisposalModal" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
           <h3 class="text-xl font-bold mb-2 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-red-600"><i data-lucide="trash" class="w-5 h-5"></i> 處分/報廢固定資產</h3>
@@ -1140,58 +1203,6 @@
               <button @click="showDisposalModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold transition">取消</button>
               <button @click="submitDisposal" class="flex-1 bg-red-600 hover:bg-red-700 text-white p-3 rounded-xl font-bold shadow-lg transition">確認處分</button>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 6. 股票期初建倉彈窗 -->
-      <div v-if="showInitialStockModal" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-          <h3 class="text-xl font-bold mb-5 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-indigo-600 dark:text-indigo-400"><i data-lucide="trending-up" class="w-5 h-5"></i> 期初股票建倉 (不扣款)</h3>
-          <div class="space-y-4">
-            <div>
-              <div class="text-xs text-slate-500 mb-1 font-bold">股票代號</div>
-              <input type="text" v-model="initStock.symbol" placeholder="如: 2330.TW" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none font-mono uppercase bg-slate-50 dark:text-white">
-            </div>
-            <div>
-              <div class="text-xs text-slate-500 mb-1 font-bold">股票名稱</div>
-              <input type="text" v-model="initStock.name" placeholder="如: 台積電" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white">
-            </div>
-            <div class="flex gap-3">
-              <div class="flex-1">
-                <div class="text-xs text-slate-500 mb-1 font-bold">持有總股數</div>
-                <input type="number" v-model.number="initStock.shares" placeholder="股數" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white">
-              </div>
-              <div class="flex-1">
-                <div class="text-xs text-slate-500 mb-1 font-bold">投入總成本</div>
-                <input type="number" v-model.number="initStock.cost" placeholder="總成本" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white">
-              </div>
-            </div>
-            <div class="flex gap-3 mt-6">
-              <button @click="showInitialStockModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold transition">取消</button>
-              <button @click="submitInitialStock" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl font-bold transition shadow-lg">確認建倉</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 7. 股票手動報價彈窗 -->
-      <div v-if="showManualStockModal" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-          <h3 class="text-xl font-bold mb-4 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-indigo-600 dark:text-indigo-400"><i data-lucide="trending-up" class="w-5 h-5"></i> 手動更新股價</h3>
-          <p class="text-xs text-slate-500 mb-4">無法連線公開 API，請手動輸入最新收盤價以更新估值。</p>
-          <div class="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-2 mb-4">
-            <div v-for="inv in safeInvestments" :key="inv ? inv.id : ''" class="flex items-center justify-between">
-              <span class="font-bold text-sm text-slate-700 dark:text-slate-200 w-24 truncate">{{ inv ? inv.name : '' }}</span>
-              <div class="flex items-center gap-1">
-                <span class="text-slate-400 text-xs">$</span>
-                <input type="number" step="0.01" v-model.number="inv.last_price" class="border p-2 rounded-lg w-24 text-right dark:bg-slate-700 dark:border-slate-600 outline-none text-sm font-mono font-bold bg-slate-50 dark:text-white">
-              </div>
-            </div>
-          </div>
-          <div class="flex gap-3">
-            <button @click="showManualStockModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold transition">取消</button>
-            <button @click="submitManualStockUpdate" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl font-bold transition shadow-lg">儲存現價</button>
           </div>
         </div>
       </div>
@@ -1251,8 +1262,9 @@
             <div class="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl text-sm border dark:border-slate-700">
               <div class="font-bold text-slate-800 dark:text-slate-200 truncate mb-1">{{ getTxDesc(activeRefundTx) }}</div>
               <div class="flex justify-between text-slate-500 mt-1"><span>原始金額:</span> <span>${{ formatNumber(getDebitAmount(activeRefundTx)) }}</span></div>
-              <div class="flex justify-between text-slate-500 mt-1"><span>累積已退款:</span> <span class="text-orange-500">${{ formatNumber(activeRefundTx.refunded_amount || 0) }}</span></div>
+              <div class="flex justify-between text-slate-500 mt-1"><span>累積已退款:</span> <span class="text-orange-500">${{ formatNumber((activeRefundTx && activeRefundTx.refunded_amount) || 0) }}</span></div>
             </div>
+            
             <div>
               <div class="text-xs text-slate-500 mb-1 font-bold">本次退款入帳帳戶 (沖銷資金來源)</div>
               <select v-model="refundData.account" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white font-bold">
@@ -1264,6 +1276,7 @@
               <div class="text-xs text-slate-500 mb-1 font-bold">本次退款金額 (預設為剩餘最大可退)</div>
               <input type="number" v-model.number="refundData.amount" class="w-full border p-3 rounded-xl dark:bg-slate-700 dark:border-slate-600 outline-none text-xl font-black text-orange-600 dark:text-orange-400 bg-slate-50 dark:text-white text-center shadow-inner">
             </div>
+
             <div class="flex gap-3 mt-6 pt-2 border-t dark:border-slate-700">
               <button @click="closeRefundModal" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold transition">取消</button>
               <button @click="submitRefund" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-xl font-bold transition shadow-lg">確認退款</button>
@@ -1303,12 +1316,22 @@
         </div>
       </div>
 
-      <!-- ================= 輕量化快捷底部導覽列 ================= -->
+      <!-- ================= 底部輕量導覽列 ================= -->
+      <!-- 依照您的需求將明細與預算調換順序：[總覽] ➔ [記帳] ➔ [明細] ➔ [預算] -->
       <nav class="fixed bottom-0 w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-2 py-2 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-[calc(env(safe-area-inset-bottom)+8px)] rounded-t-2xl">
-        <button @click="changeTab('dashboard')" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200"><i data-lucide="layout-dashboard" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">總覽</span></button>
-        <button @click="changeTab('entry')" :class="activeTab==='entry' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200"><i data-lucide="edit-3" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">記帳</span></button>
-        <button @click="changeTab('budget')" :class="activeTab==='budget' ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200"><i data-lucide="target" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">預算</span></button>
-        <button @click="changeTab('history')" :class="activeTab==='history' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200"><i data-lucide="list" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">明細</span></button>
+        <button @click="changeTab('dashboard')" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
+          <i data-lucide="layout-dashboard" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">總覽</span>
+        </button>
+        <button @click="changeTab('entry')" :class="activeTab==='entry' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
+          <i data-lucide="edit-3" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">記帳</span>
+        </button>
+        <!-- 明細移至預算前方 -->
+        <button @click="changeTab('history')" :class="activeTab==='history' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
+          <i data-lucide="list" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">明細</span>
+        </button>
+        <button @click="changeTab('budget')" :class="activeTab==='budget' ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
+          <i data-lucide="target" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">預算</span>
+        </button>
       </nav>
     </div>
   </div>
