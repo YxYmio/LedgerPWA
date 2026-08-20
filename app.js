@@ -73,6 +73,7 @@ const app = createApp({
         fileId: '', 
         pinEnabled: false, 
         pinCode: '0000', 
+        currentBookId: 'default',
         booksIndex: [{id: 'default', name: '日常帳本'}] 
     });
     
@@ -657,8 +658,11 @@ const app = createApp({
     // 8. 核心操作 (Core Actions)
     // ------------------------------------------------------------------------
     const switchBook = () => {
-      autoBackup(); 
+      autoBackup(false); 
       let targetId = currentBookId.value;
+      settings.currentBookId = targetId;
+      saveSettings(false);
+      
       const newBackup = localStorage.getItem('ledger_backup_' + targetId);
       
       resetData();
@@ -688,8 +692,12 @@ const app = createApp({
       if(!newBookName.value) return;
       let newId = 'book_' + Date.now();
       settings.booksIndex.push({ id: newId, name: newBookName.value });
-      currentBookId.value = newId; newBookName.value = ''; showNewBookModal.value = false;
-      saveSettings(); switchBook();
+      currentBookId.value = newId; 
+      settings.currentBookId = newId;
+      newBookName.value = ''; 
+      showNewBookModal.value = false;
+      saveSettings(false); 
+      switchBook();
     };
 
     const submitNewAssetAccount = () => {
@@ -697,7 +705,6 @@ const app = createApp({
       if(!data.accounts) data.accounts = [];
       if(!data.transactions) data.transactions = [];
       
-      // 智慧判斷帳戶類型 (如果使用者未在 UI 明確指定)
       let finalType = newAssetAcc.type || 'Asset';
       if (newAssetAcc.name.includes('信用卡') || newAssetAcc.name.includes('欠款') || newAssetAcc.name.includes('貸款')) {
           finalType = 'Liability';
@@ -1021,7 +1028,10 @@ const app = createApp({
     // ------------------------------------------------------------------------
     // 9. Google Drive 同步機制
     // ------------------------------------------------------------------------
-    const autoBackup = () => { localStorage.setItem('ledger_backup_' + currentBookId.value, JSON.stringify(data)); if(settings.googleToken) syncWithGoogleDrive(false); };
+    const autoBackup = (syncCloud = true) => { 
+      localStorage.setItem('ledger_backup_' + currentBookId.value, JSON.stringify(data)); 
+      if(syncCloud && settings.googleToken) syncWithGoogleDrive(false); 
+    };
     
     const initGoogleAuth = () => {
       if (!settings.googleClientId || typeof google === 'undefined') return;
@@ -1030,14 +1040,15 @@ const app = createApp({
         callback: (res) => {
           if(res.error) return alert('授權失敗');
           settings.googleToken = res.access_token;
-          saveSettings(); syncWithGoogleDrive(true);
+          saveSettings(false); 
+          syncWithGoogleDrive(false);
         },
       });
       if(typeof gapi !== 'undefined') { gapi.load('client', () => { gapi.client.init({}).then(()=>{ gapi.client.setToken({access_token: settings.googleToken}); }); }); }
     };
 
     const handleGoogleAuth = () => { if(!settings.googleClientId) return alert("請先填寫 Client ID"); if(tokenClient) tokenClient.requestAccessToken({prompt: 'consent'}); };
-    const handleGoogleSignout = () => { settings.googleToken = ''; settings.fileId = ''; saveSettings(); };
+    const handleGoogleSignout = () => { settings.googleToken = ''; settings.fileId = ''; saveSettings(false); };
 
     const syncWithGoogleDrive = async (isManual = false) => {
       if(!settings.googleToken || typeof gapi === 'undefined' || !gapi.client) return;
@@ -1051,18 +1062,27 @@ const app = createApp({
            if(query.result.files && query.result.files.length > 0) fileId = query.result.files[0].id;
         }
         if (fileId) {
-           settings.fileId = fileId; saveSettings();
+           settings.fileId = fileId; 
+           saveSettings(false);
            if(isManual) { 
               let fileRes = await gapi.client.request({ path: `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, method: 'GET' });
-              if(fileRes.result) { 
+              let cloudData = fileRes.result;
+              if(typeof cloudData === 'string') {
+                 try { cloudData = JSON.parse(cloudData); } catch(e) { cloudData = null; }
+              }
+              if(cloudData && typeof cloudData === 'object' && (cloudData.accounts || cloudData.transactions)) { 
                 resetData();
-                Object.assign(data, fileRes.result); 
-                migrateLegacyData(); runAutoTasks(); 
+                Object.assign(data, cloudData); 
+                migrateLegacyData(); 
+                runAutoTasks(); 
+                localStorage.setItem('ledger_backup_' + currentBookId.value, JSON.stringify(data));
                 if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
                 if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
                 if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
                 updateCharts(); 
-                if(isManual) alert('雲端資料已同步還原'); 
+                alert('雲端資料已同步還原'); 
+              } else {
+                alert('⚠️ 雲端資料無效或為空，已保留本地資料防止覆蓋！');
               }
            } else { 
               let content = JSON.stringify(data);
@@ -1076,11 +1096,14 @@ const app = createApp({
            form.append('file', new Blob([JSON.stringify(data)], { type: 'application/json' }));
            let res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { 'Authorization': `Bearer ${settings.googleToken}` }, body: form });
            let result = await res.json();
-           settings.fileId = result.id; saveSettings(); syncStatus.value = 'ok'; if(isManual) alert('雲端備份已建立');
+           settings.fileId = result.id; 
+           saveSettings(false); 
+           syncStatus.value = 'ok'; 
+           if(isManual) alert('雲端備份已建立');
         }
       } catch (e) {
         syncStatus.value = 'error'; console.error("GDrive Sync Error", e);
-        if(e.status === 401) { settings.googleToken = ''; saveSettings(); if(isManual) alert("權限過期，請重新登入"); }
+        if(e.status === 401) { settings.googleToken = ''; saveSettings(false); if(isManual) alert("權限過期，請重新登入"); }
       } finally { isSyncing.value = false; }
     };
 
@@ -1143,14 +1166,23 @@ const app = createApp({
     // 11. 初始化與生命週期 (Lifecycle)
     // ------------------------------------------------------------------------
     const loadSettings = () => { 
-      try { const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}'); if(s && typeof s === 'object') Object.assign(settings, s); } catch(e) {} 
+      try { 
+        const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}'); 
+        if(s && typeof s === 'object') Object.assign(settings, s); 
+      } catch(e) {} 
       if(!settings.appName) settings.appName = '智慧帳本'; 
       if(!settings.booksIndex || settings.booksIndex.length === 0) settings.booksIndex = [{id: 'default', name: '日常帳本'}];
+      currentBookId.value = settings.currentBookId || 'default';
       if(!settings.pinEnabled) isUnlocked.value = true; 
     };
     
     const unlockApp = () => { if (pinInput.value === settings.pinCode) { isUnlocked.value = true; initData(); } else { pinError.value = "PIN錯誤"; } };
-    const saveSettings = () => { localStorage.setItem('ledger_settings', JSON.stringify(settings)); alert('設定已儲存'); if (settings.googleToken && settings.googleClientId) initGoogleAuth(); };
+    const saveSettings = (showAlert = true) => { 
+      settings.currentBookId = currentBookId.value;
+      localStorage.setItem('ledger_settings', JSON.stringify(settings)); 
+      if (showAlert) alert('設定已儲存'); 
+      if (settings.googleToken && settings.googleClientId) initGoogleAuth(); 
+    };
     const exportData = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); a.download = `Ledger_${currentBookId.value}_${new Date().toISOString().split('T')[0]}.json`; a.click(); };
     const importData = (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { try { const p = JSON.parse(ev.target.result); if (p && typeof p === 'object') { resetData(); Object.assign(data, p); migrateLegacyData(); autoBackup(); updateCharts(); alert("成功覆蓋匯入"); } } catch(err) { alert("檔案錯誤"); } }; r.readAsText(f); };
 
