@@ -1,6 +1,8 @@
 const { createApp, ref, reactive, computed, onMounted, watch, nextTick, onErrorCaptured } = Vue;
 
+// ------------------------------------------------------------------------
 // 工具函式
+// ------------------------------------------------------------------------
 const b64EncodeUnicode = (str) => { try { return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1))); } catch(e){ return ""; } };
 const b64DecodeUnicode = (str) => { try { return decodeURIComponent(Array.prototype.map.call(atob(str.replace(/\n/g, '')), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')); } catch(e){ return "{}"; } };
 
@@ -35,7 +37,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     // 2. 報表與圖表狀態
     // ------------------------------------------------------------------------
-    const reportView = ref('balance'); // balance, income, cashflow
+    const reportView = ref('balance');
     const reportPeriod = ref('this_month'); 
     const reportStartDate = ref('');
     const reportEndDate = ref('');
@@ -46,8 +48,9 @@ const app = createApp({
     const hasExpensesThisMonth = ref(false);
 
     // ------------------------------------------------------------------------
-    // 3. 彈窗控制狀態
+    // 3. 彈窗控制狀態 (Modals)
     // ------------------------------------------------------------------------
+    const showAddAccountModal = ref(false); // 新增資產帳戶彈窗
     const showInitialStockModal = ref(false);
     const showAddFixedAssetModal = ref(false);
     const showDisposalModal = ref(false);
@@ -142,7 +145,6 @@ const app = createApp({
        data.quick_tags = []; data.smart_tags = {}; data.main_categories = { Expense: [], Income: [] }; data.budgets = {}; 
     };
 
-    // 實作全新預設會計科目與系統科目建檔
     const migrateLegacyData = () => {
       if(!data.transactions) data.transactions = [];
       if(!data.investments) data.investments = [];
@@ -670,6 +672,7 @@ const app = createApp({
         data.transactions.push({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初餘額: ${newAssetAcc.name}`, debits: [{ account_id: newId, amount: newAssetAcc.initBalance }], credits: [{ account_id: '3101', amount: newAssetAcc.initBalance }] });
       }
       newAssetAcc.name = ''; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
+      showAddAccountModal.value = false;
       autoBackup(); updateCharts(); refreshIcons(); alert('✅ 帳戶建立成功！');
     };
 
@@ -1188,7 +1191,7 @@ const app = createApp({
     const refreshIcons = () => { nextTick(() => { try { if (window.lucide) lucide.createIcons(); } catch(e){} }); };
 
     watch(activeTab, () => {
-      if(activeTab.value === 'dashboard' || activeTab.value === 'reports' || activeTab.value === 'budget') updateCharts();
+      if(['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
       refreshIcons();
     });
     watch(dashboardScope, () => updateCharts());
@@ -1210,7 +1213,7 @@ const app = createApp({
       if(window.google) initGoogleAuth(); else setTimeout(initGoogleAuth, 2000);
       
       runAutoTasks();
-      if (activeTab.value === 'dashboard' || activeTab.value === 'reports' || activeTab.value === 'budget') updateCharts();
+      if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
       refreshIcons();
     };
 
@@ -1229,12 +1232,11 @@ const app = createApp({
     const incomeCategories = computed(() => (data.main_categories && data.main_categories.Income) ? data.main_categories.Income : []);
     const currentSettingCategories = computed(() => (data.main_categories && data.main_categories[settingCategoryMode.value]) ? data.main_categories[settingCategoryMode.value] : []);
 
-    // 確保這裡回傳了全部 <template> 中會使用到的變數與函式
     return { 
       isAppReady, activeTab, isDrawerOpen, entryMode, dashboardScope, isUnlocked, pinInput, pinError, 
       syncStatus, isSyncing, showAmounts, expenseMonth, dashboardMonth, fxRate,
       reportView, reportPeriod, reportStartDate, reportEndDate,
-      showInitialStockModal, showAddFixedAssetModal, showDisposalModal, showAddLoanModal, showRateModal, 
+      showAddAccountModal, showInitialStockModal, showAddFixedAssetModal, showDisposalModal, showAddLoanModal, showRateModal, 
       showResetModal, showNewBookModal, showAddGoalModal, showUpdateGoalModal, showManualStockModal, showRefundModal,
       activeRefundTx, refundData, hasExpensesThisMonth, settings, currentBookId, newBookName, data, newTx, txError, 
       historyFilter, settingCategoryMode, newPreset, newMainCat, newSubCat, newAssetAcc, initStock, initFA, 
@@ -1260,7 +1262,7 @@ const app = createApp({
   }
 });
 
-// 全域錯誤捕捉機制，顯示自訂渲染錯誤彈窗
+// 全域錯誤捕捉機制
 app.config.errorHandler = function(err, vm, info) {
   console.error("Vue Global Error:", err, info);
   var loading = document.getElementById('native-loading');
