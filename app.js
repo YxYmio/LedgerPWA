@@ -50,7 +50,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     // 3. 彈窗控制狀態 (Modals)
     // ------------------------------------------------------------------------
-    const showAddAccountModal = ref(false); // 新增資產帳戶彈窗
+    const showAddAccountModal = ref(false);
     const showInitialStockModal = ref(false);
     const showAddFixedAssetModal = ref(false);
     const showDisposalModal = ref(false);
@@ -107,6 +107,26 @@ const app = createApp({
       isReimbursement: false, investDividendSymbol: '', manualSymbol: '', manualName: ''
     });
     
+    // 智慧股票名稱對照表與 Watcher
+    const commonStocks = {
+        '2330': '台積電', '0050': '元大台灣50', '00878': '國泰永續高股息',
+        '2603': '長榮', '2454': '聯發科', '2317': '鴻海', '2881': '富邦金', '2882': '國泰金',
+        '0056': '元大高股息', '00929': '復華台灣科技優息'
+    };
+    watch(() => newTx.symbol, (val) => {
+        if (!val) return;
+        let symbol = val.replace('.TW', '').toUpperCase();
+        if (commonStocks[symbol] && !newTx.stockName) {
+            newTx.stockName = commonStocks[symbol];
+        } else {
+            let invList = data.investments || [];
+            let existing = invList.find(i => i && i.symbol && i.symbol.replace('.TW', '').toUpperCase() === symbol);
+            if (existing && !newTx.stockName) {
+                newTx.stockName = existing.name;
+            }
+        }
+    });
+
     const txError = ref('');
     const historyFilter = reactive({ keyword: '', scope: 'all', dateFrom: '', dateTo: '' });
     const settingCategoryMode = ref('Expense');
@@ -114,7 +134,7 @@ const app = createApp({
     const newMainCat = ref(''); 
     const newSubCat = reactive({ main: '', name: '' });
     
-    const newAssetAcc = reactive({ name: '', initBalance: null, currency: 'TWD' });
+    const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD' });
     const initStock = reactive({ symbol: '', name: '', shares: null, cost: null });
     const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60 });
     const disposalAsset = ref(null);
@@ -349,6 +369,10 @@ const app = createApp({
       }
       return sum;
     });
+
+    const expenseCategories = computed(() => (data.main_categories && data.main_categories.Expense) ? data.main_categories.Expense : []);
+    const incomeCategories = computed(() => (data.main_categories && data.main_categories.Income) ? data.main_categories.Income : []);
+    const currentSettingCategories = computed(() => (data.main_categories && data.main_categories[settingCategoryMode.value]) ? data.main_categories[settingCategoryMode.value] : []);
 
     // ================= 預算管理 (Budget Logic) =================
     const dashboardBudgets = computed(() => {
@@ -648,6 +672,12 @@ const app = createApp({
       
       migrateLegacyData();
       runAutoTasks();
+
+      // 強制清空舊圖表，等待畫面渲染後重新繪製
+      if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
+      if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
+      if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
+
       isDrawerOpen.value = false;
       if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
       alert(`已切換至: ${activeBookName.value}`);
@@ -666,12 +696,24 @@ const app = createApp({
       if(!newAssetAcc.name) return;
       if(!data.accounts) data.accounts = [];
       if(!data.transactions) data.transactions = [];
-      const newId = 'asset_' + Date.now();
-      data.accounts.push({ id: newId, name: newAssetAcc.name, type: 'Asset', currency: newAssetAcc.currency, is_hidden: false });
-      if(newAssetAcc.initBalance && newAssetAcc.initBalance > 0) {
-        data.transactions.push({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初餘額: ${newAssetAcc.name}`, debits: [{ account_id: newId, amount: newAssetAcc.initBalance }], credits: [{ account_id: '3101', amount: newAssetAcc.initBalance }] });
+      
+      // 智慧判斷帳戶類型 (如果使用者未在 UI 明確指定)
+      let finalType = newAssetAcc.type || 'Asset';
+      if (newAssetAcc.name.includes('信用卡') || newAssetAcc.name.includes('欠款') || newAssetAcc.name.includes('貸款')) {
+          finalType = 'Liability';
       }
-      newAssetAcc.name = ''; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
+
+      const newId = (finalType === 'Liability' ? 'liab_' : 'asset_') + Date.now();
+      data.accounts.push({ id: newId, name: newAssetAcc.name, type: finalType, currency: newAssetAcc.currency, is_hidden: false });
+      
+      if(newAssetAcc.initBalance && newAssetAcc.initBalance > 0) {
+        if (finalType === 'Asset') {
+            data.transactions.push({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初餘額: ${newAssetAcc.name}`, debits: [{ account_id: newId, amount: newAssetAcc.initBalance }], credits: [{ account_id: '3101', amount: newAssetAcc.initBalance }] });
+        } else {
+            data.transactions.push({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初欠款: ${newAssetAcc.name}`, debits: [{ account_id: '3101', amount: newAssetAcc.initBalance }], credits: [{ account_id: newId, amount: newAssetAcc.initBalance }] });
+        }
+      }
+      newAssetAcc.name = ''; newAssetAcc.type = 'Asset'; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
       showAddAccountModal.value = false;
       autoBackup(); updateCharts(); refreshIcons(); alert('✅ 帳戶建立成功！');
     };
@@ -1015,7 +1057,11 @@ const app = createApp({
               if(fileRes.result) { 
                 resetData();
                 Object.assign(data, fileRes.result); 
-                migrateLegacyData(); runAutoTasks(); updateCharts(); 
+                migrateLegacyData(); runAutoTasks(); 
+                if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
+                if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
+                if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
+                updateCharts(); 
                 if(isManual) alert('雲端資料已同步還原'); 
               }
            } else { 
@@ -1109,12 +1155,13 @@ const app = createApp({
     const importData = (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { try { const p = JSON.parse(ev.target.result); if (p && typeof p === 'object') { resetData(); Object.assign(data, p); migrateLegacyData(); autoBackup(); updateCharts(); alert("成功覆蓋匯入"); } } catch(err) { alert("檔案錯誤"); } }; r.readAsText(f); };
 
     const updateCharts = () => {
-      if (activeTab.value !== 'dashboard' && activeTab.value !== 'budget') return;
+      if (!['dashboard', 'budget', 'reports'].includes(activeTab.value)) return;
       nextTick(() => {
         try {
           const canvas1 = document.getElementById('expenseChart');
           if (canvas1) {
             const ctx1 = canvas1.getContext('2d');
+            if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
             const expMonth = dashboardMonth.value || ''; const exp = {}; let tot = 0;
             let txList = data.transactions || [];
             for(let i=0; i<txList.length; i++) {
@@ -1130,20 +1177,16 @@ const app = createApp({
             }
             hasExpensesThisMonth.value = tot > 0;
             if (hasExpensesThisMonth.value) {
-              if (expenseChartInstance.value) expenseChartInstance.value.destroy();
               let labels = []; let values = []; for(let key in exp) { labels.push(key); values.push(exp[key]); }
               expenseChartInstance.value = new Chart(ctx1, { type: 'doughnut', data: { labels: labels, datasets: [{ data: values, backgroundColor: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: '#94a3b8'} } } } });
-            } else if (expenseChartInstance.value) {
-              expenseChartInstance.value.destroy(); expenseChartInstance.value = null;
             }
           }
 
           const canvas2 = document.getElementById('assetChart');
           if (canvas2) {
             const ctx2 = canvas2.getContext('2d');
-            if (totalAssets.value <= 0) {
-              if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
-            } else {
+            if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
+            if (totalAssets.value > 0) {
               let cTot=0, sTot=0;
               let accList = data.accounts || [];
               for(let i=0; i<accList.length; i++){ let a = accList[i]; if(a && a.type==='Asset' && !a.is_contra && a.id!=='1103' && a.id!=='1201' && a.id!=='1104') cTot += getBaseBalance(a.id, calculateBalance(a.id)); }
@@ -1151,7 +1194,6 @@ const app = createApp({
               for(let i=0; i<invList.length; i++){ let inv = invList[i]; sTot += getInvCurrentValue(inv); }
               let fTot = calculateBalance('1201') + calculateBalance('1201-DEP');
               
-              if (assetChartInstance.value) assetChartInstance.value.destroy();
               assetChartInstance.value = new Chart(ctx2, { type: 'pie', data: { labels: ['流動資金總額', '股票現值', '固定資產'], datasets: [{ data: [Math.max(0,cTot), sTot, Math.max(0,fTot)], backgroundColor: ['#3b82f6', '#8b5cf6', '#14b8a6'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: '#94a3b8'} } } } });
             }
           }
@@ -1159,6 +1201,7 @@ const app = createApp({
           const canvas3 = document.getElementById('netWorthChart');
           if(canvas3) {
              const ctx3 = canvas3.getContext('2d');
+             if(netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
              let histLabels = []; let histData = [];
              let d = new Date();
              for(let i=5; i>=0; i--) {
@@ -1180,7 +1223,6 @@ const app = createApp({
                 }
                 histData.push(aSum - lSum);
              }
-             if(netWorthChartInstance.value) netWorthChartInstance.value.destroy();
              netWorthChartInstance.value = new Chart(ctx3, { type: 'line', data: { labels: histLabels, datasets: [{ label: '淨資產', data: histData, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.2)', fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { color: '#94a3b8' } }, x: { ticks: { color: '#94a3b8' } } } } });
           }
 
