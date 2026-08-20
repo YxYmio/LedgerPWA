@@ -193,7 +193,7 @@
             </div>
           </div>
 
-          <!-- 圖表改為垂直單欄排列 -->
+          <!-- 圖表垂直單欄排列 -->
           <div class="flex flex-col gap-4">
             <div class="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border dark:border-slate-700 flex flex-col">
               <h3 class="font-bold text-xs flex items-center gap-1 text-slate-600 dark:text-slate-300 mb-2"><i data-lucide="pie-chart" class="w-3 h-3 text-blue-500"></i> 當前資產配置</h3>
@@ -376,10 +376,10 @@
                   <select v-model="newTx.investDividendSymbol" @change="onDividendSymbolChange" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white font-bold text-indigo-700 dark:text-indigo-400">
                     <option value="" disabled>請選擇配息股票標的</option>
                     <optgroup label="💼 目前持股">
-                      <option v-for="inv in currentHoldings" :key="inv ? inv.symbol : ''" :value="inv ? inv.symbol : ''">[{{ inv ? inv.symbol : '' }}] {{ inv ? inv.name : '' }}</option>
+                      <option v-for="inv in currentHoldings" :key="inv ? inv.symbol : ''" :value="inv ? inv.symbol : ''">{{ inv ? inv.name : '' }}</option>
                     </optgroup>
                     <optgroup label="⏳ 歷史持股 (已賣出)">
-                      <option v-for="sym in historicalHoldings" :key="sym ? sym.symbol : ''" :value="sym ? sym.symbol : ''">[{{ sym ? sym.symbol : '' }}] {{ sym ? sym.name : '' }}</option>
+                      <option v-for="sym in historicalHoldings" :key="sym ? sym.symbol : ''" :value="sym ? sym.symbol : ''">{{ sym ? sym.name : '' }}</option>
                     </optgroup>
                     <optgroup label="✍️ 其他">
                       <option value="manual">-- 手動自訂輸入 --</option>
@@ -564,11 +564,12 @@
               </div>
             </div>
             <div class="grid grid-cols-2 gap-3">
-              <div v-for="acc in liquidAccountsWithBalance" :key="acc ? acc.id : ''" class="p-3.5 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl shadow-sm flex flex-col justify-between border-l-4 border-l-blue-400">
-                <div class="text-xs text-slate-500 font-bold mb-1 truncate flex items-center justify-between">
-                  {{ acc ? acc.name : '' }} <span class="text-[9px] bg-slate-100 dark:bg-slate-700 px-1 rounded">{{ acc ? acc.currency : '' }}</span>
+              <div v-for="acc in liquidAccountsWithBalance" :key="acc ? acc.id : ''" @click="filterByAccount(acc)" class="cursor-pointer hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600 transition p-3.5 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl shadow-sm flex flex-col justify-between border-l-4 border-l-blue-400 relative group">
+                <div class="text-xs text-slate-500 font-bold mb-1 truncate flex items-center justify-between pr-4">
+                  <span class="truncate">{{ acc ? acc.name : '' }}</span> <span class="text-[9px] bg-slate-100 dark:bg-slate-700 px-1 rounded ml-1 shrink-0">{{ acc ? acc.currency : '' }}</span>
                 </div>
                 <div class="font-bold text-xl text-blue-700 dark:text-blue-300">$ {{ showAmounts ? formatNumber(acc ? acc.balance : 0) : '••••' }}</div>
+                <i data-lucide="chevron-right" class="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition"></i>
               </div>
             </div>
           </section>
@@ -577,9 +578,10 @@
             <h2 class="text-xl font-bold border-b dark:border-slate-700 pb-2 mb-3 flex items-center gap-2 text-red-600 dark:text-red-400"><i data-lucide="credit-card" class="w-5 h-5"></i> 信用卡與短債</h2>
             <div v-if="liabilityAccountsWithBalance.length === 0" class="text-slate-400 text-sm py-4 text-center">無建立信用卡帳戶</div>
             <div class="grid grid-cols-2 gap-3">
-              <div v-for="acc in liabilityAccountsWithBalance" :key="acc ? acc.id : ''" class="p-3.5 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl shadow-sm flex flex-col justify-between border-l-4 border-l-red-400">
-                <div class="text-xs text-slate-500 font-bold mb-1 truncate">{{ acc ? acc.name : '' }}</div>
+              <div v-for="acc in liabilityAccountsWithBalance" :key="acc ? acc.id : ''" @click="filterByAccount(acc)" class="cursor-pointer hover:shadow-md hover:border-red-300 dark:hover:border-red-600 transition p-3.5 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl shadow-sm flex flex-col justify-between border-l-4 border-l-red-400 relative group">
+                <div class="text-xs text-slate-500 font-bold mb-1 truncate pr-4">{{ acc ? acc.name : '' }}</div>
                 <div class="font-bold text-xl text-red-600 dark:text-red-400">$ {{ showAmounts ? formatNumber(acc ? acc.balance : 0) : '••••' }}</div>
+                <i data-lucide="chevron-right" class="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600 group-hover:text-red-500 dark:group-hover:text-red-400 transition"></i>
               </div>
             </div>
           </section>
@@ -785,7 +787,7 @@
             
             <!-- 現金流量表 -->
             <template v-if="reportView === 'cashflow'">
-              <h3 class="text-center font-bold text-lg text-slate-800 dark:text-white mb-1">現金流量表 (直接法)</h3>
+              <h3 class="text-center font-bold text-lg text-slate-800 dark:text-white mb-1">現金流量表</h3>
               <div class="text-center text-xs text-slate-500 mb-4">({{ reportStartDate }} 至 {{ reportEndDate }})</div>
               
               <div class="space-y-4">

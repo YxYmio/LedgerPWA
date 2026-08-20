@@ -137,7 +137,7 @@ const app = createApp({
     let tokenClient = null;
 
     // ------------------------------------------------------------------------
-    // 5-1. 股票名稱智慧連動處理 (取代 Watch 避免渲染錯誤)
+    // 5-1. 股票名稱智慧連動處理
     // ------------------------------------------------------------------------
     const onSymbolInput = (target) => {
         const commonStocks = {
@@ -174,6 +174,16 @@ const app = createApp({
     const changeTab = (tab) => {
        activeTab.value = tab;
        isDrawerOpen.value = false;
+    };
+
+    // 資產卡片點選連動過濾明細
+    const filterByAccount = (acc) => {
+       if (!acc) return;
+       historyFilter.keyword = acc.name || '';
+       historyFilter.dateFrom = '';
+       historyFilter.dateTo = '';
+       historyFilter.scope = 'all';
+       activeTab.value = 'history';
     };
 
     const resetData = () => {
@@ -363,12 +373,18 @@ const app = createApp({
 
     const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
     
+    // 日期新到舊、同日則建立時間 (id) 新到舊
     const sortedTransactions = computed(() => {
       let list = data.transactions || [];
       return list.slice().sort((a,b) => {
-        let d1 = a && a.date ? new Date(a.date).getTime() : 0;
-        let d2 = b && b.date ? new Date(b.date).getTime() : 0;
-        return (isNaN(d2) ? 0 : d2) - (isNaN(d1) ? 0 : d1);
+        let d1 = (a && a.date) ? a.date : '';
+        let d2 = (b && b.date) ? b.date : '';
+        if (d1 !== d2) {
+           return d1 < d2 ? 1 : -1;
+        }
+        let id1 = (a && a.id) ? a.id : '';
+        let id2 = (b && b.id) ? b.id : '';
+        return id2.localeCompare(id1);
       });
     });
     
@@ -1379,7 +1395,7 @@ const app = createApp({
       activeRefundTx, refundData, activeReimburseTx, reimburseData, hasExpensesThisMonth, settings, currentBookId, newBookName, data, newTx, txError, 
       historyFilter, settingCategoryMode, newPreset, newMainCat, newSubCat, newAssetAcc, initStock, initFA, 
       disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
-      changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput,
+      changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput, filterByAccount,
       activeBookName, availableBooks, assetAccounts, paymentAccounts, liabilityAccounts, activeInstallments, 
       getSubAccounts, safeQuickTags, safeInvestments, safeFixedAssets, safeLoans, safeRecurring, safeSavingsGoals,
       currentHoldings, historicalHoldings, calculateBalance, getBaseBalance, accountsWithBalance, 
