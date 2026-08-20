@@ -1270,10 +1270,6 @@ const app = createApp({
       }
     });
 
-    const expenseCategories = computed(() => (data.main_categories && data.main_categories.Expense) ? data.main_categories.Expense : []);
-    const incomeCategories = computed(() => (data.main_categories && data.main_categories.Income) ? data.main_categories.Income : []);
-    const currentSettingCategories = computed(() => (data.main_categories && data.main_categories[settingCategoryMode.value]) ? data.main_categories[settingCategoryMode.value] : []);
-
     return { 
       isAppReady, activeTab, isDrawerOpen, entryMode, dashboardScope, isUnlocked, pinInput, pinError, 
       syncStatus, isSyncing, showAmounts, expenseMonth, dashboardMonth, fxRate,
