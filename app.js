@@ -99,7 +99,7 @@ const app = createApp({
     });
 
     // ------------------------------------------------------------------------
-    // 5. 表單綁定狀態 (Forms Data) - 集中宣告避免 TDZ
+    // 5. 表單綁定狀態 (Forms Data)
     // ------------------------------------------------------------------------
     const newTx = reactive({ 
       date: new Date().toISOString().split('T')[0], scope: 'personal', desc: '', amount: null, 
@@ -176,7 +176,6 @@ const app = createApp({
        isDrawerOpen.value = false;
     };
 
-    // 資產卡片點選連動過濾明細
     const filterByAccount = (acc) => {
        if (!acc) return;
        historyFilter.keyword = acc.name || '';
@@ -309,12 +308,15 @@ const app = createApp({
       return hist;
     });
 
-    const calculateBalance = (id) => {
+    const calculateBalance = (id, scope = 'all') => {
       let bal = 0; let list = data.transactions || [];
       for(let i=0; i<list.length; i++) {
         let tx = list[i];
-        if(tx && tx.debits) { for(let j=0; j<tx.debits.length; j++){ if (tx.debits[j] && tx.debits[j].account_id === id) bal += Number(tx.debits[j].amount)||0; } }
-        if(tx && tx.credits) { for(let j=0; j<tx.credits.length; j++){ if (tx.credits[j] && tx.credits[j].account_id === id) bal -= Number(tx.credits[j].amount)||0; } }
+        if(!tx) continue;
+        if (scope !== 'all' && tx.scope !== scope) continue;
+        
+        if(tx.debits) { for(let j=0; j<tx.debits.length; j++){ if (tx.debits[j] && tx.debits[j].account_id === id) bal += Number(tx.debits[j].amount)||0; } }
+        if(tx.credits) { for(let j=0; j<tx.credits.length; j++){ if (tx.credits[j] && tx.credits[j].account_id === id) bal -= Number(tx.credits[j].amount)||0; } }
       }
       let accList = data.accounts || [];
       let acc = accList.find(a => a && a.id === id);
@@ -328,7 +330,14 @@ const app = createApp({
       return baseBalance * rate;
     };
 
-    const accountsWithBalance = (accList) => { return accList.map(a => ({ id: a.id, name: a.name, type: a.type, category: a.category, currency: a.currency||'TWD', is_hidden: a.is_hidden, balance: calculateBalance(a.id), baseBalance: getBaseBalance(a.id, calculateBalance(a.id)) })); };
+    const accountsWithBalance = (accList) => { 
+        let scope = dashboardScope.value;
+        return accList.map(a => ({ 
+            id: a.id, name: a.name, type: a.type, category: a.category, currency: a.currency||'TWD', is_hidden: a.is_hidden, 
+            balance: calculateBalance(a.id, scope), 
+            baseBalance: getBaseBalance(a.id, calculateBalance(a.id, scope)) 
+        })); 
+    };
     
     const paymentAccountsWithBalance = computed(() => accountsWithBalance(paymentAccounts.value));
     const assetAccountsWithBalance = computed(() => accountsWithBalance(assetAccounts.value));
@@ -359,21 +368,23 @@ const app = createApp({
     const cashflowWarning = computed(() => totalLiquidAssets.value < upcomingBillsTotal.value * 1.2);
 
     const totalAssets = computed(() => {
+      let scope = dashboardScope.value;
       let sum = 0; let accList = data.accounts || []; let invList = data.investments || [];
-      for(let i=0; i<accList.length; i++) { if(accList[i] && accList[i].type === 'Asset') sum += getBaseBalance(accList[i].id, calculateBalance(accList[i].id)); }
+      for(let i=0; i<accList.length; i++) { if(accList[i] && accList[i].type === 'Asset') sum += getBaseBalance(accList[i].id, calculateBalance(accList[i].id, scope)); }
       for(let i=0; i<invList.length; i++) { let inv = invList[i]; if(inv) { let rate = data.currencyRates[inv.currency||'TWD'] || 1; sum += ((Number(inv.shares)||0) * (Number(inv.last_price)||0) * rate) - (Number(inv.total_cost)||0); } }
       return sum;
     });
 
     const totalLiabilities = computed(() => {
+      let scope = dashboardScope.value;
       let sum = 0; let accList = data.accounts || [];
-      for(let i=0; i<accList.length; i++){ if(accList[i] && accList[i].type === 'Liability') sum += getBaseBalance(accList[i].id, calculateBalance(accList[i].id)); }
+      for(let i=0; i<accList.length; i++){ if(accList[i] && accList[i].type === 'Liability') sum += getBaseBalance(accList[i].id, calculateBalance(accList[i].id, scope)); }
       return sum;
     });
 
     const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
     
-    // 日期新到舊、同日則建立時間 (id) 新到舊
+    // 明細排序: 日期新到舊，同日期依 ID(時間戳)新到舊
     const sortedTransactions = computed(() => {
       let list = data.transactions || [];
       return list.slice().sort((a,b) => {
@@ -564,19 +575,6 @@ const app = createApp({
        }
     }, { immediate: true });
 
-    const calcBalAsOf = (accId, dateStr) => {
-       let b = 0; let txs = data.transactions || [];
-       for(let i=0; i<txs.length; i++){
-           let tx = txs[i];
-           if (!tx || tx.date > dateStr || tx.is_refunded) continue;
-           if (tx.debits) tx.debits.forEach(d => { if (d && d.account_id===accId) b += (Number(d.amount)||0); });
-           if (tx.credits) tx.credits.forEach(c => { if (c && c.account_id===accId) b -= (Number(c.amount)||0); });
-       }
-       let a = (data.accounts || []).find(ac => ac && ac.id === accId);
-       if (a && (a.type==='Asset' || a.type==='Expense')) return b;
-       return -b;
-    };
-
     const bsData = computed(() => {
        let ed = reportEndDate.value || '9999-12-31';
        let curAssts = [], nonCurAssts = [], liabs = [];
@@ -698,13 +696,18 @@ const app = createApp({
     // 8. 核心操作 (Core Actions)
     // ------------------------------------------------------------------------
     const switchBook = () => {
-      autoBackup(false); 
+      let oldId = settings.currentBookId || 'default';
       let targetId = currentBookId.value;
+      
+      // 1. 儲存舊帳本
+      localStorage.setItem('ledger_backup_' + oldId, JSON.stringify(data)); 
+      
+      // 2. 更新設定
       settings.currentBookId = targetId;
       saveSettings(false);
       
+      // 3. 讀取目標帳本並強制重置 Data
       const newBackup = localStorage.getItem('ledger_backup_' + targetId);
-      
       resetData();
 
       if (newBackup) { 
@@ -718,7 +721,7 @@ const app = createApp({
       runAutoTasks();
       setHistoryToCurrentMonth();
 
-      // 強制清空舊圖表，等待畫面渲染後重新繪製
+      // 4. 強制銷毀圖表實例
       if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
       if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
       if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
@@ -734,11 +737,9 @@ const app = createApp({
       let newId = 'book_' + Date.now();
       settings.booksIndex.push({ id: newId, name: newBookName.value });
       currentBookId.value = newId; 
-      settings.currentBookId = newId;
+      switchBook();
       newBookName.value = ''; 
       showNewBookModal.value = false;
-      saveSettings(false); 
-      switchBook();
     };
 
     const submitNewAssetAccount = () => {
@@ -1103,7 +1104,7 @@ const app = createApp({
     // 9. Google Drive 同步機制
     // ------------------------------------------------------------------------
     const autoBackup = (syncCloud = true) => { 
-      localStorage.setItem('ledger_backup_' + currentBookId.value, JSON.stringify(data)); 
+      localStorage.setItem('ledger_backup_' + settings.currentBookId, JSON.stringify(data)); 
       if(syncCloud && settings.googleToken) syncWithGoogleDrive(false); 
     };
     
@@ -1299,12 +1300,13 @@ const app = createApp({
             if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
             if (canvas2.width > 0 && canvas2.height > 0 && ctx2) {
                 if (totalAssets.value > 0) {
+                  let scope = dashboardScope.value;
                   let cTot=0, sTot=0;
                   let accList = data.accounts || [];
-                  for(let i=0; i<accList.length; i++){ let a = accList[i]; if(a && a.type==='Asset' && !a.is_contra && a.id!=='1103' && a.id!=='1201' && a.id!=='1104') cTot += getBaseBalance(a.id, calculateBalance(a.id)); }
+                  for(let i=0; i<accList.length; i++){ let a = accList[i]; if(a && a.type==='Asset' && !a.is_contra && a.id!=='1103' && a.id!=='1201' && a.id!=='1104') cTot += getBaseBalance(a.id, calculateBalance(a.id, scope)); }
                   let invList = data.investments || [];
                   for(let i=0; i<invList.length; i++){ let inv = invList[i]; sTot += getInvCurrentValue(inv); }
-                  let fTot = calculateBalance('1201') + calculateBalance('1201-DEP');
+                  let fTot = calculateBalance('1201', scope) + calculateBalance('1201-DEP', scope);
                   
                   assetChartInstance.value = new Chart(ctx2, { type: 'pie', data: { labels: ['流動資金總額', '股票現值', '固定資產'], datasets: [{ data: [Math.max(0,cTot), sTot, Math.max(0,fTot)], backgroundColor: ['#3b82f6', '#8b5cf6', '#14b8a6'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: '#94a3b8'} } } } });
                 }
@@ -1316,6 +1318,7 @@ const app = createApp({
              const ctx3 = canvas3.getContext('2d');
              if(netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
              if (canvas3.width > 0 && canvas3.height > 0 && ctx3) {
+                 let scope = dashboardScope.value;
                  let histLabels = []; let histData = [];
                  let d = new Date();
                  for(let i=5; i>=0; i--) {
@@ -1329,6 +1332,7 @@ const app = createApp({
                        let bal=0;
                        for(let t=0; t<data.transactions.length; t++){
                           let tx = data.transactions[t]; if(!tx || tx.date > endOfMonth) continue;
+                          if(scope !== 'all' && tx.scope !== scope) continue;
                           if(tx.debits) tx.debits.forEach(db=>{if(db && db.account_id===a.id) bal+=Number(db.amount)||0;});
                           if(tx.credits) tx.credits.forEach(cr=>{if(cr && cr.account_id===a.id) bal-=Number(cr.amount)||0;});
                        }
