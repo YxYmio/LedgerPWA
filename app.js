@@ -575,6 +575,7 @@ const app = createApp({
        }
     }, { immediate: true });
 
+    // ==== 財務報表專用：計算至指定日期的餘額 ====
     const calcBalAsOf = (accId, dateStr) => {
        let b = 0; let txs = data.transactions || [];
        for(let i=0; i<txs.length; i++){
