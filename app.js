@@ -109,6 +109,9 @@ const app = createApp({
       isReimbursement: false, investDividendSymbol: '', manualSymbol: '', manualName: ''
     });
     
+    // 修復 TDZ：將 initStock 宣告移至 watch 之前
+    const initStock = reactive({ symbol: '', name: '', shares: null, cost: null });
+    
     // 智慧股票名稱對照表 (增強版)
     const commonStocks = {
         '2330': '台積電', '0050': '元大台灣50', '0056': '元大高股息', '00878': '國泰永續高股息',
@@ -152,7 +155,6 @@ const app = createApp({
     const newSubCat = reactive({ main: '', name: '' });
     
     const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD' });
-    const initStock = reactive({ symbol: '', name: '', shares: null, cost: null });
     const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60 });
     const disposalAsset = ref(null);
     const disposalForm = reactive({ type: 'scrap', price: null, account: '' });
@@ -576,7 +578,7 @@ const app = createApp({
           if (a.type === 'Asset') {
              if (['1103','1201','1201-DEP'].includes(a.id)) {
              } else {
-                if(bal !== 0) curAssts.push({ name: a.name, amount: bal });
+                 if(bal !== 0) curAssts.push({ name: a.name, amount: bal });
                 tAssets += bal;
              }
           } else if (a.type === 'Liability') {
