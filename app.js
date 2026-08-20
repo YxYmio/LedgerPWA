@@ -99,7 +99,7 @@ const app = createApp({
     });
 
     // ------------------------------------------------------------------------
-    // 5. 表單綁定狀態 (Forms Data)
+    // 5. 表單綁定狀態 (Forms Data) - 集中宣告避免 TDZ
     // ------------------------------------------------------------------------
     const newTx = reactive({ 
       date: new Date().toISOString().split('T')[0], scope: 'personal', desc: '', amount: null, 
@@ -109,51 +109,7 @@ const app = createApp({
       isReimbursement: false, investDividendSymbol: '', manualSymbol: '', manualName: ''
     });
     
-    // 修復 TDZ：將 initStock 宣告移至 watch 之前
     const initStock = reactive({ symbol: '', name: '', shares: null, cost: null });
-    
-    // 智慧股票名稱對照表 (增強版)
-    const commonStocks = {
-        '2330': '台積電', '0050': '元大台灣50', '0056': '元大高股息', '00878': '國泰永續高股息',
-        '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2317': '鴻海', '2454': '聯發科',
-        '2603': '長榮', '2881': '富邦金', '2882': '國泰金', '2886': '兆豐金'
-    };
-
-    watch(() => newTx.symbol, (val) => {
-        if (!val) return;
-        let symbol = val.replace('.TW', '').toUpperCase();
-        if (commonStocks[symbol]) {
-            newTx.stockName = commonStocks[symbol];
-        } else {
-            let invList = data.investments || [];
-            let existing = invList.find(i => i && i.symbol && i.symbol.replace('.TW', '').toUpperCase() === symbol);
-            if (existing && !newTx.stockName) {
-                newTx.stockName = (existing.name || '').replace(/^\[.*?\]\s*/, '');
-            }
-        }
-    });
-
-    watch(() => initStock.symbol, (val) => {
-        if (!val) return;
-        let symbol = val.replace('.TW', '').toUpperCase();
-        if (commonStocks[symbol]) {
-            initStock.name = commonStocks[symbol];
-        } else {
-            let invList = data.investments || [];
-            let existing = invList.find(i => i && i.symbol && i.symbol.replace('.TW', '').toUpperCase() === symbol);
-            if (existing && !initStock.name) {
-                initStock.name = (existing.name || '').replace(/^\[.*?\]\s*/, '');
-            }
-        }
-    });
-
-    const txError = ref('');
-    const historyFilter = reactive({ keyword: '', scope: 'all', dateFrom: '', dateTo: '' });
-    const settingCategoryMode = ref('Expense');
-    const newPreset = ref(''); 
-    const newMainCat = ref(''); 
-    const newSubCat = reactive({ main: '', name: '' });
-    
     const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD' });
     const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60 });
     const disposalAsset = ref(null);
@@ -168,11 +124,49 @@ const app = createApp({
     
     const activeRefundTx = ref(null);
     const refundData = reactive({ amount: 0, maxAmount: 0, account: '' });
-    
     const activeReimburseTx = ref(null);
     const reimburseData = reactive({ account: '' });
 
+    const txError = ref('');
+    const historyFilter = reactive({ keyword: '', scope: 'all', dateFrom: '', dateTo: '' });
+    const settingCategoryMode = ref('Expense');
+    const newPreset = ref(''); 
+    const newMainCat = ref(''); 
+    const newSubCat = reactive({ main: '', name: '' });
+
     let tokenClient = null;
+
+    // ------------------------------------------------------------------------
+    // 5-1. 股票名稱智慧連動處理 (取代 Watch 避免渲染錯誤)
+    // ------------------------------------------------------------------------
+    const onSymbolInput = (target) => {
+        const commonStocks = {
+            '2330': '台積電', '0050': '元大台灣50', '0056': '元大高股息', '00878': '國泰永續高股息',
+            '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2317': '鴻海', '2454': '聯發科',
+            '2603': '長榮', '2881': '富邦金', '2882': '國泰金', '2886': '兆豐金'
+        };
+        
+        let val = target === 'tx' ? newTx.symbol : initStock.symbol;
+        if (!val) return;
+        
+        let symbol = val.replace('.TW', '').toUpperCase();
+        let matchName = '';
+        
+        if (commonStocks[symbol]) {
+            matchName = commonStocks[symbol];
+        } else {
+            let invList = data.investments || [];
+            let existing = invList.find(i => i && i.symbol && i.symbol.replace('.TW', '').toUpperCase() === symbol);
+            if (existing) {
+                matchName = (existing.name || '').replace(/^\[.*?\]\s*/, '');
+            }
+        }
+
+        if (matchName) {
+            if (target === 'tx') newTx.stockName = matchName;
+            if (target === 'init') initStock.name = matchName;
+        }
+    };
 
     // ------------------------------------------------------------------------
     // 6. 核心架構函式 (UI切換、重置、遷移)
@@ -1385,7 +1379,7 @@ const app = createApp({
       activeRefundTx, refundData, activeReimburseTx, reimburseData, hasExpensesThisMonth, settings, currentBookId, newBookName, data, newTx, txError, 
       historyFilter, settingCategoryMode, newPreset, newMainCat, newSubCat, newAssetAcc, initStock, initFA, 
       disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
-      changeTab, unlockApp, saveSettings, exportData, importData,
+      changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput,
       activeBookName, availableBooks, assetAccounts, paymentAccounts, liabilityAccounts, activeInstallments, 
       getSubAccounts, safeQuickTags, safeInvestments, safeFixedAssets, safeLoans, safeRecurring, safeSavingsGoals,
       currentHoldings, historicalHoldings, calculateBalance, getBaseBalance, accountsWithBalance, 
