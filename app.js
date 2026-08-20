@@ -99,7 +99,7 @@ const app = createApp({
     });
 
     // ------------------------------------------------------------------------
-    // 5. 表單綁定狀態 (Forms Data)
+    // 5. 表單綁定狀態 (Forms Data) - 集中宣告避免 TDZ
     // ------------------------------------------------------------------------
     const newTx = reactive({ 
       date: new Date().toISOString().split('T')[0], scope: 'personal', desc: '', amount: null, 
@@ -574,6 +574,19 @@ const app = createApp({
            reportEndDate.value = new Date(d.getFullYear(), 11, 31).toISOString().split('T')[0];
        }
     }, { immediate: true });
+
+    const calcBalAsOf = (accId, dateStr) => {
+       let b = 0; let txs = data.transactions || [];
+       for(let i=0; i<txs.length; i++){
+           let tx = txs[i];
+           if (!tx || tx.date > dateStr || tx.is_refunded) continue;
+           if (tx.debits) tx.debits.forEach(d => { if (d && d.account_id===accId) b += (Number(d.amount)||0); });
+           if (tx.credits) tx.credits.forEach(c => { if (c && c.account_id===accId) b -= (Number(c.amount)||0); });
+       }
+       let a = (data.accounts || []).find(ac => ac && ac.id === accId);
+       if (a && (a.type==='Asset' || a.type==='Expense')) return b;
+       return -b;
+    };
 
     const bsData = computed(() => {
        let ed = reportEndDate.value || '9999-12-31';
