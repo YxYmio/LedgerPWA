@@ -1,4 +1,4 @@
-const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
+const { createApp, ref, reactive, computed, onMounted, watch, nextTick, shallowRef } = Vue;
 
 const app = createApp({
   setup() {
@@ -16,7 +16,7 @@ const app = createApp({
     const syncStatus = ref('offline'); 
     const isSyncing = ref(false);
     const showAmounts = ref(true);
-    const expenseMonth = ref(new Date().toISOString().substring(0,7)); // 修復：補回缺失的變數
+    const expenseMonth = ref(new Date().toISOString().substring(0,7)); 
     const dashboardMonth = ref(new Date().toISOString().substring(0,7));
     const fxRate = ref(1);
 
@@ -28,9 +28,10 @@ const app = createApp({
     const reportStartDate = ref('');
     const reportEndDate = ref('');
     
-    const expenseChartInstance = ref(null);
-    const assetChartInstance = ref(null);
-    const netWorthChartInstance = ref(null);
+    // 修改：使用 shallowRef 避免 Vue 代理 Chart.js 內部龐大物件導致崩潰
+    const expenseChartInstance = shallowRef(null);
+    const assetChartInstance = shallowRef(null);
+    const netWorthChartInstance = shallowRef(null);
     const hasExpensesThisMonth = ref(false);
 
     // ------------------------------------------------------------------------
@@ -89,7 +90,8 @@ const app = createApp({
     
     const initStock = reactive({ symbol: '', name: '', shares: null, cost: null });
     const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD' });
-    const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60 });
+    // 修改：加入 scope 預設值
+    const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60, scope: 'personal' });
     const disposalAsset = ref(null);
     const disposalForm = reactive({ type: 'scrap', price: null, account: '' });
     const initLoan = reactive({ name: '', principal: null, rate: null, payment: null });
@@ -415,9 +417,16 @@ const app = createApp({
     // ------------------------------------------------------------------------
     // 8. 核心操作 (Core Actions)
     // ------------------------------------------------------------------------
-    const switchBook = () => {
-      let oldId = settings.currentBookId || 'default';
+    
+    // 修改：透過 event 精準捕捉使用者在下拉選單選擇的最新帳本 ID
+    const switchBook = (event) => {
       let targetId = currentBookId.value;
+      if (event && event.target && event.target.value) {
+          targetId = event.target.value;
+          currentBookId.value = targetId;
+      }
+      let oldId = settings.currentBookId || 'default';
+      
       localStorage.setItem('ledger_backup_' + oldId, JSON.stringify(data)); 
       
       settings.currentBookId = targetId;
@@ -634,12 +643,13 @@ const app = createApp({
       showInitialStockModal.value = false; initStock.symbol = ''; initStock.name = ''; initStock.shares = null; initStock.cost = null; autoBackup(); updateCharts();
     };
 
+    // 修改：套用 initFA 的 scope 設定
     const submitFixedAsset = () => {
       if(!initFA.name || !initFA.cost || !initFA.months) return alert("請填寫完整");
       let monthlyDep = Math.round(initFA.cost / initFA.months);
       data.fixed_assets.push({ id: 'fa_'+Date.now(), name: initFA.name, purchase_date: initFA.date, original_cost: initFA.cost, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: null, is_disposed: false });
-      data.transactions.push({ id: 'tx_fa_'+Date.now(), date: initFA.date, scope: 'family', desc: `購入固定資產 ${initFA.name}`, debits: [{ account_id: '1201', amount: initFA.cost }], credits: [{ account_id: '3101', amount: initFA.cost }] });
-      showAddFixedAssetModal.value = false; initFA.name = ''; initFA.cost = null; initFA.months = 60; autoBackup(); updateCharts(); alert('✅ 固定資產登錄成功！');
+      data.transactions.push({ id: 'tx_fa_'+Date.now(), date: initFA.date, scope: initFA.scope, desc: `購入固定資產 ${initFA.name}`, debits: [{ account_id: '1201', amount: initFA.cost }], credits: [{ account_id: '3101', amount: initFA.cost }] });
+      showAddFixedAssetModal.value = false; initFA.name = ''; initFA.cost = null; initFA.months = 60; initFA.scope = 'personal'; autoBackup(); updateCharts(); alert('✅ 固定資產登錄成功！');
     };
 
     const openDisposalModal = (fa) => { disposalAsset.value = fa; disposalForm.type = 'scrap'; disposalForm.price = null; disposalForm.account = ''; showDisposalModal.value = true; };
