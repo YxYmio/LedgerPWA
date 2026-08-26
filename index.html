@@ -1350,7 +1350,6 @@
       </div>
 
       <!-- ================= 底部輕量導覽列 ================= -->
-      <!-- 依照您的需求將明細與預算調換順序：[總覽] ➔ [記帳] ➔ [明細] ➔ [預算] -->
       <nav class="fixed bottom-0 w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-2 py-2 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-[calc(env(safe-area-inset-bottom)+8px)] rounded-t-2xl">
         <button @click="changeTab('dashboard')" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
           <i data-lucide="layout-dashboard" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">總覽</span>
@@ -1369,6 +1368,10 @@
   </div>
 
   <!-- 引入外部邏輯 JS -->
+  <script src="./constants.js"></script>
+  <script src="./helpers.js"></script>
+  <script src="./reports.js"></script>
+  <script src="./charts.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

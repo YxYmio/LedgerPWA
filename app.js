@@ -1,24 +1,7 @@
-const { createApp, ref, reactive, computed, onMounted, watch, nextTick, onErrorCaptured } = Vue;
-
-// ------------------------------------------------------------------------
-// 工具函式
-// ------------------------------------------------------------------------
-const b64EncodeUnicode = (str) => { try { return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => String.fromCharCode('0x' + p1))); } catch(e){ return ""; } };
-const b64DecodeUnicode = (str) => { try { return decodeURIComponent(Array.prototype.map.call(atob(str.replace(/\n/g, '')), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')); } catch(e){ return "{}"; } };
-
-const fetchWithTimeout = async (url, options = {}, timeout = 5000) => {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    clearTimeout(id);
-    return response;
-};
+const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
 
 const app = createApp({
   setup() {
-    // ------------------------------------------------------------------------
-    // 1. 全域 UI 狀態
-    // ------------------------------------------------------------------------
     const isAppReady = ref(false);
     const activeTab = ref('dashboard');
     const isDrawerOpen = ref(false); 
@@ -30,13 +13,9 @@ const app = createApp({
     const syncStatus = ref('offline'); 
     const isSyncing = ref(false);
     const showAmounts = ref(true);
-    const expenseMonth = ref(new Date().toISOString().substring(0,7));
     const dashboardMonth = ref(new Date().toISOString().substring(0,7));
     const fxRate = ref(1);
 
-    // ------------------------------------------------------------------------
-    // 2. 報表與圖表狀態
-    // ------------------------------------------------------------------------
     const reportView = ref('balance');
     const reportPeriod = ref('this_month'); 
     const reportStartDate = ref('');
@@ -47,9 +26,6 @@ const app = createApp({
     const netWorthChartInstance = ref(null);
     const hasExpensesThisMonth = ref(false);
 
-    // ------------------------------------------------------------------------
-    // 3. 彈窗控制狀態 (Modals)
-    // ------------------------------------------------------------------------
     const showAddAccountModal = ref(false);
     const showInitialStockModal = ref(false);
     const showAddFixedAssetModal = ref(false);
@@ -64,9 +40,6 @@ const app = createApp({
     const showRefundModal = ref(false);
     const showReimburseModal = ref(false);
 
-    // ------------------------------------------------------------------------
-    // 4. 設定與全域資料模型 (Data Models)
-    // ------------------------------------------------------------------------
     const settings = reactive({ 
         appName: '智慧帳本', 
         googleClientId: '', 
@@ -84,23 +57,12 @@ const app = createApp({
     const data = reactive({
       version: "6.3.0",
       currencyRates: { TWD: 1, USD: 32.5, JPY: 0.22 },
-      budgets: {},
-      recurring: [],
-      quick_tags: [], 
-      smart_tags: {}, 
-      main_categories: { Expense: [], Income: [] },
-      accounts: [], 
-      transactions: [], 
-      fixed_assets: [], 
-      investments: [], 
-      installments: [], 
-      loans: [], 
-      savings_goals: []
+      budgets: {}, recurring: [], quick_tags: [], smart_tags: {}, 
+      main_categories: { Expense: [], Income: [] }, accounts: [], 
+      transactions: [], fixed_assets: [], investments: [], installments: [], 
+      loans: [], savings_goals: []
     });
 
-    // ------------------------------------------------------------------------
-    // 5. 表單綁定狀態 (Forms Data) - 集中宣告避免 TDZ
-    // ------------------------------------------------------------------------
     const newTx = reactive({ 
       date: new Date().toISOString().split('T')[0], scope: 'personal', desc: '', amount: null, 
       mainCategory: '', subAccount: '', paymentAcc: '', fromAcc: '', toAcc: '', investAction: 'buy', 
@@ -136,53 +98,27 @@ const app = createApp({
 
     let tokenClient = null;
 
-    // ------------------------------------------------------------------------
-    // 5-1. 股票名稱智慧連動處理
-    // ------------------------------------------------------------------------
     const onSymbolInput = (target) => {
-        const commonStocks = {
-            '2330': '台積電', '0050': '元大台灣50', '0056': '元大高股息', '00878': '國泰永續高股息',
-            '00919': '群益台灣精選高息', '00929': '復華台灣科技優息', '2317': '鴻海', '2454': '聯發科',
-            '2603': '長榮', '2881': '富邦金', '2882': '國泰金', '2886': '兆豐金'
-        };
-        
         let val = target === 'tx' ? newTx.symbol : initStock.symbol;
         if (!val) return;
-        
         let symbol = val.replace('.TW', '').toUpperCase();
         let matchName = '';
-        
-        if (commonStocks[symbol]) {
-            matchName = commonStocks[symbol];
+        if (STOCK_DICTIONARY[symbol]) {
+            matchName = STOCK_DICTIONARY[symbol];
         } else {
-            let invList = data.investments || [];
-            let existing = invList.find(i => i && i.symbol && i.symbol.replace('.TW', '').toUpperCase() === symbol);
-            if (existing) {
-                matchName = (existing.name || '').replace(/^\[.*?\]\s*/, '');
-            }
+            let existing = (data.investments || []).find(i => i && i.symbol && i.symbol.replace('.TW', '').toUpperCase() === symbol);
+            if (existing) matchName = (existing.name || '').replace(/^\[.*?\]\s*/, '');
         }
-
         if (matchName) {
             if (target === 'tx') newTx.stockName = matchName;
             if (target === 'init') initStock.name = matchName;
         }
     };
 
-    // ------------------------------------------------------------------------
-    // 6. 核心架構函式 (UI切換、重置、遷移)
-    // ------------------------------------------------------------------------
-    const changeTab = (tab) => {
-       activeTab.value = tab;
-       isDrawerOpen.value = false;
-    };
-
+    const changeTab = (tab) => { activeTab.value = tab; isDrawerOpen.value = false; };
     const filterByAccount = (acc) => {
        if (!acc) return;
-       historyFilter.keyword = acc.name || '';
-       historyFilter.dateFrom = '';
-       historyFilter.dateTo = '';
-       historyFilter.scope = 'all';
-       activeTab.value = 'history';
+       historyFilter.keyword = acc.name || ''; historyFilter.dateFrom = ''; historyFilter.dateTo = ''; historyFilter.scope = 'all'; activeTab.value = 'history';
     };
 
     const resetData = () => {
@@ -191,148 +127,51 @@ const app = createApp({
        data.quick_tags = []; data.smart_tags = {}; data.main_categories = { Expense: [], Income: [] }; data.budgets = {}; 
     };
 
-    const migrateLegacyData = () => {
-      if(!data.transactions) data.transactions = [];
-      if(!data.investments) data.investments = [];
-      if(!data.fixed_assets) data.fixed_assets = [];
-      if(!data.installments) data.installments = [];
-      if(!data.loans) data.loans = [];
-      if(!data.smart_tags) data.smart_tags = {};
-      if(!data.budgets) data.budgets = {};
-      if(!data.recurring) data.recurring = [];
-      if(!data.savings_goals) data.savings_goals = [];
-      if(!data.currencyRates) data.currencyRates = { TWD: 1, USD: 32.5, JPY: 0.22 };
-      if(!data.main_categories) data.main_categories = { Expense: [], Income: [] };
-      
-      if(!data.accounts || data.accounts.length === 0) {
-        data.main_categories.Expense = ['飲食', '居住', '交通', '育樂', '個人/其他'];
-        data.main_categories.Income = ['薪資', '獎金分紅', '副業/兼職', '投資股利/利息', '其他入帳'];
-        data.quick_tags = ['早餐', '午餐', '晚餐', '飲料', '加油'];
-
-        let defaultAccs = [
-          { id: "1101", name: "現金錢包", type: "Asset", currency: "TWD", is_hidden: false },
-          { id: "1102", name: "常用銀行存款", type: "Asset", currency: "TWD", is_hidden: false },
-          { id: "2101", name: "信用卡", type: "Liability", currency: "TWD", is_hidden: false },
-          { id: "1103", name: "股票投資", type: "Asset", currency: "TWD", is_hidden: false }, 
-          { id: "1201", name: "固定資產", type: "Asset", currency: "TWD", is_hidden: false },
-          { id: "1201-DEP", name: "累計折舊", type: "Asset", currency: "TWD", is_contra: true, is_hidden: false },
-          { id: "1104", name: "應收款項", type: "Asset", currency: "TWD", category: "系統", is_hidden: false },
-          { id: "3101", name: "期初權益", type: "Equity", currency: "TWD", is_hidden: false }, 
-          { id: "4201", name: "處分資產損益", type: "Income", currency: "TWD", is_hidden: false },
-          { id: "4202", name: "股利收入", type: "Income", currency: "TWD", is_hidden: false },
-          { id: "5102", name: "折舊費用", type: "Expense", category: "系統", is_hidden: false }, 
-          { id: "5103", name: "利息支出", type: "Expense", category: "系統", is_hidden: false }
-        ];
-
-        const expMap = {
-            '飲食': ['早餐', '午餐', '晚餐', '飲料點心', '生鮮採買'],
-            '居住': ['房租/房貸利息', '水電瓦斯', '居家日用', '網路管理費', '修繕清潔'],
-            '交通': ['油錢', '大眾運輸', '停車費', '計程車', '汽機車保養維修'],
-            '育樂': ['串流訂閱', '休閒娛樂', '旅遊住宿', '書籍課程'],
-            '個人/其他': ['服飾治裝', '醫療健保', '公款代墊', '孝親紅包', '稅費手續費']
-        };
-        for(let cat in expMap) {
-            expMap[cat].forEach((sub, idx) => { defaultAccs.push({ id: `exp_${cat}_${idx}`, name: sub, type: 'Expense', category: cat, currency: 'TWD', is_hidden: false }); });
-        }
-
-        const incMap = {
-            '薪資': ['本薪'],
-            '獎金分紅': ['年終獎金', '績效獎金'],
-            '副業/兼職': ['兼職收入'],
-            '投資股利/利息': ['銀行利息'],
-            '其他入帳': ['其他收入']
-        };
-        for(let cat in incMap) {
-            incMap[cat].forEach((sub, idx) => { defaultAccs.push({ id: `inc_${cat}_${idx}`, name: sub, type: 'Income', category: cat, currency: 'TWD', is_hidden: false }); });
-        }
-        data.accounts = defaultAccs;
-      }
-
-      if(!data.accounts.find(a=>a && a.id==='4201')) data.accounts.push({ id: "4201", name: "處分資產損益", type: "Income", currency: "TWD", is_hidden: false });
-      if(!data.accounts.find(a=>a && a.id==='4202')) data.accounts.push({ id: "4202", name: "股利收入", type: "Income", currency: "TWD", is_hidden: false });
-      if(!data.accounts.find(a=>a && a.id==='5103')) data.accounts.push({ id: "5103", name: "利息支出", type: "Expense", category: "系統", is_hidden: false });
-      if(!data.accounts.find(a=>a && a.id==='1104')) data.accounts.push({ id: "1104", name: "應收款項", type: "Asset", currency: "TWD", category: "系統", is_hidden: false });
-      
-      if(!data.main_categories.Expense || data.main_categories.Expense.length===0) data.main_categories.Expense = ['飲食', '居住', '交通', '育樂', '個人/其他'];
-      if(!data.main_categories.Income || data.main_categories.Income.length===0) data.main_categories.Income = ['薪資', '獎金分紅', '副業/兼職', '投資股利/利息', '其他入帳'];
-      if(!data.quick_tags || data.quick_tags.length===0) data.quick_tags = ['早餐', '午餐', '晚餐', '飲料', '加油'];
-      
-      let accountsList = data.accounts || [];
-      for (let i = 0; i < accountsList.length; i++) {
-        let acc = accountsList[i];
-        if (!acc) continue;
-        if (acc.is_hidden === undefined) acc.is_hidden = false;
-        if (!acc.currency) acc.currency = 'TWD';
-        if ((acc.type === 'Expense' || acc.type === 'Income') && !acc.category) {
-          if (acc.type === 'Expense') { acc.category = ['三餐', '餐飲'].includes(acc.name) ? '飲食' : (['交通', '高鐵'].includes(acc.name) ? '交通' : '個人/其他'); } 
-          else { acc.category = ['薪水', '獎金'].includes(acc.name) ? '薪資' : '其他入帳'; }
-        }
-      }
-    };
-
-    // ------------------------------------------------------------------------
-    // 7. 計算屬性 (Computed Properties)
-    // ------------------------------------------------------------------------
     const activeBookName = computed(() => { let b = settings.booksIndex.find(x => x && x.id === currentBookId.value); return b ? b.name : '智慧帳本'; });
     const availableBooks = computed(() => settings.booksIndex || []);
 
-    const assetAccounts = computed(() => { let list = data.accounts || []; return list.filter(a => a && a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && a.id !== '1104' && !a.is_hidden); });
-    const paymentAccounts = computed(() => { let list = data.accounts || []; return list.filter(a => a && ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && a.id !== '1104') || a.type === 'Liability') && !(a.id || '').startsWith('loan_liab_') && !a.is_hidden); });
-    const liabilityAccounts = computed(() => { let list = data.accounts || []; return list.filter(a => a && a.type === 'Liability' && !(a.id || '').startsWith('loan_liab_') && !a.is_hidden); });
+    const assetAccounts = computed(() => { return (data.accounts || []).filter(a => a && a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && a.id !== '1104' && !a.is_hidden); });
+    const paymentAccounts = computed(() => { return (data.accounts || []).filter(a => a && ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && a.id !== '1104') || a.type === 'Liability') && !(a.id || '').startsWith('loan_liab_') && !a.is_hidden); });
+    const liabilityAccounts = computed(() => { return (data.accounts || []).filter(a => a && a.type === 'Liability' && !(a.id || '').startsWith('loan_liab_') && !a.is_hidden); });
     
-    const activeInstallments = computed(() => { let list = data.installments || []; return list.filter(i => i && i.paid_periods < i.periods); });
-    const getSubAccounts = (type, mainCat, incHidden = false) => { let list = data.accounts || []; return list.filter(a => a && a.type === type && a.category === mainCat && (incHidden || !a.is_hidden)); };
+    const activeInstallments = computed(() => (data.installments || []).filter(i => i && i.paid_periods < i.periods));
+    const getSubAccounts = (type, mainCat, incHidden = false) => (data.accounts || []).filter(a => a && a.type === type && a.category === mainCat && (incHidden || !a.is_hidden));
     
     const safeQuickTags = computed(() => data.quick_tags || []);
     const safeInvestments = computed(() => data.investments || []);
-    const safeFixedAssets = computed(() => { let list = data.fixed_assets || []; return list.filter(fa => fa && !fa.is_disposed); });
+    const safeFixedAssets = computed(() => (data.fixed_assets || []).filter(fa => fa && !fa.is_disposed));
     const safeLoans = computed(() => data.loans || []);
     const safeRecurring = computed(() => data.recurring || []);
     const safeSavingsGoals = computed(() => data.savings_goals || []);
 
-    const currentHoldings = computed(() => { 
-        return safeInvestments.value.filter(i => i && i.shares > 0).map(i => ({
-            symbol: i.symbol,
-            name: `[${i.symbol}] ${(i.name || '').replace(/^\[.*?\]\s*/, '')}`
-        })); 
-    });
-    
+    const currentHoldings = computed(() => safeInvestments.value.filter(i => i && i.shares > 0).map(i => ({ symbol: i.symbol, name: `[${i.symbol}] ${(i.name || '').replace(/^\[.*?\]\s*/, '')}` }))); 
     const historicalHoldings = computed(() => {
       let currentSyms = currentHoldings.value.map(i => i ? i.symbol : '');
       let hist = [];
       safeInvestments.value.forEach(inv => {
-         if (inv && inv.shares === 0 && !currentSyms.includes(inv.symbol)) {
-             hist.push({ symbol: inv.symbol, name: `[${inv.symbol}] ${(inv.name || '').replace(/^\[.*?\]\s*/, '')}` });
-         }
+         if (inv && inv.shares === 0 && !currentSyms.includes(inv.symbol)) hist.push({ symbol: inv.symbol, name: `[${inv.symbol}] ${(inv.name || '').replace(/^\[.*?\]\s*/, '')}` });
       });
       return hist;
     });
 
-    // 加入 scope 過濾，讓餘額能精準拆分
     const calculateBalance = (id, scope = 'all') => {
-      let bal = 0; let list = data.transactions || [];
-      for(let i=0; i<list.length; i++) {
-        let tx = list[i];
-        if(!tx) continue;
-        // 如果指定了 scope，僅計算該範圍內的交易
-        if (scope !== 'all' && tx.scope !== scope) continue;
-        
-        if(tx.debits) { for(let j=0; j<tx.debits.length; j++){ if (tx.debits[j] && tx.debits[j].account_id === id) bal += Number(tx.debits[j].amount)||0; } }
-        if(tx.credits) { for(let j=0; j<tx.credits.length; j++){ if (tx.credits[j] && tx.credits[j].account_id === id) bal -= Number(tx.credits[j].amount)||0; } }
-      }
-      let accList = data.accounts || [];
-      let acc = accList.find(a => a && a.id === id);
+      let bal = 0;
+      (data.transactions || []).forEach(tx => {
+        if(!tx) return;
+        if (scope !== 'all' && tx.scope !== scope) return;
+        if(tx.debits) tx.debits.forEach(d => { if (d && d.account_id === id) bal += Number(d.amount)||0; });
+        if(tx.credits) tx.credits.forEach(c => { if (c && c.account_id === id) bal -= Number(c.amount)||0; });
+      });
+      let acc = (data.accounts || []).find(a => a && a.id === id);
       return (acc && (acc.type === 'Asset' || acc.type === 'Expense')) ? bal : -bal;
     };
 
     const getBaseBalance = (id, baseBalance) => {
-      let accList = data.accounts || []; let acc = accList.find(a => a && a.id === id);
+      let acc = (data.accounts || []).find(a => a && a.id === id);
       if(!acc || !acc.currency || acc.currency === 'TWD') return baseBalance;
-      let rate = data.currencyRates[acc.currency] || 1;
-      return baseBalance * rate;
+      return baseBalance * (data.currencyRates[acc.currency] || 1);
     };
 
-    // 實體帳戶清單強制使用全域 scope ('all') 顯示總額，避免被截斷
     const accountsWithBalance = (accList) => { 
         return accList.map(a => ({ 
             id: a.id, name: a.name, type: a.type, category: a.category, currency: a.currency||'TWD', is_hidden: a.is_hidden, 
@@ -347,85 +186,54 @@ const app = createApp({
     const liabilityAccountsWithBalance = computed(() => accountsWithBalance(liabilityAccounts.value)); 
     const balanceAccounts = computed(() => accountsWithBalance(paymentAccounts.value));
 
-    const totalLiquidAssets = computed(() => {
-      let sum = 0; let list = liquidAccountsWithBalance.value || [];
-      for(let i=0; i<list.length; i++) { sum += (list[i].baseBalance || 0); }
-      return sum;
-    });
+    const totalLiquidAssets = computed(() => liquidAccountsWithBalance.value.reduce((s, acc) => s + (acc.baseBalance || 0), 0));
 
     const upcomingBillsTotal = computed(() => {
-      let sum = 0;
-      let cM = new Date().toISOString().substring(0,7);
-      let liabList = liabilityAccountsWithBalance.value || [];
-      for(let i=0; i<liabList.length; i++) { if(liabList[i].baseBalance < 0) sum += Math.abs(liabList[i].baseBalance); }
-      let instList = activeInstallments.value || [];
-      for(let i=0; i<instList.length; i++) { if(instList[i] && instList[i].next_month <= cM) sum += (Number(instList[i].amount_per_period)||0); }
-      let loanList = safeLoans.value || [];
-      for(let i=0; i<loanList.length; i++) { if(loanList[i]) sum += (Number(loanList[i].monthly_payment)||0); }
-      let recList = safeRecurring.value || [];
-      for(let i=0; i<recList.length; i++) { if(recList[i] && recList[i].type === 'expense') sum += (Number(recList[i].amount)||0); }
+      let sum = 0; let cM = new Date().toISOString().substring(0,7);
+      liabilityAccountsWithBalance.value.forEach(acc => { if(acc.baseBalance < 0) sum += Math.abs(acc.baseBalance); });
+      activeInstallments.value.forEach(inst => { if(inst && inst.next_month <= cM) sum += (Number(inst.amount_per_period)||0); });
+      safeLoans.value.forEach(loan => { if(loan) sum += (Number(loan.monthly_payment)||0); });
+      safeRecurring.value.forEach(rec => { if(rec && rec.type === 'expense') sum += (Number(rec.amount)||0); });
       return sum;
     });
 
     const cashflowWarning = computed(() => totalLiquidAssets.value < upcomingBillsTotal.value * 1.2);
 
-    // 總資產計算：依據 dashboardScope 嚴格切分，並等比例分配未實現損益
     const totalAssets = computed(() => {
       let scope = dashboardScope.value;
-      let sum = 0; let accList = data.accounts || []; 
+      let sum = 0; 
+      (data.accounts || []).forEach(a => { if(a && a.type === 'Asset') sum += getBaseBalance(a.id, calculateBalance(a.id, scope)); });
       
-      for(let i=0; i<accList.length; i++) { 
-          if(accList[i] && accList[i].type === 'Asset') {
-              sum += getBaseBalance(accList[i].id, calculateBalance(accList[i].id, scope)); 
-          }
-      }
-      
-      // 計算該 Scope 應分配之投資未實現損益
       let allStockCost = calculateBalance('1103', 'all');
       let scopeStockCost = calculateBalance('1103', scope);
       let scopeRatio = allStockCost ? (scopeStockCost / allStockCost) : 0;
       
       let totalInvMV = 0; let totalInvCost = 0;
-      let invList = data.investments || [];
-      for(let i=0; i<invList.length; i++) { 
-          let inv = invList[i]; 
+      (data.investments || []).forEach(inv => { 
           if(inv) { 
               let rate = data.currencyRates[inv.currency||'TWD'] || 1; 
               totalInvMV += (Number(inv.shares)||0) * (Number(inv.last_price)||0) * rate;
               totalInvCost += Number(inv.total_cost)||0;
           } 
-      }
-      let unrealizedGain = totalInvMV - totalInvCost;
-      sum += (unrealizedGain * scopeRatio);
-      
+      });
+      sum += ((totalInvMV - totalInvCost) * scopeRatio);
       return sum;
     });
 
-    // 總負債計算：依據 dashboardScope 嚴格切分
     const totalLiabilities = computed(() => {
       let scope = dashboardScope.value;
-      let sum = 0; let accList = data.accounts || [];
-      for(let i=0; i<accList.length; i++){ 
-          if(accList[i] && accList[i].type === 'Liability') {
-              sum += getBaseBalance(accList[i].id, calculateBalance(accList[i].id, scope)); 
-          }
-      }
+      let sum = 0; 
+      (data.accounts || []).forEach(a => { if(a && a.type === 'Liability') sum += getBaseBalance(a.id, calculateBalance(a.id, scope)); });
       return sum;
     });
 
     const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
     
-    // 明細排序: 先比對日期(新到舊)，若同日則比對 ID(時間戳)新到舊
     const sortedTransactions = computed(() => {
-      let list = data.transactions || [];
-      return list.slice().sort((a,b) => {
-        let d1 = (a && a.date) ? a.date : '';
-        let d2 = (b && b.date) ? b.date : '';
-        if (d1 !== d2) {
-           return d1 < d2 ? 1 : -1;
-        }
-        let id1 = (a && a.id) ? a.id : '';
-        let id2 = (b && b.id) ? b.id : '';
+      return (data.transactions || []).slice().sort((a,b) => {
+        let d1 = (a && a.date) ? a.date : ''; let d2 = (b && b.date) ? b.date : '';
+        if (d1 !== d2) return d1 < d2 ? 1 : -1;
+        let id1 = (a && a.id) ? a.id : ''; let id2 = (b && b.id) ? b.id : '';
         return id2.localeCompare(id1);
       });
     });
@@ -433,23 +241,21 @@ const app = createApp({
     const filteredTransactions = computed(() => {
       return sortedTransactions.value.filter(tx => {
         if(!tx) return false;
-        let kw = (historyFilter.keyword || '').toLowerCase(), desc = (tx.description || tx.desc || '').toLowerCase(), accD = (getDebitAccName(tx) || '').toLowerCase(), accC = (getCreditAccName(tx) || '').toLowerCase();
+        let kw = historyFilter.keyword.toLowerCase(), desc = getTxDesc(tx).toLowerCase(), accD = getDebitAccName(tx).toLowerCase(), accC = getCreditAccName(tx).toLowerCase();
         let matchKw = !kw || desc.includes(kw) || accD.includes(kw) || accC.includes(kw);
         let matchScope = historyFilter.scope === 'all' || tx.scope === historyFilter.scope;
-        let txDate = tx.date || '';
-        let matchDate = (!historyFilter.dateFrom || txDate >= historyFilter.dateFrom) && (!historyFilter.dateTo || txDate <= historyFilter.dateTo);
+        let matchDate = (!historyFilter.dateFrom || tx.date >= historyFilter.dateFrom) && (!historyFilter.dateTo || tx.date <= historyFilter.dateTo);
         return matchKw && matchScope && matchDate;
       });
     });
 
     const ytdDividend = computed(() => {
-      let sum = 0; let y = new Date().getFullYear().toString(); let list = data.transactions || [];
-      for(let i=0; i<list.length; i++) {
-        let tx = list[i];
+      let sum = 0; let y = new Date().getFullYear().toString();
+      (data.transactions || []).forEach(tx => {
         if(tx && tx.date && tx.date.startsWith(y) && tx.credits && !tx.is_refunded && !tx.is_refund) {
-           for(let j=0; j<tx.credits.length; j++) { if(tx.credits[j] && tx.credits[j].account_id === '4202') sum += Number(tx.credits[j].amount)||0; }
+           tx.credits.forEach(c => { if(c && c.account_id === '4202') sum += Number(c.amount)||0; });
         }
-      }
+      });
       return sum;
     });
 
@@ -457,24 +263,20 @@ const app = createApp({
     const incomeCategories = computed(() => (data.main_categories && data.main_categories.Income) ? data.main_categories.Income : []);
     const currentSettingCategories = computed(() => (data.main_categories && data.main_categories[settingCategoryMode.value]) ? data.main_categories[settingCategoryMode.value] : []);
 
-    // ================= 預算管理 (Budget Logic) =================
     const dashboardBudgets = computed(() => {
-      let res = {}; let expMonth = dashboardMonth.value || ''; let txList = data.transactions || [];
-      let expObj = {};
-      for(let i=0; i<txList.length; i++) {
-        let tx = txList[i]; let txDate = tx && tx.date ? tx.date : '';
+      let res = {}; let expMonth = dashboardMonth.value || ''; let expObj = {};
+      (data.transactions || []).forEach(tx => {
+        let txDate = tx && tx.date ? tx.date : '';
         if (tx && !tx.is_refunded && !tx.is_refund && txDate.length >= 7 && expMonth.length >= 7 && txDate.substring(0,7) === expMonth.substring(0,7)) {
-          if (dashboardScope.value !== 'all' && tx.scope !== dashboardScope.value) continue;
-          let dList = tx.debits || [];
-          for(let j=0; j<dList.length; j++) {
-            let a = (data.accounts || []).find(ac => ac && ac.id === dList[j].account_id);
-            if(a && a.type === 'Expense') { let cat = a.category || '未分類'; let amt = Number(dList[j].amount) || 0; if(!expObj[cat]) expObj[cat] = 0; expObj[cat] += amt; }
-          }
+          if (dashboardScope.value !== 'all' && tx.scope !== dashboardScope.value) return;
+          (tx.debits || []).forEach(d => {
+            let a = (data.accounts || []).find(ac => ac && ac.id === d.account_id);
+            if(a && a.type === 'Expense') { let cat = a.category || '未分類'; if(!expObj[cat]) expObj[cat] = 0; expObj[cat] += (Number(d.amount) || 0); }
+          });
         }
-      }
-      let bList = data.budgets || {};
-      for(let cat in bList) {
-         let limit = Number(bList[cat]) || 0; if(limit <= 0) continue;
+      });
+      for(let cat in (data.budgets || {})) {
+         let limit = Number(data.budgets[cat]) || 0; if(limit <= 0) continue;
          let spent = expObj[cat] || 0;
          res[cat] = { limit: limit, spent: spent, pct: Math.round((spent/limit)*100) };
       }
@@ -483,77 +285,56 @@ const app = createApp({
 
     const budgetStats = computed(() => {
         let limit = 0, spent = 0;
-        let list = dashboardBudgets.value; 
-        for(let cat in list) { limit += list[cat].limit; spent += list[cat].spent; }
+        for(let cat in dashboardBudgets.value) { limit += dashboardBudgets.value[cat].limit; spent += dashboardBudgets.value[cat].spent; }
         let remaining = limit - spent;
-        
-        let d = new Date();
-        let selectedDateStr = dashboardMonth.value || d.toISOString().substring(0,7);
-        let p = selectedDateStr.split('-');
-        let year = p.length >= 1 ? Number(p[0]) : d.getFullYear();
-        let month = p.length >= 2 ? Number(p[1]) - 1 : d.getMonth();
+        let d = new Date(); let p = (dashboardMonth.value || d.toISOString().substring(0,7)).split('-');
+        let year = p.length >= 1 ? Number(p[0]) : d.getFullYear(); let month = p.length >= 2 ? Number(p[1]) - 1 : d.getMonth();
         let daysInMonth = new Date(year, month + 1, 0).getDate();
-        
-        let currentDay = 1;
-        let isCurrentMonth = (year === d.getFullYear() && month === d.getMonth());
-        if (isCurrentMonth) { currentDay = d.getDate(); }
-        else if (new Date(year, month, 1) < d) { currentDay = daysInMonth; }
-
-        let daysLeft = daysInMonth - currentDay + 1; 
-        if (daysLeft < 1) daysLeft = 1;
-        let daily = remaining > 0 ? Math.floor(remaining / daysLeft) : 0;
-        
-        return { totalLimit: limit, totalSpent: spent, totalRemaining: remaining, dailyRemaining: daily, daysLeft };
+        let currentDay = (year === d.getFullYear() && month === d.getMonth()) ? d.getDate() : (new Date(year, month, 1) < d ? daysInMonth : 1);
+        let daysLeft = Math.max(daysInMonth - currentDay + 1, 1); 
+        return { totalLimit: limit, totalSpent: spent, totalRemaining: remaining, dailyRemaining: remaining > 0 ? Math.floor(remaining / daysLeft) : 0, daysLeft };
     });
 
-    // ================= 格式化與輔助檢索 =================
-    const getAccName = (id) => { if(!id) return '未知'; let list = data.accounts || []; let acc = list.find(a => a && a.id === id); return acc ? acc.name : String(id); };
-    const formatNumber = (num) => { let n = Number(num); return isNaN(n) ? '0' : Math.round(n).toLocaleString('en-US'); };
-
-    const getTxDesc = (tx) => { return (tx && (tx.desc || tx.description)) ? (tx.desc || tx.description) : '無摘要'; };
-    const getDebitAccName = (tx) => { return (tx && tx.debits && tx.debits[0]) ? getAccName(tx.debits[0].account_id) : '未知'; };
-    const getCreditAccName = (tx) => { return (tx && tx.credits && tx.credits[0]) ? getAccName(tx.credits[0].account_id) : '未知'; };
-    const getDebitAmount = (tx) => { return (tx && tx.debits && tx.debits[0]) ? (Number(tx.debits[0].amount)||0) : 0; };
-    const getDebitAccType = (tx) => { if (tx && tx.debits && tx.debits[0]) { let acc = data.accounts.find(a => a && a.id === tx.debits[0].account_id); return acc ? acc.type : ''; } return ''; };
+    const getAccName = (id) => { let a = (data.accounts || []).find(ac => ac && ac.id === id); return a ? a.name : (id || '未知'); };
+    const getTxDesc = (tx) => (tx && (tx.desc || tx.description)) ? (tx.desc || tx.description) : '無摘要';
+    const getDebitAccName = (tx) => (tx && tx.debits && tx.debits[0]) ? getAccName(tx.debits[0].account_id) : '未知';
+    const getCreditAccName = (tx) => (tx && tx.credits && tx.credits[0]) ? getAccName(tx.credits[0].account_id) : '未知';
+    const getDebitAmount = (tx) => (tx && tx.debits && tx.debits[0]) ? (Number(tx.debits[0].amount)||0) : 0;
+    const getDebitAccType = (tx) => { if (tx && tx.debits && tx.debits[0]) { let a = data.accounts.find(ac => ac && ac.id === tx.debits[0].account_id); return a ? a.type : ''; } return ''; };
     
     const getInvestTotalAmount = () => {
       if (newTx.investAction === 'dividend') return Number(newTx.amount)||0;
       let base = (Number(newTx.shares)||0) * (Number(newTx.price)||0);
-      if (newTx.investAction === 'buy') return base + (Number(newTx.fee)||0);
-      return base - (Number(newTx.fee)||0) - (Number(newTx.tax)||0);
+      return newTx.investAction === 'buy' ? base + (Number(newTx.fee)||0) : base - (Number(newTx.fee)||0) - (Number(newTx.tax)||0);
     };
-    const getInvCurrentValue = (inv) => { if (!inv) return 0; let rate = data.currencyRates[inv.currency||'TWD'] || 1; return (Number(inv.shares)||0) * (Number(inv.last_price)||0) * rate; };
-    const getUnrealizedGain = (inv) => { if (!inv) return 0; return getInvCurrentValue(inv) - (Number(inv.total_cost) || 0); };
-    const getFAAccDep = (fa) => { return fa ? Math.abs(calculateBalance(fa.accumulated_dep_account_id, 'all')) : 0; };
-    const getFABookValue = (fa) => { return fa ? (Number(fa.original_cost)||0) - getFAAccDep(fa) : 0; };
-
+    const getInvCurrentValue = (inv) => inv ? (Number(inv.shares)||0) * (Number(inv.last_price)||0) * (data.currencyRates[inv.currency||'TWD'] || 1) : 0;
+    const getUnrealizedGain = (inv) => inv ? getInvCurrentValue(inv) - (Number(inv.total_cost) || 0) : 0;
+    const getFAAccDep = (fa) => fa ? Math.abs(calculateBalance(fa.accumulated_dep_account_id, 'all')) : 0;
+    const getFABookValue = (fa) => fa ? (Number(fa.original_cost)||0) - getFAAccDep(fa) : 0;
     const getAccumulatedInterest = (loanId) => {
-      let sum = 0; let list = data.transactions || [];
-      for(let i=0; i<list.length; i++) {
-        let tx = list[i];
+      let sum = 0;
+      (data.transactions || []).forEach(tx => {
         if(tx && tx.loan_id === loanId && tx.debits && !tx.is_refunded && !tx.is_refund) {
-          for(let j=0; j<tx.debits.length; j++) { if(tx.debits[j] && tx.debits[j].account_id === '5103') sum += (Number(tx.debits[j].amount) || 0); }
+          tx.debits.forEach(d => { if(d && d.account_id === '5103') sum += (Number(d.amount) || 0); });
         }
-      }
+      });
       return sum;
     };
 
     const loanRepayPreview = computed(() => {
-      let list = data.loans || [];
-      let loan = list.find(l => l && l.id === newTx.loanId);
+      let loan = (data.loans || []).find(l => l && l.id === newTx.loanId);
       if(!loan || !newTx.amount) return { interest: 0, principal: 0, current_principal: 0 };
-      let current_principal = Math.abs(calculateBalance(loan.liability_acc_id, 'all'));
-      let interest = Math.round(current_principal * ((loan.interest_rate || 0) / 100 / 12));
-      let principal = (newTx.amount || 0) - interest;
-      if(principal > current_principal) principal = current_principal;
-      return { interest, principal, current_principal };
+      let cp = Math.abs(calculateBalance(loan.liability_acc_id, 'all'));
+      let interest = Math.round(cp * ((loan.interest_rate || 0) / 100 / 12));
+      let principal = Math.min((newTx.amount || 0) - interest, cp);
+      return { interest, principal, current_principal: cp };
     });
 
     const getTxColorBand = (tx) => {
       let tD = null, tC = null; let list = data.accounts || [];
       if(tx && tx.debits && tx.debits[0]) { let acc = list.find(a => a && a.id === tx.debits[0].account_id); if(acc) tD = acc.type; }
       if(tx && tx.credits && tx.credits[0]) { let acc = list.find(a => a && a.id === tx.credits[0].account_id); if(acc) tC = acc.type; }
-      let desc = (tx && (tx.desc || tx.description)) ? (tx.desc || tx.description) : '';
+      let desc = getTxDesc(tx);
       if(tx && tx.is_refund) return 'bg-slate-400';
       if(tD === 'Expense') return 'bg-red-500';
       if(tC === 'Income') return 'bg-green-500';
@@ -561,19 +342,17 @@ const app = createApp({
       if(tx && tx.loan_id) return 'bg-rose-500';
       return 'bg-purple-500'; 
     };
+    
     const getTxAmountColor = (tx) => {
       if (tx && tx.is_refunded) return 'text-slate-400 line-through';
-      let tD = null; let list = data.accounts || [];
-      if(tx && tx.debits && tx.debits[0]) { let acc = list.find(a => a && a.id === tx.debits[0].account_id); if(acc) tD = acc.type; }
-      let desc = (tx && (tx.desc || tx.description)) ? (tx.desc || tx.description) : '';
+      let tD = getDebitAccType(tx);
       if(tD === 'Expense') return 'text-red-500';
-      if(tD === 'Asset' && !desc.includes('轉帳')) return 'text-green-600 dark:text-green-400';
+      if(tD === 'Asset' && !getTxDesc(tx).includes('轉帳')) return 'text-green-600 dark:text-green-400';
       return 'text-slate-700 dark:text-slate-300';
     };
 
     const applyQuickTag = (tag) => {
-      let list = data.accounts || [];
-      let acc = list.find(a => a && a.name === tag && (a.type === 'Expense' || a.type === 'Income'));
+      let acc = (data.accounts || []).find(a => a && a.name === tag && (a.type === 'Expense' || a.type === 'Income'));
       if (acc) { 
         entryMode.value = acc.type.toLowerCase(); newTx.mainCategory = acc.category; newTx.subAccount = acc.id; newTx.desc = tag; newTx.isReimbursement = false;
         if(data.smart_tags && data.smart_tags[tag]) newTx.paymentAcc = data.smart_tags[tag];
@@ -581,16 +360,13 @@ const app = createApp({
     };
 
     const onDividendSymbolChange = () => {
-      if (newTx.investDividendSymbol === 'manual') {
-         newTx.stockName = '';
-      } else {
-         let invList = data.investments || [];
-         let inv = invList.find(i => i && i.symbol === newTx.investDividendSymbol);
+      if (newTx.investDividendSymbol === 'manual') newTx.stockName = '';
+      else {
+         let inv = (data.investments || []).find(i => i && i.symbol === newTx.investDividendSymbol);
          if (inv) newTx.stockName = (inv.name || '').replace(/^\[.*?\]\s*/, '');
       }
     };
 
-    // ================= Financial Reports Logic =================
     watch(reportPeriod, (newVal) => {
        let d = new Date();
        if (newVal === 'this_month') {
@@ -606,136 +382,9 @@ const app = createApp({
        }
     }, { immediate: true });
 
-    // ==== 報表專用餘額推算 ====
-    const calcBalAsOf = (accId, dateStr) => {
-       let b = 0; let txs = data.transactions || [];
-       for(let i=0; i<txs.length; i++){
-           let tx = txs[i];
-           if (!tx || tx.date > dateStr) continue;
-           if (tx.debits) tx.debits.forEach(d => { if (d && d.account_id===accId) b += (Number(d.amount)||0); });
-           if (tx.credits) tx.credits.forEach(c => { if (c && c.account_id===accId) b -= (Number(c.amount)||0); });
-       }
-       let a = (data.accounts || []).find(ac => ac && ac.id === accId);
-       if (a && (a.type==='Asset' || a.type==='Expense')) return b;
-       return -b;
-    };
-
-    const bsData = computed(() => {
-       let ed = reportEndDate.value || '9999-12-31';
-       let curAssts = [], nonCurAssts = [], liabs = [];
-       let tAssets = 0, tLiab = 0, initEq = 0, retainedEarn = 0;
-       
-       (data.accounts || []).forEach(a => {
-          if(!a) return;
-          let bal = calcBalAsOf(a.id, ed);
-          if (a.type === 'Asset') {
-             if (['1103','1201','1201-DEP'].includes(a.id)) {
-             } else {
-                 if(bal !== 0) curAssts.push({ name: a.name, amount: bal });
-                tAssets += bal;
-             }
-          } else if (a.type === 'Liability') {
-             if(bal !== 0) liabs.push({ name: a.name, amount: bal });
-             tLiab += bal;
-          } else if (a.id === '3101') {
-             initEq = bal;
-          } else if (a.type === 'Income') {
-             retainedEarn += bal;
-          } else if (a.type === 'Expense') {
-             retainedEarn -= bal;
-          }
-       });
-       
-       let invBal = 0;
-       (data.investments||[]).forEach(i => { if(i) invBal += getInvCurrentValue(i); });
-       if(invBal !== 0) { nonCurAssts.push({ name: '投資組合現值', amount: invBal }); tAssets += invBal; retainedEarn += invBal - calcBalAsOf('1103', ed); }
-       
-       let faNet = calcBalAsOf('1201', ed) - Math.abs(calcBalAsOf('1201-DEP', ed));
-       if(faNet !== 0) { nonCurAssts.push({ name: '固定資產淨值', amount: faNet }); tAssets += faNet; }
-
-       return { 
-           currentAssetsList: curAssts, nonCurrentAssetsList: nonCurAssts, liabList: liabs, 
-           currentAssets: curAssts.reduce((s,x)=>s+(x&&x.amount?x.amount:0),0), 
-           nonCurrentAssets: nonCurAssts.reduce((s,x)=>s+(x&&x.amount?x.amount:0),0), 
-           totalAssets: tAssets, totalLiab: tLiab, initialEquity: initEq, 
-           retainedEarnings: retainedEarn, totalEquity: initEq + retainedEarn 
-       };
-    });
-
-    const isData = computed(() => {
-        let sd = reportStartDate.value || '0000-00-00';
-        let ed = reportEndDate.value || '9999-12-31';
-        let rev = {}, exp = {};
-        let txs = data.transactions || [];
-        txs.forEach(tx => {
-            if (!tx || tx.date < sd || tx.date > ed) return;
-            (tx.credits||[]).forEach(c => {
-               let a = data.accounts.find(ac=>ac && ac.id===c.account_id);
-               if (a && a.type === 'Income') rev[a.name] = (rev[a.name]||0) + Number(c.amount);
-               if (a && a.type === 'Expense') exp[a.name] = (exp[a.name]||0) - Number(c.amount);
-            });
-            (tx.debits||[]).forEach(d => {
-               let a = data.accounts.find(ac=>ac && ac.id===d.account_id);
-               if (a && a.type === 'Income') rev[a.name] = (rev[a.name]||0) - Number(d.amount);
-               if (a && a.type === 'Expense') exp[a.name] = (exp[a.name]||0) + Number(d.amount);
-            });
-        });
-        let totalRev = Object.values(rev).reduce((a,b)=>a+b,0);
-        let totalExp = Object.values(exp).reduce((a,b)=>a+b,0);
-        return { rev, exp, totalRev, totalExp, net: totalRev - totalExp };
-    });
-
-    const cfData = computed(() => {
-        let sd = reportStartDate.value || '0000-00-00';
-        let ed = reportEndDate.value || '9999-12-31';
-        let op = 0, inv = 0, fin = 0;
-
-        const isCashAcc = (id) => {
-            let a = data.accounts.find(ac=>ac && ac.id===id);
-            return a && a.type === 'Asset' && !a.is_contra && !['1103','1201','1104'].includes(a.id);
-        };
-
-        let startCash = 0, endCash = 0;
-        let sdObj = new Date(sd); sdObj.setDate(sdObj.getDate() - 1);
-        let prevD = sdObj.toISOString().split('T')[0];
-        
-        (data.accounts||[]).forEach(a => {
-           if(a && isCashAcc(a.id)) {
-              startCash += calcBalAsOf(a.id, prevD);
-              endCash += calcBalAsOf(a.id, ed);
-           }
-        });
-
-        let txs = data.transactions || [];
-        txs.forEach(tx => {
-            if (!tx || tx.date < sd || tx.date > ed) return;
-            
-            let cashChange = 0;
-            let nonCashTypes = new Set();
-            
-            (tx.debits||[]).forEach(d => {
-                if (isCashAcc(d.account_id)) cashChange += Number(d.amount);
-                else { let a = data.accounts.find(ac=>ac && ac.id===d.account_id); if (a) nonCashTypes.add(a.type + '|' + a.id); }
-            });
-            (tx.credits||[]).forEach(c => {
-                if (isCashAcc(c.account_id)) cashChange -= Number(c.amount);
-                else { let a = data.accounts.find(ac=>ac && ac.id===c.account_id); if (a) nonCashTypes.add(a.type + '|' + a.id); }
-            });
-
-            if (cashChange !== 0) {
-                let isInv = false, isFin = false;
-                nonCashTypes.forEach(t => {
-                    if (t.includes('1103') || t.includes('1201') || t.includes('4201') || t.includes('4202')) isInv = true;
-                    if (t.includes('Liability') || t.includes('Equity')) isFin = true;
-                });
-
-                if (isInv) inv += cashChange;
-                else if (isFin) fin += cashChange;
-                else op += cashChange;
-            }
-        });
-        return { op, inv, fin, net: op + inv + fin, startCash, endCash };
-    });
+    const bsData = computed(() => calculateBalanceSheet(data.accounts, data.transactions, data.investments, data.currencyRates, reportEndDate.value));
+    const isData = computed(() => calculateIncomeStatement(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value));
+    const cfData = computed(() => calculateCashFlow(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value));
 
     // ------------------------------------------------------------------------
     // 8. 核心操作 (Core Actions)
@@ -743,33 +392,23 @@ const app = createApp({
     const switchBook = () => {
       let oldId = settings.currentBookId || 'default';
       let targetId = currentBookId.value;
-      
-      // 1. 儲存舊帳本
       localStorage.setItem('ledger_backup_' + oldId, JSON.stringify(data)); 
       
-      // 2. 更新設定
       settings.currentBookId = targetId;
       saveSettings(false);
       
-      // 3. 讀取目標帳本並強制重置 Data
       const newBackup = localStorage.getItem('ledger_backup_' + targetId);
       resetData();
 
       if (newBackup) { 
-         let parsed = JSON.parse(newBackup);
-         Object.assign(data, parsed);
+         Object.assign(data, JSON.parse(newBackup));
       } else { 
          data.version = "6.3.0"; 
       }
       
-      migrateLegacyData();
+      setupDefaultData(data, DEFAULT_CATEGORIES);
       runAutoTasks();
       setHistoryToCurrentMonth();
-
-      // 4. 強制銷毀圖表實例
-      if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
-      if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
-      if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
 
       isDrawerOpen.value = false;
       if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
@@ -789,14 +428,7 @@ const app = createApp({
 
     const submitNewAssetAccount = () => {
       if(!newAssetAcc.name) return;
-      if(!data.accounts) data.accounts = [];
-      if(!data.transactions) data.transactions = [];
-      
-      let finalType = newAssetAcc.type || 'Asset';
-      if (newAssetAcc.name.includes('信用卡') || newAssetAcc.name.includes('欠款') || newAssetAcc.name.includes('貸款')) {
-          finalType = 'Liability';
-      }
-
+      let finalType = newAssetAcc.name.includes('信用卡') || newAssetAcc.name.includes('欠款') || newAssetAcc.name.includes('貸款') ? 'Liability' : (newAssetAcc.type || 'Asset');
       const newId = (finalType === 'Liability' ? 'liab_' : 'asset_') + Date.now();
       data.accounts.push({ id: newId, name: newAssetAcc.name, type: finalType, currency: newAssetAcc.currency, is_hidden: false });
       
@@ -808,8 +440,7 @@ const app = createApp({
         }
       }
       newAssetAcc.name = ''; newAssetAcc.type = 'Asset'; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
-      showAddAccountModal.value = false;
-      autoBackup(); updateCharts(); refreshIcons(); alert('✅ 帳戶建立成功！');
+      showAddAccountModal.value = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 帳戶建立成功！');
     };
 
     const submitTransaction = () => {
@@ -826,7 +457,6 @@ const app = createApp({
         if (newTx.isInst && newTx.periods > 1) {
           let perAmt = Math.round(newTx.amount / newTx.periods);
           let firstAmt = newTx.amount - (perAmt * (newTx.periods - 1));
-          if(!data.installments) data.installments = [];
           let nextM = newTx.date && newTx.date.length >= 7 ? newTx.date.substring(0,7) : new Date().toISOString().substring(0,7);
           let nextD = newTx.date && newTx.date.length >= 10 ? newTx.date.substring(8,10) : '01';
           data.installments.push({ id: 'inst_'+Date.now(), desc: newTx.desc||'無摘要', total_amount: newTx.amount, periods: newTx.periods, amount_per_period: perAmt, first_amount: firstAmt, paid_periods: 0, next_month: nextM, date_day: nextD, debit_acc: debitAcc, credit_acc: newTx.paymentAcc, scope: newTx.scope });
@@ -837,7 +467,6 @@ const app = createApp({
         }
         if (!newTx.isReimbursement && newTx.isFA && newTx.faMonths > 0) {
            let monthlyDep = Math.round(newTx.amount / newTx.faMonths);
-           if(!data.fixed_assets) data.fixed_assets = [];
            data.fixed_assets.push({ id: 'fa_'+Date.now(), name: newTx.faName||newTx.desc, purchase_date: newTx.date, original_cost: newTx.amount, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: newTx.date, is_disposed: false });
            txObj.debits[0].account_id = '1201';
            txObj.desc = `購入固定資產: ${newTx.faName||newTx.desc}`;
@@ -864,8 +493,7 @@ const app = createApp({
         } else {
            if (!newTx.symbol || !newTx.shares || !newTx.price || !newTx.paymentAcc) return txError.value = '欄位不完整';
            let totalAmt = getInvestTotalAmount();
-           let invList = data.investments || [];
-           let inv = invList.find(i => i && i.symbol === newTx.symbol);
+           let inv = (data.investments || []).find(i => i && i.symbol === newTx.symbol);
            if (newTx.investAction === 'buy') {
              txObj.debits.push({ account_id: '1103', amount: totalAmt });
              txObj.credits.push({ account_id: newTx.paymentAcc, amount: totalAmt });
@@ -886,7 +514,7 @@ const app = createApp({
         }
       } else if (entryMode.value === 'loan_repay') {
         if (!newTx.loanId || !newTx.paymentAcc || !newTx.amount) return txError.value = '欄位不完整';
-        let list = data.loans || []; let loan = list.find(l => l && l.id === newTx.loanId); if(!loan) return txError.value = '貸款資料錯誤';
+        let loan = (data.loans || []).find(l => l && l.id === newTx.loanId); if(!loan) return txError.value = '貸款資料錯誤';
         let preview = loanRepayPreview.value;
         txObj.loan_id = loan.id;
         txObj.desc = newTx.desc || `貸款還款: ${loan.name}`;
@@ -895,38 +523,28 @@ const app = createApp({
         txObj.credits.push({ account_id: newTx.paymentAcc, amount: newTx.amount });
       }
 
-      if(!data.transactions) data.transactions = [];
       data.transactions.push(txObj);
-      
       newTx.amount = null; newTx.desc = ''; newTx.shares = null; newTx.price = null; newTx.fee = null; newTx.tax = null; newTx.loanId = ''; newTx.manualSymbol = ''; newTx.manualName = '';
       autoBackup(); updateCharts(); refreshIcons();
       alert('✅ 記帳成功！'); 
     };
 
-    // ================= 退款與報銷機制 =================
     const openRefundModal = (tx) => {
       if (!tx) return;
       activeRefundTx.value = tx;
       const originalAmt = getDebitAmount(tx);
       const refundedAmt = Number(tx.refunded_amount) || 0;
-      const maxRefund = originalAmt - refundedAmt;
-      
-      refundData.maxAmount = maxRefund;
-      refundData.amount = maxRefund; 
+      refundData.maxAmount = originalAmt - refundedAmt;
+      refundData.amount = refundData.maxAmount; 
       refundData.account = (tx.credits && tx.credits[0]) ? tx.credits[0].account_id : '';
       showRefundModal.value = true;
     };
-    
-    const closeRefundModal = () => {
-      showRefundModal.value = false;
-      activeRefundTx.value = null;
-    };
+    const closeRefundModal = () => { showRefundModal.value = false; activeRefundTx.value = null; };
 
     const submitRefund = () => {
       if (!activeRefundTx.value) return;
       if (refundData.amount <= 0 || refundData.amount > refundData.maxAmount) return alert("輸入金額無效或大於可退餘額");
       if (!refundData.account) return alert("請選擇退款入帳帳戶");
-      
       let expAcc = (activeRefundTx.value.debits && activeRefundTx.value.debits[0]) ? activeRefundTx.value.debits[0].account_id : null;
       if(!expAcc) return alert("無法解析原始支出科目");
 
@@ -940,28 +558,14 @@ const app = createApp({
         is_refund: true,
         ref_tx_id: activeRefundTx.value.id
       };
-      
-      if(!data.transactions) data.transactions = [];
       data.transactions.push(refundTx);
-      
       activeRefundTx.value.refunded_amount = (Number(activeRefundTx.value.refunded_amount) || 0) + refundData.amount;
-      if (activeRefundTx.value.refunded_amount >= getDebitAmount(activeRefundTx.value)) {
-         activeRefundTx.value.is_refunded = true;
-      }
-      
-      closeRefundModal();
-      autoBackup(); updateCharts(); alert('✅ 退款沖銷成功！');
+      if (activeRefundTx.value.refunded_amount >= getDebitAmount(activeRefundTx.value)) activeRefundTx.value.is_refunded = true;
+      closeRefundModal(); autoBackup(); updateCharts(); alert('✅ 退款沖銷成功！');
     };
 
-    const openReimburseModal = (tx) => {
-        activeReimburseTx.value = tx;
-        reimburseData.account = '';
-        showReimburseModal.value = true;
-    };
-    const closeReimburseModal = () => {
-        showReimburseModal.value = false;
-        activeReimburseTx.value = null;
-    };
+    const openReimburseModal = (tx) => { activeReimburseTx.value = tx; reimburseData.account = ''; showReimburseModal.value = true; };
+    const closeReimburseModal = () => { showReimburseModal.value = false; activeReimburseTx.value = null; };
     const submitReimburse = () => {
         if (!activeReimburseTx.value) return;
         if (!reimburseData.account) return alert('請選擇入帳帳戶');
@@ -971,7 +575,7 @@ const app = createApp({
     const reimburseTx = (tx, toAccountId) => {
          if (!tx || !toAccountId) return;
          let origAmount = getDebitAmount(tx);
-         let txObj = {
+         data.transactions.push({
             id: 'tx_reimb_' + Date.now(),
             date: new Date().toISOString().split('T')[0],
             scope: tx.scope,
@@ -979,24 +583,21 @@ const app = createApp({
             debits: [{ account_id: toAccountId, amount: origAmount }],
             credits: [{ account_id: '1104', amount: origAmount }],
             ref_tx_id: tx.id
-        };
-        if(!data.transactions) data.transactions = [];
-        data.transactions.push(txObj);
+        });
         tx.is_reimbursed = true;
         autoBackup(); updateCharts(); alert('✅ 報銷沖銷成功！');
     };
 
     const deleteTransaction = (id) => {
       if(!confirm('確定刪除？')) return;
-      let list = data.transactions || []; let idx = list.findIndex(t => t && t.id === id); if (idx === -1) return;
-      let tx = list[idx];
-      if (tx && tx.auto_generated && tx.asset_id) { let falist = data.fixed_assets || []; let a = falist.find(fa => fa && fa.id === tx.asset_id); if(a) a.last_depreciation_date = null; }
+      let idx = data.transactions.findIndex(t => t && t.id === id); if (idx === -1) return;
+      let tx = data.transactions[idx];
+      if (tx && tx.auto_generated && tx.asset_id) { let a = data.fixed_assets.find(fa => fa && fa.id === tx.asset_id); if(a) a.last_depreciation_date = null; }
       data.transactions.splice(idx, 1); autoBackup(); updateCharts();
     };
 
     const submitInitialStock = () => {
       if(!initStock.symbol || !initStock.shares || !initStock.cost) return alert("請填寫完整");
-      if(!data.investments) data.investments = []; if(!data.transactions) data.transactions = [];
       data.investments.push({ id: 'inv_'+Date.now(), symbol: initStock.symbol, name: initStock.name || initStock.symbol, shares: initStock.shares, total_cost: initStock.cost, currency: 'TWD' });
       data.transactions.push({ id: 'tx_init_'+Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初建倉 ${initStock.name || initStock.symbol}`, debits: [{ account_id: '1103', amount: initStock.cost }], credits: [{ account_id: '3101', amount: initStock.cost }] });
       showInitialStockModal.value = false; initStock.symbol = ''; initStock.name = ''; initStock.shares = null; initStock.cost = null; autoBackup(); updateCharts();
@@ -1004,7 +605,6 @@ const app = createApp({
 
     const submitFixedAsset = () => {
       if(!initFA.name || !initFA.cost || !initFA.months) return alert("請填寫完整");
-      if(!data.fixed_assets) data.fixed_assets = []; if(!data.transactions) data.transactions = [];
       let monthlyDep = Math.round(initFA.cost / initFA.months);
       data.fixed_assets.push({ id: 'fa_'+Date.now(), name: initFA.name, purchase_date: initFA.date, original_cost: initFA.cost, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: null, is_disposed: false });
       data.transactions.push({ id: 'tx_fa_'+Date.now(), date: initFA.date, scope: 'family', desc: `購入固定資產 ${initFA.name}`, debits: [{ account_id: '1201', amount: initFA.cost }], credits: [{ account_id: '3101', amount: initFA.cost }] });
@@ -1012,13 +612,11 @@ const app = createApp({
     };
 
     const openDisposalModal = (fa) => { disposalAsset.value = fa; disposalForm.type = 'scrap'; disposalForm.price = null; disposalForm.account = ''; showDisposalModal.value = true; };
-    
     const submitDisposal = () => {
       if (disposalForm.type === 'sell' && (disposalForm.price === null || !disposalForm.account)) return alert("請填寫出售金額與入帳帳戶");
       let fa = disposalAsset.value; if(!fa) return;
       let bookValue = getFABookValue(fa); let accDep = getFAAccDep(fa);
       let txObj = { id: 'tx_disp_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'family', desc: `處分資產: ${fa.name}`, debits: [{ account_id: '1201-DEP', amount: accDep }], credits: [{ account_id: '1201', amount: fa.original_cost }] };
-      
       if (disposalForm.type === 'scrap') {
          if(bookValue > 0) txObj.debits.push({ account_id: '4201', amount: bookValue });
          txObj.desc = `報廢資產: ${fa.name}`;
@@ -1028,23 +626,16 @@ const app = createApp({
          if(gain > 0) txObj.credits.push({ account_id: '4201', amount: gain });
          else if (gain < 0) txObj.debits.push({ account_id: '4201', amount: Math.abs(gain) });
       }
-      if(!data.transactions) data.transactions = [];
       data.transactions.push(txObj); fa.is_disposed = true; showDisposalModal.value = false; autoBackup(); updateCharts(); alert('✅ 處分完成！');
     };
 
     const submitAddLoan = () => {
       if(!initLoan.name || !initLoan.principal || !initLoan.rate || !initLoan.payment) return alert("請填妥所有貸款欄位");
-      if(!data.loans) data.loans = []; if(!data.transactions) data.transactions = []; if(!data.accounts) data.accounts = [];
-      let accId = 'loan_liab_' + Date.now();
-      let loanId = 'loan_' + Date.now();
+      let accId = 'loan_liab_' + Date.now(); let loanId = 'loan_' + Date.now();
       data.accounts.push({ id: accId, name: initLoan.name, type: 'Liability', currency: 'TWD', is_hidden: false });
       data.loans.push({ id: loanId, name: initLoan.name, liability_acc_id: accId, interest_rate: initLoan.rate, monthly_payment: initLoan.payment });
       data.transactions.push({ id: 'tx_loan_init_'+Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初貸款本金: ${initLoan.name}`, debits: [{ account_id: '3101', amount: initLoan.principal }], credits: [{ account_id: accId, amount: initLoan.principal }] });
-      
-      newTx.loanId = loanId;
-      initLoan.name = ''; initLoan.principal = null; initLoan.rate = null; initLoan.payment = null;
-      showAddLoanModal.value = false;
-      autoBackup(); updateCharts(); alert('✅ 貸款建立成功！');
+      newTx.loanId = loanId; initLoan.name = ''; initLoan.principal = null; initLoan.rate = null; initLoan.payment = null; showAddLoanModal.value = false; autoBackup(); updateCharts(); alert('✅ 貸款建立成功！');
     };
 
     const openRateModal = (loan) => { activeLoan.value = loan; rateData.rate = loan.interest_rate; showRateModal.value = true; };
@@ -1052,11 +643,9 @@ const app = createApp({
 
     const submitAddGoal = () => {
       if(!initGoal.name || !initGoal.target) return alert("請填寫目標名稱與金額");
-      if(!data.savings_goals) data.savings_goals = [];
       data.savings_goals.push({ id: 'goal_' + Date.now(), name: initGoal.name, target: initGoal.target, deadline: initGoal.deadline, saved: 0 });
       showAddGoalModal.value = false; initGoal.name = ''; initGoal.target = null; initGoal.deadline = ''; autoBackup(); alert('✅ 目標建立成功！');
     };
-    
     const openUpdateGoalModal = (goal) => { activeGoal.value = goal; updateGoalData.amount = null; updateGoalData.type = 'add'; showUpdateGoalModal.value = true; };
     const submitUpdateGoal = () => {
       if(!activeGoal.value || !updateGoalData.amount) return;
@@ -1064,85 +653,68 @@ const app = createApp({
       if(activeGoal.value.saved < 0) activeGoal.value.saved = 0;
       showUpdateGoalModal.value = false; autoBackup(); alert('✅ 進度已更新！');
     };
-    
-    const deleteGoal = (id) => { if(!confirm("確定刪除此儲蓄目標？")) return; data.savings_goals = (data.savings_goals || []).filter(g => g && g.id !== id); autoBackup(); };
+    const deleteGoal = (id) => { if(!confirm("確定刪除此儲蓄目標？")) return; data.savings_goals = data.savings_goals.filter(g => g && g.id !== id); autoBackup(); };
 
     const addRecurring = () => {
       if(!newRecurring.desc || !newRecurring.amount || !newRecurring.account) return alert("請填妥排程資訊");
-      if(!data.recurring) data.recurring = [];
       data.recurring.push({ id: 'rec_'+Date.now(), type: newRecurring.type, desc: newRecurring.desc, amount: newRecurring.amount, day: newRecurring.day, account: newRecurring.account });
       newRecurring.desc = ''; newRecurring.amount = null; newRecurring.day = 1; autoBackup(); alert('✅ 排程建立成功！');
     };
-    const deleteRecurring = (id) => { data.recurring = (data.recurring||[]).filter(r => r && r.id !== id); autoBackup(); };
+    const deleteRecurring = (id) => { data.recurring = data.recurring.filter(r => r && r.id !== id); autoBackup(); };
 
     const addMainCategory = () => { let list = data.main_categories[settingCategoryMode.value] || []; if (newMainCat.value && !list.includes(newMainCat.value)) { data.main_categories[settingCategoryMode.value].push(newMainCat.value); newMainCat.value = ''; autoBackup(); } };
     const deleteMainCategory = (type, name) => { if(getSubAccounts(type, name, true).length > 0) return alert("請先清空子類別"); data.main_categories[type] = (data.main_categories[type] || []).filter(c => c !== name); autoBackup(); };
-    const addSubCategory = () => { if (newSubCat.name && newSubCat.main) { if(!data.accounts) data.accounts = []; data.accounts.push({ id: 'acc_'+Date.now(), name: newSubCat.name, type: settingCategoryMode.value, category: newSubCat.main, currency: 'TWD', is_hidden: false }); newSubCat.name = ''; autoBackup(); refreshIcons(); } };
+    const addSubCategory = () => { if (newSubCat.name && newSubCat.main) { data.accounts.push({ id: 'acc_'+Date.now(), name: newSubCat.name, type: settingCategoryMode.value, category: newSubCat.main, currency: 'TWD', is_hidden: false }); newSubCat.name = ''; autoBackup(); refreshIcons(); } };
     const addPreset = () => { let list = data.quick_tags || []; if (newPreset.value && !list.includes(newPreset.value)) { data.quick_tags.push(newPreset.value); newPreset.value = ''; autoBackup(); } };
-    const removePreset = (idx) => { if(data.quick_tags) data.quick_tags.splice(idx, 1); autoBackup(); };
-    const toggleAccountVisibility = (id) => { let list = data.accounts || []; let a = list.find(a => a && a.id === id); if (a) { a.is_hidden = !a.is_hidden; autoBackup(); refreshIcons(); } };
-    
+    const removePreset = (idx) => { data.quick_tags.splice(idx, 1); autoBackup(); };
+    const toggleAccountVisibility = (id) => { let a = data.accounts.find(a => a && a.id === id); if (a) { a.is_hidden = !a.is_hidden; autoBackup(); refreshIcons(); } };
     const deleteAccount = (id) => {
-      let list = data.transactions || []; let isUsed = false;
-      for(let i=0; i<list.length; i++){
-        let tx = list[i];
-        if(tx && tx.debits) { for(let j=0; j<tx.debits.length; j++){ if(tx.debits[j] && tx.debits[j].account_id === id) isUsed = true; } }
-        if(tx && tx.credits) { for(let j=0; j<tx.credits.length; j++){ if(tx.credits[j] && tx.credits[j].account_id === id) isUsed = true; } }
-      }
+      let isUsed = false;
+      data.transactions.forEach(tx => {
+        if(tx.debits) tx.debits.forEach(d => { if(d.account_id === id) isUsed = true; });
+        if(tx.credits) tx.credits.forEach(c => { if(c.account_id === id) isUsed = true; });
+      });
       if (isUsed) return alert("已有紀錄，請改用隱藏");
-      if (confirm("確定刪除?")) { data.accounts = (data.accounts || []).filter(a => a && a.id !== id); autoBackup(); }
+      if (confirm("確定刪除?")) { data.accounts = data.accounts.filter(a => a && a.id !== id); autoBackup(); }
     };
 
     const runAutoTasks = () => {
-      let curM = new Date().toISOString().substring(0,7);
-      let today = new Date().getDate();
-      
-      let faList = data.fixed_assets || [];
-      for(let i=0; i<faList.length; i++) {
-        let fa = faList[i]; if(!fa || fa.is_disposed) continue;
+      let curM = new Date().toISOString().substring(0,7); let today = new Date().getDate();
+      (data.fixed_assets || []).forEach(fa => {
+        if(!fa || fa.is_disposed) return;
         let ld = fa.last_depreciation_date || fa.purchase_date || '';
-        if (ld && ld.length >= 7 && ld.substring(0,7) !== curM && ld.substring(0,7) < curM) {
-          if(!data.transactions) data.transactions = [];
+        if (ld && ld.length >= 7 && ld.substring(0,7) < curM) {
           let accDep = getFAAccDep(fa);
-          if (accDep + fa.monthly_depreciation > fa.original_cost) continue; 
+          if (accDep + fa.monthly_depreciation > fa.original_cost) return; 
           data.transactions.push({ id: 'tx_dep_'+Date.now()+Math.random(), date: new Date().toISOString().split('T')[0], desc: `${fa.name} 自動折舊`, scope: 'family', auto_generated: true, asset_id: fa.id, debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }], credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }] });
           fa.last_depreciation_date = new Date().toISOString().split('T')[0];
         }
-      }
-      
-      let instList = data.installments || [];
-      for(let i=0; i<instList.length; i++) {
-        let inst = instList[i]; if(!inst || !inst.next_month || inst.next_month.length < 7) continue;
+      });
+      (data.installments || []).forEach(inst => {
+        if(!inst || !inst.next_month) return;
         while (inst.paid_periods < inst.periods && inst.next_month <= curM) {
-          if(!data.transactions) data.transactions = [];
-          let day = inst.date_day || '01';
-          let amt = (inst.paid_periods === 0 && inst.first_amount) ? inst.first_amount : inst.amount_per_period;
+          let day = inst.date_day || '01'; let amt = (inst.paid_periods === 0 && inst.first_amount) ? inst.first_amount : inst.amount_per_period;
           data.transactions.push({ id: 'tx_inst_'+Date.now()+Math.random(), date: `${inst.next_month}-${day}`, desc: `${inst.desc} (${inst.paid_periods+1}/${inst.periods}期)`, scope: inst.scope, auto_generated: true, inst_id: inst.id, debits: [{ account_id: inst.debit_acc, amount: amt }], credits: [{ account_id: inst.credit_acc, amount: amt }] });
           inst.paid_periods++;
-          let parts = inst.next_month.split('-');
-          if(parts.length >= 2) { let y = Number(parts[0]); let m = Number(parts[1]); m++; if(m > 12) { m = 1; y++; } let mm = m < 10 ? '0' + m : '' + m; inst.next_month = `${y}-${mm}`; }
+          let p = inst.next_month.split('-'); let y = Number(p[0]); let m = Number(p[1]) + 1; if(m > 12) { m = 1; y++; }
+          inst.next_month = `${y}-${String(m).padStart(2,'0')}`;
         }
-      }
-      
-      let recList = data.recurring || [];
-      for(let i=0; i<recList.length; i++) {
-        let rec = recList[i]; if(!rec || !rec.amount) continue;
+      });
+      (data.recurring || []).forEach(rec => {
+        if(!rec || !rec.amount) return;
         let lastExec = rec.last_exec_month || '';
         if (lastExec !== curM && today >= rec.day) {
            let txObj = { id: 'tx_rec_' + Date.now() + Math.random(), date: `${curM}-${String(rec.day).padStart(2,'0')}`, scope: 'personal', desc: `[定期] ${rec.desc}`, debits: [], credits: [], auto_generated: true };
            if (rec.type === 'expense') {
-              let sub = (data.accounts || []).find(a => a && a.type === 'Expense' && a.name === rec.desc);
-              txObj.debits.push({ account_id: sub ? sub.id : '5102', amount: rec.amount });
-              txObj.credits.push({ account_id: rec.account, amount: rec.amount });
+              let sub = data.accounts.find(a => a && a.type === 'Expense' && a.name === rec.desc);
+              txObj.debits.push({ account_id: sub ? sub.id : '5102', amount: rec.amount }); txObj.credits.push({ account_id: rec.account, amount: rec.amount });
            } else {
-              let sub = (data.accounts || []).find(a => a && a.type === 'Income' && a.name === rec.desc);
-              txObj.debits.push({ account_id: rec.account, amount: rec.amount });
-              txObj.credits.push({ account_id: sub ? sub.id : '4201', amount: rec.amount });
+              let sub = data.accounts.find(a => a && a.type === 'Income' && a.name === rec.desc);
+              txObj.debits.push({ account_id: rec.account, amount: rec.amount }); txObj.credits.push({ account_id: sub ? sub.id : '4201', amount: rec.amount });
            }
-           data.transactions.push(txObj);
-           rec.last_exec_month = curM;
+           data.transactions.push(txObj); rec.last_exec_month = curM;
         }
-      }
+      });
     };
 
     // ------------------------------------------------------------------------
@@ -1159,9 +731,7 @@ const app = createApp({
         client_id: settings.googleClientId, scope: 'https://www.googleapis.com/auth/drive.file',
         callback: (res) => {
           if(res.error) return alert('授權失敗');
-          settings.googleToken = res.access_token;
-          saveSettings(false); 
-          syncWithGoogleDrive(false);
+          settings.googleToken = res.access_token; saveSettings(false); syncWithGoogleDrive(false);
         },
       });
       if(typeof gapi !== 'undefined') { gapi.load('client', () => { gapi.client.init({}).then(()=>{ gapi.client.setToken({access_token: settings.googleToken}); }); }); }
@@ -1182,45 +752,29 @@ const app = createApp({
            if(query.result.files && query.result.files.length > 0) fileId = query.result.files[0].id;
         }
         if (fileId) {
-           settings.fileId = fileId; 
-           saveSettings(false);
+           settings.fileId = fileId; saveSettings(false);
            if(isManual) { 
               let fileRes = await gapi.client.request({ path: `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, method: 'GET' });
               let cloudData = fileRes.result;
-              if(typeof cloudData === 'string') {
-                 try { cloudData = JSON.parse(cloudData); } catch(e) { cloudData = null; }
-              }
+              if(typeof cloudData === 'string') { try { cloudData = JSON.parse(cloudData); } catch(e) { cloudData = null; } }
               if(cloudData && typeof cloudData === 'object' && (cloudData.accounts || cloudData.transactions)) { 
-                resetData();
-                Object.assign(data, cloudData); 
-                migrateLegacyData(); 
-                runAutoTasks(); 
-                localStorage.setItem('ledger_backup_' + currentBookId.value, JSON.stringify(data));
-                
+                resetData(); Object.assign(data, cloudData); setupDefaultData(data, DEFAULT_CATEGORIES); runAutoTasks(); localStorage.setItem('ledger_backup_' + currentBookId.value, JSON.stringify(data));
                 if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
                 if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
                 if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
-                updateCharts(); 
-                alert('雲端資料已同步還原'); 
-              } else {
-                alert('⚠️ 雲端資料無效或為空，已保留本地資料防止覆蓋！');
-              }
+                updateCharts(); alert('雲端資料已同步還原'); 
+              } else { alert('⚠️ 雲端資料無效或為空，已保留本地資料防止覆蓋！'); }
            } else { 
-              let content = JSON.stringify(data);
-              await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${settings.googleToken}`, 'Content-Type': 'application/json' }, body: content });
+              await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${settings.googleToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
            }
            syncStatus.value = 'ok';
         } else {
-           let metadata = { name: currentFileName, mimeType: 'application/json' };
            let form = new FormData();
-           form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+           form.append('metadata', new Blob([JSON.stringify({ name: currentFileName, mimeType: 'application/json' })], { type: 'application/json' }));
            form.append('file', new Blob([JSON.stringify(data)], { type: 'application/json' }));
            let res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', { method: 'POST', headers: { 'Authorization': `Bearer ${settings.googleToken}` }, body: form });
            let result = await res.json();
-           settings.fileId = result.id; 
-           saveSettings(false); 
-           syncStatus.value = 'ok'; 
-           if(isManual) alert('雲端備份已建立');
+           settings.fileId = result.id; saveSettings(false); syncStatus.value = 'ok'; if(isManual) alert('雲端備份已建立');
         }
       } catch (e) {
         syncStatus.value = 'error'; console.warn("GDrive Sync Error", e);
@@ -1230,15 +784,11 @@ const app = createApp({
 
     const executeFactoryReset = async () => {
       resetData();
-      migrateLegacyData();
+      setupDefaultData(data, DEFAULT_CATEGORIES);
       if (settings.googleToken && settings.fileId && typeof gapi !== 'undefined') {
-         try {
-            let content = JSON.stringify(data);
-            await fetch(`https://www.googleapis.com/upload/drive/v3/files/${settings.fileId}?uploadType=media`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${settings.googleToken}`, 'Content-Type': 'application/json' }, body: content });
-         } catch(e) { console.error("GDrive Reset Failed", e); }
+         try { await fetch(`https://www.googleapis.com/upload/drive/v3/files/${settings.fileId}?uploadType=media`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${settings.googleToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); } catch(e) {}
       }
-      localStorage.removeItem('ledger_backup_' + currentBookId.value);
-      window.location.reload(true);
+      localStorage.removeItem('ledger_backup_' + currentBookId.value); window.location.reload(true);
     };
 
     // ------------------------------------------------------------------------
@@ -1249,48 +799,26 @@ const app = createApp({
         const res = await fetchWithTimeout('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', {}, 5000);
         if (!res.ok) throw new Error('API Error');
         const twseData = await res.json();
-        let invList = data.investments || [];
-        for(let i=0; i<invList.length; i++) {
-          let inv = invList[i];
+        data.investments.forEach(inv => {
           if(inv && inv.currency !== 'USD') {
             let s = twseData.find(st => st && st.Code === (inv.symbol || '').replace('.TW',''));
             if (s) inv.last_price = parseFloat(s.ClosingPrice);
           }
-        }
+        });
         alert('股價自動更新完成！'); autoBackup(); updateCharts();
       } catch (e) { 
-        console.warn("Stock API Error:", e);
-        alert('無法連線證交所或連線逾時。請手動輸入最新報價！');
         showManualStockModal.value = true;
       }
     };
-
-    const submitManualStockUpdate = () => {
-        showManualStockModal.value = false;
-        autoBackup(); updateCharts(); alert('✅ 手動股價更新完成');
-    };
-
-    const setHistoryToCurrentMonth = () => {
-      const now = new Date(); const y = now.getFullYear(); const m = now.getMonth() + 1; const mStr = m < 10 ? '0' + m : '' + m; const d = new Date(y, m, 0).getDate();
-      historyFilter.dateFrom = `${y}-${mStr}-01`; historyFilter.dateTo = `${y}-${mStr}-${d}`;
-    };
-
-    const fetchExchangeRate = async () => { 
-        try { 
-            const res = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 3000); 
-            const fx = await res.json(); 
-            if(fx && fx.rates && fx.rates.TWD) fxRate.value = fx.rates.TWD; 
-        } catch(e) {} 
-    };
+    const submitManualStockUpdate = () => { showManualStockModal.value = false; autoBackup(); updateCharts(); alert('✅ 手動股價更新完成'); };
+    const setHistoryToCurrentMonth = () => { const now = new Date(); const y = now.getFullYear(); const mStr = String(now.getMonth() + 1).padStart(2, '0'); historyFilter.dateFrom = `${y}-${mStr}-01`; historyFilter.dateTo = `${y}-${mStr}-${new Date(y, now.getMonth() + 1, 0).getDate()}`; };
+    const fetchExchangeRate = async () => { try { const res = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 3000); const fx = await res.json(); if(fx && fx.rates && fx.rates.TWD) fxRate.value = fx.rates.TWD; } catch(e) {} };
     
     // ------------------------------------------------------------------------
     // 11. 初始化與生命週期 (Lifecycle)
     // ------------------------------------------------------------------------
     const loadSettings = () => { 
-      try { 
-        const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}'); 
-        if(s && typeof s === 'object') Object.assign(settings, s); 
-      } catch(e) {} 
+      try { const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}'); if(s && typeof s === 'object') Object.assign(settings, s); } catch(e) {} 
       if(!settings.appName) settings.appName = '智慧帳本'; 
       if(!settings.booksIndex || settings.booksIndex.length === 0) settings.booksIndex = [{id: 'default', name: '日常帳本'}];
       currentBookId.value = settings.currentBookId || 'default';
@@ -1298,154 +826,72 @@ const app = createApp({
     };
     
     const unlockApp = () => { if (pinInput.value === settings.pinCode) { isUnlocked.value = true; initData(); } else { pinError.value = "PIN錯誤"; } };
-    
-    const saveSettings = (showAlert = true) => { 
-      settings.currentBookId = currentBookId.value;
-      localStorage.setItem('ledger_settings', JSON.stringify(settings)); 
-      if (showAlert) alert('設定已儲存'); 
-      if (settings.googleToken && settings.googleClientId) initGoogleAuth(); 
-    };
-    
+    const saveSettings = (showAlert = true) => { settings.currentBookId = currentBookId.value; localStorage.setItem('ledger_settings', JSON.stringify(settings)); if (showAlert) alert('設定已儲存'); if (settings.googleToken && settings.googleClientId) initGoogleAuth(); };
     const exportData = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); a.download = `Ledger_${currentBookId.value}_${new Date().toISOString().split('T')[0]}.json`; a.click(); };
-    const importData = (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { try { const p = JSON.parse(ev.target.result); if (p && typeof p === 'object') { resetData(); Object.assign(data, p); migrateLegacyData(); autoBackup(); updateCharts(); alert("成功覆蓋匯入"); } } catch(err) { alert("檔案錯誤"); } }; r.readAsText(f); };
+    const importData = (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { try { const p = JSON.parse(ev.target.result); if (p && typeof p === 'object') { resetData(); Object.assign(data, p); setupDefaultData(data, DEFAULT_CATEGORIES); autoBackup(); updateCharts(); alert("成功覆蓋匯入"); } } catch(err) { alert("檔案錯誤"); } }; r.readAsText(f); };
 
     const updateCharts = () => {
       if (!['dashboard', 'budget', 'reports'].includes(activeTab.value)) return;
       nextTick(() => {
         try {
-          const canvas1 = document.getElementById('expenseChart');
-          if (canvas1) {
-            const ctx1 = canvas1.getContext('2d');
-            if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
-            if (canvas1.width > 0 && canvas1.height > 0 && ctx1) {
-                const expMonth = dashboardMonth.value || ''; const exp = {}; let tot = 0;
-                let txList = data.transactions || [];
-                for(let i=0; i<txList.length; i++) {
-                  let tx = txList[i]; let txDate = tx && tx.date ? tx.date : '';
-                  if (tx && !tx.is_refunded && !tx.is_refund && txDate.length >= 7 && expMonth.length >= 7 && txDate.substring(0,7) === expMonth.substring(0,7)) {
-                    if (dashboardScope.value !== 'all' && tx.scope !== dashboardScope.value) continue;
-                    let dList = tx.debits || [];
-                    for(let j=0; j<dList.length; j++) {
-                      let d = dList[j]; let accList = data.accounts || []; let a = accList.find(ac => ac && ac.id === d.account_id);
-                      if(a && a.type === 'Expense') { let cat = a.category || '未分類'; let amt = Number(d.amount) || 0; if(!exp[cat]) exp[cat] = 0; exp[cat] += amt; tot += amt; }
-                    }
-                  }
-                }
-                hasExpensesThisMonth.value = tot > 0;
-                if (hasExpensesThisMonth.value) {
-                  let labels = []; let values = []; for(let key in exp) { labels.push(key); values.push(exp[key]); }
-                  expenseChartInstance.value = new Chart(ctx1, { type: 'doughnut', data: { labels: labels, datasets: [{ data: values, backgroundColor: ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: '#94a3b8'} } } } });
-                }
+            expenseChartInstance.value = renderExpenseChart(expenseChartInstance.value, 'expenseChart', data.transactions, data.accounts, dashboardScope.value, dashboardMonth.value);
+            
+            let scope = dashboardScope.value;
+            let cTot=0, sTot=0;
+            (data.accounts || []).forEach(a => { if(a && a.type==='Asset' && !a.is_contra && a.id!=='1103' && a.id!=='1201' && a.id!=='1104') cTot += getBaseBalance(a.id, calculateBalance(a.id, scope)); });
+            (data.investments || []).forEach(inv => { if(inv) sTot += (Number(inv.shares)||0) * (Number(inv.last_price)||0) * (data.currencyRates[inv.currency||'TWD']||1); });
+            let fTot = calculateBalance('1201', scope) + calculateBalance('1201-DEP', scope);
+            assetChartInstance.value = renderAssetChart(assetChartInstance.value, 'assetChart', cTot, sTot, fTot);
+
+            let histLabels = []; let histData = []; let d = new Date();
+            let allStockCost = calculateBalance('1103', 'all'); let scopeStockCost = calculateBalance('1103', scope);
+            let scopeRatio = allStockCost ? (scopeStockCost / allStockCost) : 0;
+            let totalInvMV = 0; let totalInvCost = 0;
+            (data.investments||[]).forEach(inv => { totalInvMV += (Number(inv.shares)||0) * (Number(inv.last_price)||0) * (data.currencyRates[inv.currency||'TWD']||1); totalInvCost += Number(inv.total_cost)||0; });
+            let scopeUnrealizedGain = (totalInvMV - totalInvCost) * scopeRatio;
+
+            for(let i=5; i>=0; i--) {
+                let tempDate = new Date(d.getFullYear(), d.getMonth() - i, 1);
+                let mStr = tempDate.getFullYear() + '-' + String(tempDate.getMonth()+1).padStart(2,'0');
+                histLabels.push(mStr);
+                let endOfMonth = mStr + '-31'; 
+                let aSum=0, lSum=0;
+                (data.accounts||[]).forEach(a => {
+                    if(!a) return;
+                    let bal = 0;
+                    (data.transactions||[]).forEach(tx => {
+                        if(!tx || tx.date > endOfMonth) return;
+                        if(scope !== 'all' && tx.scope !== scope) return;
+                        if(tx.debits) tx.debits.forEach(db=>{if(db.account_id===a.id) bal+=Number(db.amount)||0;});
+                        if(tx.credits) tx.credits.forEach(cr=>{if(cr.account_id===a.id) bal-=Number(cr.amount)||0;});
+                    });
+                    if(a.type==='Asset') aSum += getBaseBalance(a.id, bal); else if(a.type==='Liability') lSum += getBaseBalance(a.id, -bal);
+                });
+                aSum += scopeUnrealizedGain; histData.push(aSum - lSum);
             }
-          }
-
-          const canvas2 = document.getElementById('assetChart');
-          if (canvas2) {
-            const ctx2 = canvas2.getContext('2d');
-            if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
-            if (canvas2.width > 0 && canvas2.height > 0 && ctx2) {
-                if (totalAssets.value > 0) {
-                  let scope = dashboardScope.value;
-                  let cTot=0, sTot=0;
-                  let accList = data.accounts || [];
-                  for(let i=0; i<accList.length; i++){ let a = accList[i]; if(a && a.type==='Asset' && !a.is_contra && a.id!=='1103' && a.id!=='1201' && a.id!=='1104') cTot += getBaseBalance(a.id, calculateBalance(a.id, scope)); }
-                  let invList = data.investments || [];
-                  for(let i=0; i<invList.length; i++){ let inv = invList[i]; sTot += getInvCurrentValue(inv); }
-                  let fTot = calculateBalance('1201', scope) + calculateBalance('1201-DEP', scope);
-                  
-                  assetChartInstance.value = new Chart(ctx2, { type: 'pie', data: { labels: ['流動資金總額', '股票現值', '固定資產'], datasets: [{ data: [Math.max(0,cTot), sTot, Math.max(0,fTot)], backgroundColor: ['#3b82f6', '#8b5cf6', '#14b8a6'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: {color: '#94a3b8'} } } } });
-                }
-            }
-          }
-
-          const canvas3 = document.getElementById('netWorthChart');
-          if(canvas3) {
-             const ctx3 = canvas3.getContext('2d');
-             if(netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
-             if (canvas3.width > 0 && canvas3.height > 0 && ctx3) {
-                 let scope = dashboardScope.value;
-                 let histLabels = []; let histData = [];
-                 let d = new Date();
-                 
-                 let allStockCost = calculateBalance('1103', 'all');
-                 let scopeStockCost = calculateBalance('1103', scope);
-                 let scopeRatio = allStockCost ? (scopeStockCost / allStockCost) : 0;
-                 let totalInvMV = 0; let totalInvCost = 0;
-                 (data.investments||[]).forEach(inv => { 
-                     let rate = data.currencyRates[inv.currency||'TWD'] || 1;
-                     totalInvMV += (Number(inv.shares)||0) * (Number(inv.last_price)||0) * rate; 
-                     totalInvCost += Number(inv.total_cost)||0; 
-                 });
-                 let scopeUnrealizedGain = (totalInvMV - totalInvCost) * scopeRatio;
-
-                 for(let i=5; i>=0; i--) {
-                    let tempDate = new Date(d.getFullYear(), d.getMonth() - i, 1);
-                    let mStr = tempDate.getFullYear() + '-' + String(tempDate.getMonth()+1).padStart(2,'0');
-                    histLabels.push(mStr);
-                    let endOfMonth = mStr + '-31'; 
-                    let aSum=0, lSum=0;
-                    for(let k=0; k<data.accounts.length; k++){
-                       let a = data.accounts[k]; if(!a) continue;
-                       let bal=0;
-                       for(let t=0; t<data.transactions.length; t++){
-                          let tx = data.transactions[t]; if(!tx || tx.date > endOfMonth) continue;
-                          if(scope !== 'all' && tx.scope !== scope) continue;
-                          if(tx.debits) tx.debits.forEach(db=>{if(db && db.account_id===a.id) bal+=Number(db.amount)||0;});
-                          if(tx.credits) tx.credits.forEach(cr=>{if(cr && cr.account_id===a.id) bal-=Number(cr.amount)||0;});
-                       }
-                       if(a.type==='Asset') aSum += getBaseBalance(a.id, bal);
-                       else if(a.type==='Liability') lSum += getBaseBalance(a.id, -bal);
-                    }
-                    aSum += scopeUnrealizedGain;
-                    histData.push(aSum - lSum);
-                 }
-                 netWorthChartInstance.value = new Chart(ctx3, { type: 'line', data: { labels: histLabels, datasets: [{ label: '淨資產', data: histData, borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.2)', fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { ticks: { color: '#94a3b8' } }, x: { ticks: { color: '#94a3b8' } } } } });
-             }
-          }
-        } catch (err) { 
-            console.warn("Chart Render Error:", err); 
-        }
+            netWorthChartInstance.value = renderNetWorthChart(netWorthChartInstance.value, 'netWorthChart', histLabels, histData);
+        } catch (err) { console.warn("Chart Render Error:", err); }
       });
     };
 
     const refreshIcons = () => { nextTick(() => { try { if (window.lucide) lucide.createIcons(); } catch(e){} }); };
 
-    watch(activeTab, () => {
-      if(['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
-      refreshIcons();
-    });
+    watch(activeTab, () => { if(['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts(); refreshIcons(); });
     watch(dashboardScope, () => updateCharts());
 
     const initData = async () => {
-      try {
-        const backup = localStorage.getItem('ledger_backup_' + currentBookId.value);
-        if (backup) { const p = JSON.parse(backup); if(p && typeof p === 'object') Object.assign(data, p); }
-      } catch(e) {}
-      
-      migrateLegacyData();
-      setHistoryToCurrentMonth();
-      await fetchExchangeRate();
-      
+      try { const backup = localStorage.getItem('ledger_backup_' + currentBookId.value); if (backup) { Object.assign(data, JSON.parse(backup)); } } catch(e) {}
+      setupDefaultData(data, DEFAULT_CATEGORIES); setHistoryToCurrentMonth(); await fetchExchangeRate();
       isAppReady.value = true;
-      let loadingScreen = document.getElementById('native-loading');
-      if(loadingScreen) loadingScreen.style.display = 'none';
-
+      let loadingScreen = document.getElementById('native-loading'); if(loadingScreen) loadingScreen.style.display = 'none';
       if(window.google) initGoogleAuth(); else setTimeout(initGoogleAuth, 2000);
-      
-      runAutoTasks();
-      if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
-      refreshIcons();
+      runAutoTasks(); if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts(); refreshIcons();
     };
 
     onMounted(() => {
       loadSettings();
       if(isUnlocked.value) { initData(); } 
-      else {
-        isAppReady.value = true;
-        let loadingScreen = document.getElementById('native-loading');
-        if(loadingScreen) loadingScreen.style.display = 'none';
-        refreshIcons();
-      }
+      else { isAppReady.value = true; let loadingScreen = document.getElementById('native-loading'); if(loadingScreen) loadingScreen.style.display = 'none'; refreshIcons(); }
     });
 
     return { 
@@ -1479,7 +925,6 @@ const app = createApp({
   }
 });
 
-// 全域錯誤捕捉機制
 app.config.errorHandler = function(err, vm, info) {
   console.warn("Vue Global Error:", err, info);
   var loading = document.getElementById('native-loading');
