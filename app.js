@@ -2,6 +2,9 @@ const { createApp, ref, reactive, computed, onMounted, watch, nextTick } = Vue;
 
 const app = createApp({
   setup() {
+    // ------------------------------------------------------------------------
+    // 1. 全域 UI 狀態
+    // ------------------------------------------------------------------------
     const isAppReady = ref(false);
     const activeTab = ref('dashboard');
     const isDrawerOpen = ref(false); 
@@ -13,9 +16,13 @@ const app = createApp({
     const syncStatus = ref('offline'); 
     const isSyncing = ref(false);
     const showAmounts = ref(true);
+    const expenseMonth = ref(new Date().toISOString().substring(0,7)); // 修復：補回缺失的變數
     const dashboardMonth = ref(new Date().toISOString().substring(0,7));
     const fxRate = ref(1);
 
+    // ------------------------------------------------------------------------
+    // 2. 報表與圖表狀態
+    // ------------------------------------------------------------------------
     const reportView = ref('balance');
     const reportPeriod = ref('this_month'); 
     const reportStartDate = ref('');
@@ -26,6 +33,9 @@ const app = createApp({
     const netWorthChartInstance = ref(null);
     const hasExpensesThisMonth = ref(false);
 
+    // ------------------------------------------------------------------------
+    // 3. 彈窗控制狀態 (Modals)
+    // ------------------------------------------------------------------------
     const showAddAccountModal = ref(false);
     const showInitialStockModal = ref(false);
     const showAddFixedAssetModal = ref(false);
@@ -40,6 +50,9 @@ const app = createApp({
     const showRefundModal = ref(false);
     const showReimburseModal = ref(false);
 
+    // ------------------------------------------------------------------------
+    // 4. 設定與全域資料模型 (Data Models)
+    // ------------------------------------------------------------------------
     const settings = reactive({ 
         appName: '智慧帳本', 
         googleClientId: '', 
@@ -63,6 +76,9 @@ const app = createApp({
       loans: [], savings_goals: []
     });
 
+    // ------------------------------------------------------------------------
+    // 5. 表單綁定狀態 (Forms Data)
+    // ------------------------------------------------------------------------
     const newTx = reactive({ 
       date: new Date().toISOString().split('T')[0], scope: 'personal', desc: '', amount: null, 
       mainCategory: '', subAccount: '', paymentAcc: '', fromAcc: '', toAcc: '', investAction: 'buy', 
@@ -103,7 +119,7 @@ const app = createApp({
         if (!val) return;
         let symbol = val.replace('.TW', '').toUpperCase();
         let matchName = '';
-        if (STOCK_DICTIONARY[symbol]) {
+        if (typeof STOCK_DICTIONARY !== 'undefined' && STOCK_DICTIONARY[symbol]) {
             matchName = STOCK_DICTIONARY[symbol];
         } else {
             let existing = (data.investments || []).find(i => i && i.symbol && i.symbol.replace('.TW', '').toUpperCase() === symbol);
@@ -382,9 +398,19 @@ const app = createApp({
        }
     }, { immediate: true });
 
-    const bsData = computed(() => calculateBalanceSheet(data.accounts, data.transactions, data.investments, data.currencyRates, reportEndDate.value));
-    const isData = computed(() => calculateIncomeStatement(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value));
-    const cfData = computed(() => calculateCashFlow(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value));
+    // 透過外部 reports.js 的函數計算三大報表
+    const bsData = computed(() => {
+        if (typeof calculateBalanceSheet !== 'function') return null;
+        return calculateBalanceSheet(data.accounts, data.transactions, data.investments, data.currencyRates, reportEndDate.value);
+    });
+    const isData = computed(() => {
+        if (typeof calculateIncomeStatement !== 'function') return null;
+        return calculateIncomeStatement(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value);
+    });
+    const cfData = computed(() => {
+        if (typeof calculateCashFlow !== 'function') return null;
+        return calculateCashFlow(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value);
+    });
 
     // ------------------------------------------------------------------------
     // 8. 核心操作 (Core Actions)
@@ -406,7 +432,7 @@ const app = createApp({
          data.version = "6.3.0"; 
       }
       
-      setupDefaultData(data, DEFAULT_CATEGORIES);
+      if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {});
       runAutoTasks();
       setHistoryToCurrentMonth();
 
@@ -529,6 +555,7 @@ const app = createApp({
       alert('✅ 記帳成功！'); 
     };
 
+    // ================= 退款與報銷機制 =================
     const openRefundModal = (tx) => {
       if (!tx) return;
       activeRefundTx.value = tx;
@@ -539,7 +566,11 @@ const app = createApp({
       refundData.account = (tx.credits && tx.credits[0]) ? tx.credits[0].account_id : '';
       showRefundModal.value = true;
     };
-    const closeRefundModal = () => { showRefundModal.value = false; activeRefundTx.value = null; };
+    
+    const closeRefundModal = () => {
+      showRefundModal.value = false;
+      activeRefundTx.value = null;
+    };
 
     const submitRefund = () => {
       if (!activeRefundTx.value) return;
@@ -758,7 +789,9 @@ const app = createApp({
               let cloudData = fileRes.result;
               if(typeof cloudData === 'string') { try { cloudData = JSON.parse(cloudData); } catch(e) { cloudData = null; } }
               if(cloudData && typeof cloudData === 'object' && (cloudData.accounts || cloudData.transactions)) { 
-                resetData(); Object.assign(data, cloudData); setupDefaultData(data, DEFAULT_CATEGORIES); runAutoTasks(); localStorage.setItem('ledger_backup_' + currentBookId.value, JSON.stringify(data));
+                resetData(); Object.assign(data, cloudData);
+                if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {});
+                runAutoTasks(); localStorage.setItem('ledger_backup_' + currentBookId.value, JSON.stringify(data));
                 if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
                 if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
                 if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
@@ -784,7 +817,7 @@ const app = createApp({
 
     const executeFactoryReset = async () => {
       resetData();
-      setupDefaultData(data, DEFAULT_CATEGORIES);
+      if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {});
       if (settings.googleToken && settings.fileId && typeof gapi !== 'undefined') {
          try { await fetch(`https://www.googleapis.com/upload/drive/v3/files/${settings.fileId}?uploadType=media`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${settings.googleToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); } catch(e) {}
       }
@@ -828,20 +861,25 @@ const app = createApp({
     const unlockApp = () => { if (pinInput.value === settings.pinCode) { isUnlocked.value = true; initData(); } else { pinError.value = "PIN錯誤"; } };
     const saveSettings = (showAlert = true) => { settings.currentBookId = currentBookId.value; localStorage.setItem('ledger_settings', JSON.stringify(settings)); if (showAlert) alert('設定已儲存'); if (settings.googleToken && settings.googleClientId) initGoogleAuth(); };
     const exportData = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); a.download = `Ledger_${currentBookId.value}_${new Date().toISOString().split('T')[0]}.json`; a.click(); };
-    const importData = (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { try { const p = JSON.parse(ev.target.result); if (p && typeof p === 'object') { resetData(); Object.assign(data, p); setupDefaultData(data, DEFAULT_CATEGORIES); autoBackup(); updateCharts(); alert("成功覆蓋匯入"); } } catch(err) { alert("檔案錯誤"); } }; r.readAsText(f); };
+    const importData = (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { try { const p = JSON.parse(ev.target.result); if (p && typeof p === 'object') { resetData(); Object.assign(data, p); if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {}); autoBackup(); updateCharts(); alert("成功覆蓋匯入"); } } catch(err) { alert("檔案錯誤"); } }; r.readAsText(f); };
 
     const updateCharts = () => {
       if (!['dashboard', 'budget', 'reports'].includes(activeTab.value)) return;
       nextTick(() => {
         try {
-            expenseChartInstance.value = renderExpenseChart(expenseChartInstance.value, 'expenseChart', data.transactions, data.accounts, dashboardScope.value, dashboardMonth.value);
+            if (typeof renderExpenseChart === 'function') {
+                expenseChartInstance.value = renderExpenseChart(expenseChartInstance.value, 'expenseChart', data.transactions, data.accounts, dashboardScope.value, dashboardMonth.value);
+            }
             
             let scope = dashboardScope.value;
             let cTot=0, sTot=0;
             (data.accounts || []).forEach(a => { if(a && a.type==='Asset' && !a.is_contra && a.id!=='1103' && a.id!=='1201' && a.id!=='1104') cTot += getBaseBalance(a.id, calculateBalance(a.id, scope)); });
             (data.investments || []).forEach(inv => { if(inv) sTot += (Number(inv.shares)||0) * (Number(inv.last_price)||0) * (data.currencyRates[inv.currency||'TWD']||1); });
             let fTot = calculateBalance('1201', scope) + calculateBalance('1201-DEP', scope);
-            assetChartInstance.value = renderAssetChart(assetChartInstance.value, 'assetChart', cTot, sTot, fTot);
+            
+            if (typeof renderAssetChart === 'function') {
+                assetChartInstance.value = renderAssetChart(assetChartInstance.value, 'assetChart', cTot, sTot, fTot);
+            }
 
             let histLabels = []; let histData = []; let d = new Date();
             let allStockCost = calculateBalance('1103', 'all'); let scopeStockCost = calculateBalance('1103', scope);
@@ -869,7 +907,9 @@ const app = createApp({
                 });
                 aSum += scopeUnrealizedGain; histData.push(aSum - lSum);
             }
-            netWorthChartInstance.value = renderNetWorthChart(netWorthChartInstance.value, 'netWorthChart', histLabels, histData);
+            if (typeof renderNetWorthChart === 'function') {
+                netWorthChartInstance.value = renderNetWorthChart(netWorthChartInstance.value, 'netWorthChart', histLabels, histData);
+            }
         } catch (err) { console.warn("Chart Render Error:", err); }
       });
     };
@@ -881,7 +921,8 @@ const app = createApp({
 
     const initData = async () => {
       try { const backup = localStorage.getItem('ledger_backup_' + currentBookId.value); if (backup) { Object.assign(data, JSON.parse(backup)); } } catch(e) {}
-      setupDefaultData(data, DEFAULT_CATEGORIES); setHistoryToCurrentMonth(); await fetchExchangeRate();
+      if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {}); 
+      setHistoryToCurrentMonth(); await fetchExchangeRate();
       isAppReady.value = true;
       let loadingScreen = document.getElementById('native-loading'); if(loadingScreen) loadingScreen.style.display = 'none';
       if(window.google) initGoogleAuth(); else setTimeout(initGoogleAuth, 2000);
@@ -893,6 +934,8 @@ const app = createApp({
       if(isUnlocked.value) { initData(); } 
       else { isAppReady.value = true; let loadingScreen = document.getElementById('native-loading'); if(loadingScreen) loadingScreen.style.display = 'none'; refreshIcons(); }
     });
+
+    const safeFormatNumber = typeof formatNumber === 'function' ? formatNumber : (n => Math.round(n).toLocaleString());
 
     return { 
       isAppReady, activeTab, isDrawerOpen, entryMode, dashboardScope, isUnlocked, pinInput, pinError, 
@@ -909,10 +952,10 @@ const app = createApp({
       currentHoldings, historicalHoldings, calculateBalance, getBaseBalance, accountsWithBalance, 
       paymentAccountsWithBalance, assetAccountsWithBalance, liquidAccountsWithBalance, liabilityAccountsWithBalance, 
       balanceAccounts, totalLiquidAssets, upcomingBillsTotal, cashflowWarning, totalAssets, totalLiabilities, netWorth,
-      sortedTransactions, filteredTransactions, ytdDividend, dashboardBudgets, budgetStats, getAccName, formatNumber,
+      sortedTransactions, filteredTransactions, ytdDividend, dashboardBudgets, budgetStats, getAccName, formatNumber: safeFormatNumber,
       getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getDebitAccType, getInvestTotalAmount, 
       getInvCurrentValue, getUnrealizedGain, getFAAccDep, getFABookValue, getAccumulatedInterest, loanRepayPreview, 
-      getTxColorBand, getTxAmountColor, applyQuickTag, onDividendSymbolChange, calcBalAsOf, bsData, isData, cfData,
+      getTxColorBand, getTxAmountColor, applyQuickTag, onDividendSymbolChange, bsData, isData, cfData,
       switchBook, createNewBook, submitNewBook, submitNewAssetAccount, submitTransaction, openRefundModal, closeRefundModal, submitRefund,
       openReimburseModal, closeReimburseModal, submitReimburse, reimburseTx,
       deleteTransaction, submitInitialStock, submitFixedAsset, openDisposalModal, submitDisposal, submitAddLoan, 
