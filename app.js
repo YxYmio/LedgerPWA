@@ -28,7 +28,6 @@ const app = createApp({
     const reportStartDate = ref('');
     const reportEndDate = ref('');
     
-    // 修改：使用 shallowRef 避免 Vue 代理 Chart.js 內部龐大物件導致崩潰
     const expenseChartInstance = shallowRef(null);
     const assetChartInstance = shallowRef(null);
     const netWorthChartInstance = shallowRef(null);
@@ -50,6 +49,10 @@ const app = createApp({
     const showManualStockModal = ref(false);
     const showRefundModal = ref(false);
     const showReimburseModal = ref(false);
+    
+    // 新增：交易編輯與分期檢視彈窗
+    const editTxModal = ref(false);
+    const showInstallmentModal = ref(false);
 
     // ------------------------------------------------------------------------
     // 4. 設定與全域資料模型 (Data Models)
@@ -90,7 +93,6 @@ const app = createApp({
     
     const initStock = reactive({ symbol: '', name: '', shares: null, cost: null });
     const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD' });
-    // 修改：加入 scope 預設值
     const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60, scope: 'personal' });
     const disposalAsset = ref(null);
     const disposalForm = reactive({ type: 'scrap', price: null, account: '' });
@@ -106,6 +108,10 @@ const app = createApp({
     const refundData = reactive({ amount: 0, maxAmount: 0, account: '' });
     const activeReimburseTx = ref(null);
     const reimburseData = reactive({ account: '' });
+
+    // 新增：交易明細編輯暫存區與分期資訊暫存
+    const editingTx = reactive({ id: '', date: '', desc: '', amount: 0, scope: 'personal', debitAcc: '', creditAcc: '' });
+    const selectedInstallment = ref(null);
 
     const txError = ref('');
     const historyFilter = reactive({ keyword: '', scope: 'all', dateFrom: '', dateTo: '' });
@@ -143,6 +149,12 @@ const app = createApp({
        data.transactions = []; data.accounts = []; data.fixed_assets = []; data.investments = []; 
        data.installments = []; data.loans = []; data.savings_goals = []; data.recurring = []; 
        data.quick_tags = []; data.smart_tags = {}; data.main_categories = { Expense: [], Income: [] }; data.budgets = {}; 
+    };
+
+    // 新增：升級相容性補丁
+    const migrateLegacyData = () => {
+       if (!data.installments) data.installments = [];
+       if (!data.savings_goals) data.savings_goals = [];
     };
 
     const activeBookName = computed(() => { let b = settings.booksIndex.find(x => x && x.id === currentBookId.value); return b ? b.name : '智慧帳本'; });
@@ -247,6 +259,39 @@ const app = createApp({
 
     const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
     
+    // 新增：本月收入與支出總計 (依據 dashboardMonth 與 dashboardScope 動態計算)
+    const currentMonthIncome = computed(() => {
+        let sum = 0;
+        let targetMonth = dashboardMonth.value;
+        (data.transactions || []).forEach(tx => {
+            let txMonth = tx && tx.date ? tx.date.substring(0,7) : '';
+            if(txMonth === targetMonth && !tx.is_refunded && !tx.is_refund) {
+                if (dashboardScope.value !== 'all' && tx.scope !== dashboardScope.value) return;
+                (tx.credits || []).forEach(c => {
+                    let a = data.accounts.find(ac => ac && ac.id === c.account_id);
+                    if(a && a.type === 'Income') sum += Number(c.amount) || 0;
+                });
+            }
+        });
+        return sum;
+    });
+
+    const currentMonthExpense = computed(() => {
+        let sum = 0;
+        let targetMonth = dashboardMonth.value;
+        (data.transactions || []).forEach(tx => {
+            let txMonth = tx && tx.date ? tx.date.substring(0,7) : '';
+            if(txMonth === targetMonth && !tx.is_refunded && !tx.is_refund) {
+                if (dashboardScope.value !== 'all' && tx.scope !== dashboardScope.value) return;
+                (tx.debits || []).forEach(d => {
+                    let a = data.accounts.find(ac => ac && ac.id === d.account_id);
+                    if(a && a.type === 'Expense') sum += Number(d.amount) || 0;
+                });
+            }
+        });
+        return sum;
+    });
+
     const sortedTransactions = computed(() => {
       return (data.transactions || []).slice().sort((a,b) => {
         let d1 = (a && a.date) ? a.date : ''; let d2 = (b && b.date) ? b.date : '';
@@ -418,23 +463,29 @@ const app = createApp({
     // 8. 核心操作 (Core Actions)
     // ------------------------------------------------------------------------
     
-    // 修改：透過 event 精準捕捉使用者在下拉選單選擇的最新帳本 ID
-    const switchBook = (event) => {
-      let targetId = currentBookId.value;
-      if (event && event.target && event.target.value) {
-          targetId = event.target.value;
-          currentBookId.value = targetId;
+    // 修復：重構 switchBook，嚴格遵循清空、賦值、生命週期觸發流程
+    const switchBook = (targetId) => {
+      let newId = currentBookId.value;
+      if (targetId && targetId.target && targetId.target.value) {
+        newId = targetId.target.value;
+      } else if (typeof targetId === 'string') {
+        newId = targetId;
       }
+
+      // a. 先以當前 ID 執行 autoBackup() 保存舊帳本 (local)
       let oldId = settings.currentBookId || 'default';
-      
       localStorage.setItem('ledger_backup_' + oldId, JSON.stringify(data)); 
       
-      settings.currentBookId = targetId;
+      // b. 更新 currentBookId.value 與 settings.currentBookId，並呼叫 saveSettings()
+      currentBookId.value = newId;
+      settings.currentBookId = newId;
       saveSettings(false);
       
-      const newBackup = localStorage.getItem('ledger_backup_' + targetId);
+      // c. 將 data 物件內的所有屬性徹底清空
       resetData();
 
+      // d. 從 LocalStorage 讀取目標帳本資料，並重新賦值
+      const newBackup = localStorage.getItem('ledger_backup_' + newId);
       if (newBackup) { 
          Object.assign(data, JSON.parse(newBackup));
       } else { 
@@ -442,12 +493,20 @@ const app = createApp({
       }
       
       if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {});
+      
+      // e. 依序執行相容性補丁、排程運算與歷史區間重置
+      migrateLegacyData();
       runAutoTasks();
       setHistoryToCurrentMonth();
 
+      // f. 關閉側邊欄、銷毀既有 Chart 實例並呼叫 updateCharts()
       isDrawerOpen.value = false;
+      if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
+      if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
+      if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
       if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
-      alert(`已切換至: ${activeBookName.value}`);
+      
+      alert(`已成功切換至: ${activeBookName.value}`);
     };
 
     const createNewBook = () => { showNewBookModal.value = true; };
@@ -564,6 +623,53 @@ const app = createApp({
       alert('✅ 記帳成功！'); 
     };
 
+    // 新增：交易明細「編輯/修改」功能
+    const openEditModal = (tx) => {
+        if(!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed || tx.auto_generated) {
+            return alert("特殊狀態或系統自動產生的明細無法直接透過此介面編輯，請刪除重建。");
+        }
+        editingTx.id = tx.id;
+        editingTx.date = tx.date;
+        editingTx.desc = getTxDesc(tx);
+        editingTx.amount = getDebitAmount(tx);
+        editingTx.scope = tx.scope || 'personal';
+        editingTx.debitAcc = (tx.debits && tx.debits[0]) ? tx.debits[0].account_id : '';
+        editingTx.creditAcc = (tx.credits && tx.credits[0]) ? tx.credits[0].account_id : '';
+        editTxModal.value = true;
+    };
+
+    const saveEditTx = () => {
+        let tx = data.transactions.find(t => t && t.id === editingTx.id);
+        if(!tx) return;
+        tx.date = editingTx.date;
+        tx.desc = editingTx.desc;
+        tx.scope = editingTx.scope;
+        
+        if(tx.debits && tx.debits.length === 1 && editingTx.debitAcc) {
+            tx.debits[0].amount = editingTx.amount;
+            tx.debits[0].account_id = editingTx.debitAcc;
+        }
+        if(tx.credits && tx.credits.length === 1 && editingTx.creditAcc) {
+            tx.credits[0].amount = editingTx.amount;
+            tx.credits[0].account_id = editingTx.creditAcc;
+        }
+        
+        editTxModal.value = false;
+        autoBackup(); updateCharts();
+        alert('✅ 明細修改成功');
+    };
+
+    // 新增：分期明細總額與進度檢閱功能
+    const viewInstallmentDetails = (tx) => {
+        if(tx && tx.inst_id) {
+            let inst = data.installments.find(i => i && i.id === tx.inst_id);
+            if(inst) {
+                selectedInstallment.value = inst;
+                showInstallmentModal.value = true;
+            }
+        }
+    };
+
     // ================= 退款與報銷機制 =================
     const openRefundModal = (tx) => {
       if (!tx) return;
@@ -643,7 +749,6 @@ const app = createApp({
       showInitialStockModal.value = false; initStock.symbol = ''; initStock.name = ''; initStock.shares = null; initStock.cost = null; autoBackup(); updateCharts();
     };
 
-    // 修改：套用 initFA 的 scope 設定
     const submitFixedAsset = () => {
       if(!initFA.name || !initFA.cost || !initFA.months) return alert("請填寫完整");
       let monthlyDep = Math.round(initFA.cost / initFA.months);
@@ -835,24 +940,59 @@ const app = createApp({
     };
 
     // ------------------------------------------------------------------------
-    // 10. 報價與匯率 API
+    // 10. 報價與匯率 API (重構：多重備用 API 與優雅降級)
     // ------------------------------------------------------------------------
     const updateStockPrices = async () => {
-      try {
-        const res = await fetchWithTimeout('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', {}, 5000);
-        if (!res.ok) throw new Error('API Error');
-        const twseData = await res.json();
-        data.investments.forEach(inv => {
-          if(inv && inv.currency !== 'USD') {
-            let s = twseData.find(st => st && st.Code === (inv.symbol || '').replace('.TW',''));
-            if (s) inv.last_price = parseFloat(s.ClosingPrice);
+      let updatedCount = 0;
+      
+      for (let inv of data.investments) {
+        if (!inv || inv.currency === 'USD') continue;
+        let sym = (inv.symbol || '').replace('.TW', '');
+        if (!sym) continue;
+
+        let price = null;
+        
+        // 線路 1: Yahoo Finance 透過 CORS Proxy
+        try {
+          let res1 = await fetchWithTimeout(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW`, {}, 3000);
+          if (res1.ok) {
+             let d1 = await res1.json();
+             if(d1.chart && d1.chart.result && d1.chart.result[0].meta.regularMarketPrice) {
+                price = d1.chart.result[0].meta.regularMarketPrice;
+             }
           }
-        });
-        alert('股價自動更新完成！'); autoBackup(); updateCharts();
-      } catch (e) { 
-        showManualStockModal.value = true;
+        } catch(e) { console.warn(`Route 1 failed for ${sym}`); }
+
+        // 線路 2: TWSE 透過 allorigins
+        if (!price) {
+          try {
+            let res2 = await fetchWithTimeout(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${sym}.tw`, {}, 3000);
+            if(res2.ok) {
+               let d2 = await res2.json();
+               if(d2.msgArray && d2.msgArray.length > 0 && d2.msgArray[0].z) {
+                  price = parseFloat(d2.msgArray[0].z !== '-' ? d2.msgArray[0].z : d2.msgArray[0].y);
+               }
+            }
+          } catch(e) { console.warn(`Route 2 failed for ${sym}`); }
+        }
+
+        if (price) {
+            inv.last_price = price;
+            updatedCount++;
+        }
+      }
+
+      let twdInvestmentsCount = data.investments.filter(i => i && i.currency !== 'USD').length;
+      if (updatedCount > 0 && updatedCount === twdInvestmentsCount) {
+          alert('股價自動更新完成！'); 
+          autoBackup(); 
+          updateCharts();
+      } else if (twdInvestmentsCount > 0) {
+          // 線路 3: 全數失敗或部分失敗，優雅開啟手動填寫視窗
+          showManualStockModal.value = true;
       }
     };
+    
     const submitManualStockUpdate = () => { showManualStockModal.value = false; autoBackup(); updateCharts(); alert('✅ 手動股價更新完成'); };
     const setHistoryToCurrentMonth = () => { const now = new Date(); const y = now.getFullYear(); const mStr = String(now.getMonth() + 1).padStart(2, '0'); historyFilter.dateFrom = `${y}-${mStr}-01`; historyFilter.dateTo = `${y}-${mStr}-${new Date(y, now.getMonth() + 1, 0).getDate()}`; };
     const fetchExchangeRate = async () => { try { const res = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 3000); const fx = await res.json(); if(fx && fx.rates && fx.rates.TWD) fxRate.value = fx.rates.TWD; } catch(e) {} };
@@ -936,6 +1076,7 @@ const app = createApp({
       isAppReady.value = true;
       let loadingScreen = document.getElementById('native-loading'); if(loadingScreen) loadingScreen.style.display = 'none';
       if(window.google) initGoogleAuth(); else setTimeout(initGoogleAuth, 2000);
+      migrateLegacyData();
       runAutoTasks(); if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts(); refreshIcons();
     };
 
@@ -953,27 +1094,30 @@ const app = createApp({
       reportView, reportPeriod, reportStartDate, reportEndDate,
       showAddAccountModal, showInitialStockModal, showAddFixedAssetModal, showDisposalModal, showAddLoanModal, showRateModal, 
       showResetModal, showNewBookModal, showAddGoalModal, showUpdateGoalModal, showManualStockModal, showRefundModal, showReimburseModal,
+      editTxModal, showInstallmentModal,
       activeRefundTx, refundData, activeReimburseTx, reimburseData, hasExpensesThisMonth, settings, currentBookId, newBookName, data, newTx, txError, 
       historyFilter, settingCategoryMode, newPreset, newMainCat, newSubCat, newAssetAcc, initStock, initFA, 
       disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
+      editingTx, selectedInstallment,
       changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput, filterByAccount,
       activeBookName, availableBooks, assetAccounts, paymentAccounts, liabilityAccounts, activeInstallments, 
       getSubAccounts, safeQuickTags, safeInvestments, safeFixedAssets, safeLoans, safeRecurring, safeSavingsGoals,
       currentHoldings, historicalHoldings, calculateBalance, getBaseBalance, accountsWithBalance, 
       paymentAccountsWithBalance, assetAccountsWithBalance, liquidAccountsWithBalance, liabilityAccountsWithBalance, 
       balanceAccounts, totalLiquidAssets, upcomingBillsTotal, cashflowWarning, totalAssets, totalLiabilities, netWorth,
+      currentMonthIncome, currentMonthExpense,
       sortedTransactions, filteredTransactions, ytdDividend, dashboardBudgets, budgetStats, getAccName, formatNumber: safeFormatNumber,
       getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getDebitAccType, getInvestTotalAmount, 
       getInvCurrentValue, getUnrealizedGain, getFAAccDep, getFABookValue, getAccumulatedInterest, loanRepayPreview, 
       getTxColorBand, getTxAmountColor, applyQuickTag, onDividendSymbolChange, bsData, isData, cfData,
       switchBook, createNewBook, submitNewBook, submitNewAssetAccount, submitTransaction, openRefundModal, closeRefundModal, submitRefund,
-      openReimburseModal, closeReimburseModal, submitReimburse, reimburseTx,
+      openReimburseModal, closeReimburseModal, submitReimburse, reimburseTx, openEditModal, saveEditTx, viewInstallmentDetails,
       deleteTransaction, submitInitialStock, submitFixedAsset, openDisposalModal, submitDisposal, submitAddLoan, 
       openRateModal, submitRateAdjust, submitAddGoal, openUpdateGoalModal, submitUpdateGoal, deleteGoal, addRecurring, 
       deleteRecurring, addMainCategory, deleteMainCategory, addSubCategory, addPreset, removePreset, toggleAccountVisibility, 
       deleteAccount, runAutoTasks, autoBackup, initGoogleAuth, handleGoogleAuth, handleGoogleSignout, syncWithGoogleDrive, 
       executeFactoryReset, updateStockPrices, submitManualStockUpdate, setHistoryToCurrentMonth, fetchExchangeRate, 
-      loadSettings, updateCharts, refreshIcons, initData, expenseCategories, incomeCategories, currentSettingCategories
+      loadSettings, updateCharts, refreshIcons, initData, expenseCategories, incomeCategories, currentSettingCategories, migrateLegacyData
     };
   }
 });
