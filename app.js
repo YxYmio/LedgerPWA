@@ -50,7 +50,6 @@ const app = createApp({
     const showRefundModal = ref(false);
     const showReimburseModal = ref(false);
     
-    // 新增：交易編輯與分期檢視彈窗
     const editTxModal = ref(false);
     const showInstallmentModal = ref(false);
 
@@ -91,7 +90,15 @@ const app = createApp({
       isReimbursement: false, investDividendSymbol: '', manualSymbol: '', manualName: ''
     });
     
-    const initStock = reactive({ symbol: '', name: '', shares: null, cost: null });
+    const initStock = reactive({ 
+      symbol: '', 
+      name: '', 
+      shares: null, 
+      price: null,
+      cost: null,
+      unitType: 'share'
+    });
+
     const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD' });
     const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60, scope: 'personal' });
     const disposalAsset = ref(null);
@@ -109,7 +116,6 @@ const app = createApp({
     const activeReimburseTx = ref(null);
     const reimburseData = reactive({ account: '' });
 
-    // 新增：交易明細編輯暫存區與分期資訊暫存
     const editingTx = reactive({ id: '', date: '', desc: '', amount: 0, scope: 'personal', debitAcc: '', creditAcc: '' });
     const selectedInstallment = ref(null);
 
@@ -139,6 +145,21 @@ const app = createApp({
         }
     };
 
+    const calculateInitStockCost = (changedField) => {
+        let s = Number(initStock.shares) || 0;
+        if (initStock.unitType === 'lot') s *= 1000;
+        let p = Number(initStock.price) || 0;
+        let c = Number(initStock.cost) || 0;
+
+        if (changedField === 'price' || changedField === 'shares' || changedField === 'unitType') {
+            initStock.cost = Math.round(s * p) || null;
+        } else if (changedField === 'cost') {
+            if (s > 0) {
+                initStock.price = Number((c / s).toFixed(2));
+            }
+        }
+    };
+
     const changeTab = (tab) => { activeTab.value = tab; isDrawerOpen.value = false; };
     const filterByAccount = (acc) => {
        if (!acc) return;
@@ -151,7 +172,6 @@ const app = createApp({
        data.quick_tags = []; data.smart_tags = {}; data.main_categories = { Expense: [], Income: [] }; data.budgets = {}; 
     };
 
-    // 新增：升級相容性補丁
     const migrateLegacyData = () => {
        if (!data.installments) data.installments = [];
        if (!data.savings_goals) data.savings_goals = [];
@@ -259,7 +279,6 @@ const app = createApp({
 
     const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
     
-    // 新增：本月收入與支出總計 (依據 dashboardMonth 與 dashboardScope 動態計算)
     const currentMonthIncome = computed(() => {
         let sum = 0;
         let targetMonth = dashboardMonth.value;
@@ -445,7 +464,6 @@ const app = createApp({
        }
     }, { immediate: true });
 
-    // 透過外部 reports.js 的函數計算三大報表
     const bsData = computed(() => {
         if (typeof calculateBalanceSheet !== 'function') return null;
         return calculateBalanceSheet(data.accounts, data.transactions, data.investments, data.currencyRates, reportEndDate.value);
@@ -462,8 +480,6 @@ const app = createApp({
     // ------------------------------------------------------------------------
     // 8. 核心操作 (Core Actions)
     // ------------------------------------------------------------------------
-    
-    // 修復：重構 switchBook，嚴格遵循清空、賦值、生命週期觸發流程
     const switchBook = (targetId) => {
       let newId = currentBookId.value;
       if (targetId && targetId.target && targetId.target.value) {
@@ -472,19 +488,15 @@ const app = createApp({
         newId = targetId;
       }
 
-      // a. 先以當前 ID 執行 autoBackup() 保存舊帳本 (local)
       let oldId = settings.currentBookId || 'default';
       localStorage.setItem('ledger_backup_' + oldId, JSON.stringify(data)); 
       
-      // b. 更新 currentBookId.value 與 settings.currentBookId，並呼叫 saveSettings()
       currentBookId.value = newId;
       settings.currentBookId = newId;
       saveSettings(false);
       
-      // c. 將 data 物件內的所有屬性徹底清空
       resetData();
 
-      // d. 從 LocalStorage 讀取目標帳本資料，並重新賦值
       const newBackup = localStorage.getItem('ledger_backup_' + newId);
       if (newBackup) { 
          Object.assign(data, JSON.parse(newBackup));
@@ -493,13 +505,10 @@ const app = createApp({
       }
       
       if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {});
-      
-      // e. 依序執行相容性補丁、排程運算與歷史區間重置
       migrateLegacyData();
       runAutoTasks();
       setHistoryToCurrentMonth();
 
-      // f. 關閉側邊欄、銷毀既有 Chart 實例並呼叫 updateCharts()
       isDrawerOpen.value = false;
       if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
       if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
@@ -518,6 +527,28 @@ const app = createApp({
       switchBook();
       newBookName.value = ''; 
       showNewBookModal.value = false;
+    };
+    
+    const deleteBook = (targetId) => {
+        if (settings.booksIndex.length <= 1) {
+            return alert("系統至少須保留一個帳本，無法刪除！");
+        }
+        
+        if (!confirm("確定要永久刪除此帳本及其所有本機儲存紀錄？此操作無法復原！")) {
+            return;
+        }
+        
+        localStorage.removeItem('ledger_backup_' + targetId);
+        settings.booksIndex = settings.booksIndex.filter(b => b && b.id !== targetId);
+        
+        if (targetId === currentBookId.value) {
+            currentBookId.value = settings.booksIndex[0].id;
+            switchBook(currentBookId.value);
+        } else {
+            saveSettings(false);
+        }
+        
+        alert('✅ 帳本刪除成功');
     };
 
     const submitNewAssetAccount = () => {
@@ -623,7 +654,6 @@ const app = createApp({
       alert('✅ 記帳成功！'); 
     };
 
-    // 新增：交易明細「編輯/修改」功能
     const openEditModal = (tx) => {
         if(!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed || tx.auto_generated) {
             return alert("特殊狀態或系統自動產生的明細無法直接透過此介面編輯，請刪除重建。");
@@ -659,7 +689,6 @@ const app = createApp({
         alert('✅ 明細修改成功');
     };
 
-    // 新增：分期明細總額與進度檢閱功能
     const viewInstallmentDetails = (tx) => {
         if(tx && tx.inst_id) {
             let inst = data.installments.find(i => i && i.id === tx.inst_id);
@@ -670,7 +699,6 @@ const app = createApp({
         }
     };
 
-    // ================= 退款與報銷機制 =================
     const openRefundModal = (tx) => {
       if (!tx) return;
       activeRefundTx.value = tx;
@@ -743,10 +771,48 @@ const app = createApp({
     };
 
     const submitInitialStock = () => {
-      if(!initStock.symbol || !initStock.shares || !initStock.cost) return alert("請填寫完整");
-      data.investments.push({ id: 'inv_'+Date.now(), symbol: initStock.symbol, name: initStock.name || initStock.symbol, shares: initStock.shares, total_cost: initStock.cost, currency: 'TWD' });
-      data.transactions.push({ id: 'tx_init_'+Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初建倉 ${initStock.name || initStock.symbol}`, debits: [{ account_id: '1103', amount: initStock.cost }], credits: [{ account_id: '3101', amount: initStock.cost }] });
-      showInitialStockModal.value = false; initStock.symbol = ''; initStock.name = ''; initStock.shares = null; initStock.cost = null; autoBackup(); updateCharts();
+        let s = Number(initStock.shares) || 0;
+        if (initStock.unitType === 'lot') s *= 1000;
+
+        if (!initStock.symbol || s <= 0 || !(initStock.cost > 0 || initStock.price > 0)) {
+            return alert("請填寫完整股票代號、股數，以及單價或總成本");
+        }
+
+        let p = Number(initStock.price) || 0;
+        let c = Number(initStock.cost) || 0;
+
+        if (c <= 0 && p > 0) c = Math.round(s * p);
+        if (p <= 0 && c > 0) p = Number((c / s).toFixed(2));
+
+        data.investments.push({ 
+            id: 'inv_' + Date.now(), 
+            symbol: initStock.symbol, 
+            name: initStock.name || initStock.symbol, 
+            shares: s, 
+            total_cost: c, 
+            last_price: p || (c / s),
+            currency: 'TWD' 
+        });
+
+        data.transactions.push({ 
+            id: 'tx_init_' + Date.now(), 
+            date: new Date().toISOString().split('T')[0], 
+            scope: 'personal', 
+            desc: `期初建倉 ${initStock.name || initStock.symbol}`, 
+            debits: [{ account_id: '1103', amount: c }], 
+            credits: [{ account_id: '3101', amount: c }] 
+        });
+
+        showInitialStockModal.value = false; 
+        initStock.symbol = ''; 
+        initStock.name = ''; 
+        initStock.shares = null; 
+        initStock.price = null;
+        initStock.cost = null;
+        initStock.unitType = 'share';
+        
+        autoBackup(); 
+        updateCharts();
     };
 
     const submitFixedAsset = () => {
@@ -940,59 +1006,64 @@ const app = createApp({
     };
 
     // ------------------------------------------------------------------------
-    // 10. 報價與匯率 API (重構：多重備用 API 與優雅降級)
+    // 10. 報價與匯率 API (支援多重線路備用)
     // ------------------------------------------------------------------------
     const updateStockPrices = async () => {
-      let updatedCount = 0;
-      
-      for (let inv of data.investments) {
-        if (!inv || inv.currency === 'USD') continue;
-        let sym = (inv.symbol || '').replace('.TW', '');
-        if (!sym) continue;
+        let updatedCount = 0;
+        let twdInvestmentsCount = data.investments.filter(i => i && i.currency !== 'USD').length;
 
-        let price = null;
-        
-        // 線路 1: Yahoo Finance 透過 CORS Proxy
-        try {
-          let res1 = await fetchWithTimeout(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW`, {}, 3000);
-          if (res1.ok) {
-             let d1 = await res1.json();
-             if(d1.chart && d1.chart.result && d1.chart.result[0].meta.regularMarketPrice) {
-                price = d1.chart.result[0].meta.regularMarketPrice;
-             }
-          }
-        } catch(e) { console.warn(`Route 1 failed for ${sym}`); }
+        for (let inv of data.investments) {
+            if (!inv || inv.currency === 'USD') continue;
+            let sym = (inv.symbol || '').replace('.TW', '');
+            if (!sym) continue;
 
-        // 線路 2: TWSE 透過 allorigins
-        if (!price) {
-          try {
-            let res2 = await fetchWithTimeout(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${sym}.tw`, {}, 3000);
-            if(res2.ok) {
-               let d2 = await res2.json();
-               if(d2.msgArray && d2.msgArray.length > 0 && d2.msgArray[0].z) {
-                  price = parseFloat(d2.msgArray[0].z !== '-' ? d2.msgArray[0].z : d2.msgArray[0].y);
-               }
+            let price = null;
+
+            try {
+                let res1 = await fetchWithTimeout(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW`, {}, 3000);
+                if (res1.ok) {
+                    let d1 = await res1.json();
+                    if (d1.chart && d1.chart.result && d1.chart.result.length > 0 && d1.chart.result[0].meta && d1.chart.result[0].meta.regularMarketPrice) {
+                        let p1 = d1.chart.result[0].meta.regularMarketPrice;
+                        if (p1 > 0 && p1 < 100000) price = p1;
+                    }
+                }
+            } catch(e) { console.warn(`Route 1 failed for ${sym}`); }
+
+            if (!price) {
+                const fetchTwseApi = async (market) => {
+                    let res = await fetchWithTimeout(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${market}_${sym}.tw`, {}, 3000);
+                    if (res.ok) {
+                        let d = await res.json();
+                        if (d.msgArray && d.msgArray.length > 0) {
+                            let parsedPrice = parseFloat(d.msgArray[0].z !== '-' ? d.msgArray[0].z : d.msgArray[0].y);
+                            if (parsedPrice > 0 && parsedPrice < 100000) return parsedPrice;
+                        }
+                    }
+                    return null;
+                };
+
+                try {
+                    price = await fetchTwseApi('tse');
+                    if (!price) price = await fetchTwseApi('otc');
+                } catch(e) { console.warn(`Route 2 failed for ${sym}`); }
             }
-          } catch(e) { console.warn(`Route 2 failed for ${sym}`); }
+
+            if (price) {
+                inv.last_price = price;
+                updatedCount++;
+            }
         }
 
-        if (price) {
-            inv.last_price = price;
-            updatedCount++;
+        if (updatedCount > 0 && updatedCount === twdInvestmentsCount) {
+            alert('股價自動更新完成！'); 
+            autoBackup(); 
+            updateCharts();
+        } else if (twdInvestmentsCount > 0) {
+            showManualStockModal.value = true;
         }
-      }
-
-      let twdInvestmentsCount = data.investments.filter(i => i && i.currency !== 'USD').length;
-      if (updatedCount > 0 && updatedCount === twdInvestmentsCount) {
-          alert('股價自動更新完成！'); 
-          autoBackup(); 
-          updateCharts();
-      } else if (twdInvestmentsCount > 0) {
-          // 線路 3: 全數失敗或部分失敗，優雅開啟手動填寫視窗
-          showManualStockModal.value = true;
-      }
     };
-    
+
     const submitManualStockUpdate = () => { showManualStockModal.value = false; autoBackup(); updateCharts(); alert('✅ 手動股價更新完成'); };
     const setHistoryToCurrentMonth = () => { const now = new Date(); const y = now.getFullYear(); const mStr = String(now.getMonth() + 1).padStart(2, '0'); historyFilter.dateFrom = `${y}-${mStr}-01`; historyFilter.dateTo = `${y}-${mStr}-${new Date(y, now.getMonth() + 1, 0).getDate()}`; };
     const fetchExchangeRate = async () => { try { const res = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 3000); const fx = await res.json(); if(fx && fx.rates && fx.rates.TWD) fxRate.value = fx.rates.TWD; } catch(e) {} };
@@ -1110,9 +1181,9 @@ const app = createApp({
       getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getDebitAccType, getInvestTotalAmount, 
       getInvCurrentValue, getUnrealizedGain, getFAAccDep, getFABookValue, getAccumulatedInterest, loanRepayPreview, 
       getTxColorBand, getTxAmountColor, applyQuickTag, onDividendSymbolChange, bsData, isData, cfData,
-      switchBook, createNewBook, submitNewBook, submitNewAssetAccount, submitTransaction, openRefundModal, closeRefundModal, submitRefund,
+      switchBook, createNewBook, submitNewBook, deleteBook, submitNewAssetAccount, submitTransaction, openRefundModal, closeRefundModal, submitRefund,
       openReimburseModal, closeReimburseModal, submitReimburse, reimburseTx, openEditModal, saveEditTx, viewInstallmentDetails,
-      deleteTransaction, submitInitialStock, submitFixedAsset, openDisposalModal, submitDisposal, submitAddLoan, 
+      deleteTransaction, submitInitialStock, calculateInitStockCost, submitFixedAsset, openDisposalModal, submitDisposal, submitAddLoan, 
       openRateModal, submitRateAdjust, submitAddGoal, openUpdateGoalModal, submitUpdateGoal, deleteGoal, addRecurring, 
       deleteRecurring, addMainCategory, deleteMainCategory, addSubCategory, addPreset, removePreset, toggleAccountVisibility, 
       deleteAccount, runAutoTasks, autoBackup, initGoogleAuth, handleGoogleAuth, handleGoogleSignout, syncWithGoogleDrive, 
