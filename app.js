@@ -411,7 +411,7 @@ const app = createApp({
     const assetAccountsWithBalance = computed(() => accountsWithBalance(assetAccounts.value));
     const liquidAccountsWithBalance = computed(() => accountsWithBalance(assetAccounts.value)); 
     const liabilityAccountsWithBalance = computed(() => accountsWithBalance(liabilityAccounts.value)); 
-    const balanceAccounts = computed(() => accountsWithBalance(paymentAccounts.value));
+
 
     const totalLiquidAssets = computed(() => liquidAccountsWithBalance.value.reduce((s, acc) => s + (acc.baseBalance || 0), 0));
 
@@ -1196,7 +1196,7 @@ const submitInitialStock = () => {
       getSubAccounts, safeQuickTags, safeInvestments, safeFixedAssets, safeLoans, safeRecurring, safeSavingsGoals,
       currentHoldings, historicalHoldings, calculateBalance, getBaseBalance, accountsWithBalance, 
       paymentAccountsWithBalance, assetAccountsWithBalance, liquidAccountsWithBalance, liabilityAccountsWithBalance, 
-      balanceAccounts, totalLiquidAssets, upcomingBillsTotal, cashflowWarning, totalAssets, totalLiabilities, netWorth,
+       totalLiquidAssets, upcomingBillsTotal, cashflowWarning, totalAssets, totalLiabilities, netWorth,
       activeBillingPeriod, currentMonthIncome, currentMonthExpense,
       sortedTransactions, filteredTransactions, ytdDividend, dashboardBudgets, budgetStats, getAccName, formatNumber: safeFormatNumber,
       getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getDebitAccType, getInvestTotalAmount, 
