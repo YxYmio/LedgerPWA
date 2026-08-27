@@ -20,6 +20,11 @@ const app = createApp({
     const dashboardMonth = ref(new Date().toISOString().substring(0,7));
     const fxRate = ref(1);
 
+    // --- 新增：計算機與語音狀態 ---
+    const isCalcOpen = ref(false);
+    const calcExpression = ref('');
+    const isListening = ref(false);
+
     // ------------------------------------------------------------------------
     // 2. 報表與圖表狀態
     // ------------------------------------------------------------------------
@@ -49,9 +54,12 @@ const app = createApp({
     const showManualStockModal = ref(false);
     const showRefundModal = ref(false);
     const showReimburseModal = ref(false);
-    
     const editTxModal = ref(false);
     const showInstallmentModal = ref(false);
+    
+    // --- 新增：拆帳與專案預算彈窗 ---
+    const showSplitModal = ref(false);
+    const showProjectBudgetModal = ref(false);
 
     // ------------------------------------------------------------------------
     // 4. 設定與全域資料模型 (Data Models)
@@ -64,19 +72,22 @@ const app = createApp({
         pinEnabled: false, 
         pinCode: '0000', 
         currentBookId: 'default',
-        booksIndex: [{id: 'default', name: '日常帳本'}] 
+        booksIndex: [{id: 'default', name: '日常帳本'}],
+        billingStartDay: 1 // 新增：結算起算日
     });
     
     const currentBookId = ref('default');
     const newBookName = ref('');
 
     const data = reactive({
-      version: "6.3.0",
+      version: "6.3.1",
       currencyRates: { TWD: 1, USD: 32.5, JPY: 0.22 },
       budgets: {}, recurring: [], quick_tags: [], smart_tags: {}, 
       main_categories: { Expense: [], Income: [] }, accounts: [], 
       transactions: [], fixed_assets: [], investments: [], installments: [], 
-      loans: [], savings_goals: []
+      loans: [], savings_goals: [],
+      project_budgets: [], // 新增：專案預算清單
+      custom_tags: []      // 新增：自訂標籤庫
     });
 
     // ------------------------------------------------------------------------
@@ -88,18 +99,10 @@ const app = createApp({
       symbol: '', stockName: '', shares: null, price: null, fee: null, tax: null, 
       isInst: false, periods: 3, isFA: false, faName: '', faMonths: 60, loanId: '',
       isReimbursement: false, investDividendSymbol: '', manualSymbol: '', manualName: '',
-      investSelectedSymbol: ''
+      investSelectedSymbol: '', tags: []
     });
     
-    const initStock = reactive({ 
-      symbol: '', 
-      name: '', 
-      shares: null, 
-      price: null,
-      cost: null,
-      unitType: 'share'
-    });
-
+    const initStock = reactive({ symbol: '', name: '', shares: null, price: null, cost: null, unitType: 'share' });
     const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD' });
     const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60, scope: 'personal' });
     const disposalAsset = ref(null);
@@ -111,14 +114,20 @@ const app = createApp({
     const initGoal = reactive({ name: '', target: null, deadline: '' });
     const activeGoal = ref(null);
     const updateGoalData = reactive({ amount: null, type: 'add' });
-    
     const activeRefundTx = ref(null);
     const refundData = reactive({ amount: 0, maxAmount: 0, account: '' });
     const activeReimburseTx = ref(null);
     const reimburseData = reactive({ account: '' });
-
     const editingTx = reactive({ id: '', date: '', desc: '', amount: 0, scope: 'personal', debitAcc: '', creditAcc: '' });
     const selectedInstallment = ref(null);
+    
+    // --- 新增：AA 分帳與專案預算表單 ---
+    const splitBillForm = reactive({
+        totalAmount: null, myPaid: null, myShare: null, expenseAcc: '', payerAcc: '',
+        mode: 'even', members: [{ name: '朋友A', amount: null }]
+    });
+
+    const projectBudgetForm = reactive({ name: '', tag: '', limit: null, startDate: '', endDate: '' });
 
     const txError = ref('');
     const historyFilter = reactive({ keyword: '', scope: 'all', dateFrom: '', dateTo: '' });
@@ -129,6 +138,152 @@ const app = createApp({
 
     let tokenClient = null;
 
+    // ------------------------------------------------------------------------
+    // 計算機與語音處理邏輯
+    // ------------------------------------------------------------------------
+    const calcAppend = (val) => { calcExpression.value += val; };
+    const calcClear = () => { calcExpression.value = ''; };
+    const calcBackspace = () => { calcExpression.value = calcExpression.value.slice(0, -1); };
+    const calcConfirm = () => {
+        let res = typeof evaluateCalc === 'function' ? evaluateCalc(calcExpression.value) : null;
+        if (res !== null && res > 0) newTx.amount = res;
+        isCalcOpen.value = false;
+        calcExpression.value = '';
+    };
+
+    const startVoiceRecognition = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert('您的瀏覽器不支援語音輸入功能。');
+            return;
+        }
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'zh-TW';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => { isListening.value = true; };
+        recognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            let parsed = typeof parseVoiceCommand === 'function' ? parseVoiceCommand(transcript, data.accounts) : {amount: null, desc: transcript, tags: [], paymentAcc: ''};
+            
+            if (parsed.amount) newTx.amount = parsed.amount;
+            if (parsed.paymentAcc) newTx.paymentAcc = parsed.paymentAcc;
+            
+            let finalDesc = parsed.desc;
+            if (parsed.tags && parsed.tags.length > 0) {
+                finalDesc += ' ' + parsed.tags.map(t => '#' + t).join(' ');
+            }
+            newTx.desc = finalDesc.trim();
+        };
+        recognition.onerror = (event) => { console.warn('Speech error', event.error); alert('語音辨識發生錯誤'); };
+        recognition.onend = () => { isListening.value = false; };
+        recognition.start();
+    };
+
+    // ------------------------------------------------------------------------
+    // AA 拆帳與專案預算邏輯
+    // ------------------------------------------------------------------------
+    const calculateSplit = () => {
+        if (splitBillForm.mode === 'even') {
+            let totalPeople = 1 + splitBillForm.members.length;
+            let res = typeof splitBillCalculator === 'function' ? splitBillCalculator(splitBillForm.totalAmount, totalPeople, true) : { personalAmount: 0, receivableAmount: 0 };
+            splitBillForm.myShare = res.personalAmount;
+            let otherShare = res.receivableAmount / splitBillForm.members.length;
+            splitBillForm.members.forEach(m => m.amount = Math.round(otherShare));
+        } else {
+            let othersTotal = splitBillForm.members.reduce((s, m) => s + (Number(m.amount)||0), 0);
+            splitBillForm.myShare = Math.max(0, (Number(splitBillForm.totalAmount)||0) - othersTotal);
+        }
+    };
+
+    watch(() => splitBillForm.totalAmount, calculateSplit);
+    watch(() => splitBillForm.mode, calculateSplit);
+    watch(() => splitBillForm.members, calculateSplit, {deep: true});
+
+    const addSplitMember = () => { splitBillForm.members.push({ name: '新成員', amount: null }); calculateSplit(); };
+    const removeSplitMember = (idx) => { splitBillForm.members.splice(idx, 1); calculateSplit(); };
+
+    const submitSplitToLedger = () => {
+        if (!splitBillForm.totalAmount || !splitBillForm.payerAcc || !splitBillForm.expenseAcc) {
+            return alert('請填寫完整總金額、扣款帳戶與自身支出科目');
+        }
+        let othersTotal = splitBillForm.members.reduce((s, m) => s + (Number(m.amount)||0), 0);
+        let myTotal = splitBillForm.myShare;
+        
+        let extractedTags = [];
+        let tagMatches = (newTx.desc || '').match(/#\S+/g);
+        if (tagMatches) extractedTags = tagMatches.map(t => t.substring(1));
+
+        let txObj = {
+            id: 'tx_split_' + Date.now(),
+            date: new Date().toISOString().split('T')[0],
+            scope: 'personal',
+            desc: (newTx.desc ? (newTx.desc + ' ') : '') + 'AA分帳: ' + splitBillForm.members.map(m => m.name).join('、'),
+            tags: extractedTags,
+            debits: [],
+            credits: [{ account_id: splitBillForm.payerAcc, amount: splitBillForm.totalAmount }]
+        };
+
+        if (myTotal > 0) txObj.debits.push({ account_id: splitBillForm.expenseAcc, amount: myTotal });
+        if (othersTotal > 0) txObj.debits.push({ account_id: '1104', amount: othersTotal });
+
+        data.transactions.unshift(txObj);
+        showSplitModal.value = false;
+        splitBillForm.totalAmount = null; splitBillForm.expenseAcc = '';
+        splitBillForm.members = [{ name: '朋友A', amount: null }];
+        autoBackup(); updateCharts(); refreshIcons();
+        alert('✅ 拆帳紀錄已成功寫入帳本');
+    };
+
+    const submitProjectBudget = () => {
+        if (!projectBudgetForm.name || !projectBudgetForm.tag || !projectBudgetForm.limit || !projectBudgetForm.startDate || !projectBudgetForm.endDate) {
+            return alert('請填妥所有專案預算欄位');
+        }
+        let tagClean = projectBudgetForm.tag.replace('#', '');
+        data.project_budgets.push({
+            id: 'proj_' + Date.now(), name: projectBudgetForm.name, tag: tagClean, limit: projectBudgetForm.limit,
+            startDate: projectBudgetForm.startDate, endDate: projectBudgetForm.endDate
+        });
+        showProjectBudgetModal.value = false;
+        projectBudgetForm.name = ''; projectBudgetForm.tag = ''; projectBudgetForm.limit = null; projectBudgetForm.startDate = ''; projectBudgetForm.endDate = '';
+        autoBackup();
+    };
+
+    const deleteProjectBudget = (id) => {
+        if (confirm('確定刪除此專案預算？')) {
+            data.project_budgets = data.project_budgets.filter(p => p && p.id !== id);
+            autoBackup();
+        }
+    };
+
+    const projectBudgetStats = computed(() => {
+        return (data.project_budgets || []).map(proj => {
+            if (!proj) return null;
+            let spent = 0;
+            (data.transactions || []).forEach(tx => {
+                if (tx && tx.date >= proj.startDate && tx.date <= proj.endDate && !tx.is_refunded && !tx.is_refund) {
+                    let hasTag = (tx.tags && tx.tags.includes(proj.tag)) || (tx.desc && tx.desc.includes('#' + proj.tag));
+                    if (hasTag) {
+                        let isExp = false; let amt = 0;
+                        (tx.debits || []).forEach(d => {
+                            let a = (data.accounts || []).find(ac => ac && ac.id === d.account_id);
+                            if (a && a.type === 'Expense') { isExp = true; amt += Number(d.amount)||0; }
+                        });
+                        if (isExp) spent += amt;
+                    }
+                }
+            });
+            return {
+                ...proj, spent, remaining: proj.limit - spent,
+                pct: Math.min(Math.round((spent / proj.limit) * 100), 100)
+            };
+        }).filter(Boolean);
+    });
+
+    // ------------------------------------------------------------------------
+    // 事件處理與核心邏輯
+    // ------------------------------------------------------------------------
     const onSymbolInput = (target) => {
         let val = target === 'tx' ? newTx.symbol : initStock.symbol;
         if (!val) return;
@@ -148,8 +303,7 @@ const app = createApp({
 
     const onInvestSelectedSymbolChange = () => {
         if (newTx.investSelectedSymbol === 'manual' || !newTx.investSelectedSymbol) {
-            newTx.symbol = '';
-            newTx.stockName = '';
+            newTx.symbol = ''; newTx.stockName = '';
         } else {
             let inv = (data.investments || []).find(i => i && i.symbol === newTx.investSelectedSymbol);
             if (inv) {
@@ -164,13 +318,10 @@ const app = createApp({
         if (initStock.unitType === 'lot') s *= 1000;
         let p = Number(initStock.price) || 0;
         let c = Number(initStock.cost) || 0;
-
         if (changedField === 'price' || changedField === 'shares' || changedField === 'unitType') {
             initStock.cost = Math.round(s * p) || null;
         } else if (changedField === 'cost') {
-            if (s > 0) {
-                initStock.price = Number((c / s).toFixed(2));
-            }
+            if (s > 0) initStock.price = Number((c / s).toFixed(2));
         }
     };
 
@@ -183,12 +334,25 @@ const app = createApp({
     const resetData = () => {
        data.transactions = []; data.accounts = []; data.fixed_assets = []; data.investments = []; 
        data.installments = []; data.loans = []; data.savings_goals = []; data.recurring = []; 
-       data.quick_tags = []; data.smart_tags = {}; data.main_categories = { Expense: [], Income: [] }; data.budgets = {}; 
+       data.quick_tags = []; data.smart_tags = {}; data.main_categories = { Expense: [], Income: [] }; data.budgets = {};
+       data.project_budgets = []; data.custom_tags = []; 
     };
 
     const migrateLegacyData = () => {
        if (!data.installments) data.installments = [];
        if (!data.savings_goals) data.savings_goals = [];
+       if (!data.project_budgets) data.project_budgets = [];
+       if (!data.custom_tags) data.custom_tags = [];
+       if (settings.billingStartDay === undefined) settings.billingStartDay = 1;
+
+       // 舊分類與帳戶 Emoji 升級
+       (data.accounts || []).forEach(acc => {
+           if (acc && !acc.icon) {
+               let matchedBrand = Object.keys(typeof BANK_BRAND_COLORS !== 'undefined' ? BANK_BRAND_COLORS : {}).find(brand => acc.name.includes(brand));
+               if (matchedBrand) acc.icon = BANK_BRAND_COLORS[matchedBrand].icon || '🏦';
+               else acc.icon = typeof EMOJI_DICTIONARY !== 'undefined' ? (EMOJI_DICTIONARY[acc.name] || EMOJI_DICTIONARY[acc.category] || '🏷️') : '🏷️';
+           }
+       });
     };
 
     const activeBookName = computed(() => { let b = settings.booksIndex.find(x => x && x.id === currentBookId.value); return b ? b.name : '智慧帳本'; });
@@ -238,9 +402,8 @@ const app = createApp({
 
     const accountsWithBalance = (accList) => { 
         return accList.map(a => ({ 
-            id: a.id, name: a.name, type: a.type, category: a.category, currency: a.currency||'TWD', is_hidden: a.is_hidden, 
-            balance: calculateBalance(a.id, 'all'), 
-            baseBalance: getBaseBalance(a.id, calculateBalance(a.id, 'all')) 
+            id: a.id, name: a.name, type: a.type, category: a.category, currency: a.currency||'TWD', is_hidden: a.is_hidden, icon: a.icon || '🏷️',
+            balance: calculateBalance(a.id, 'all'), baseBalance: getBaseBalance(a.id, calculateBalance(a.id, 'all')) 
         })); 
     };
     
@@ -248,7 +411,6 @@ const app = createApp({
     const assetAccountsWithBalance = computed(() => accountsWithBalance(assetAccounts.value));
     const liquidAccountsWithBalance = computed(() => accountsWithBalance(assetAccounts.value)); 
     const liabilityAccountsWithBalance = computed(() => accountsWithBalance(liabilityAccounts.value)); 
-    const balanceAccounts = computed(() => accountsWithBalance(paymentAccounts.value));
 
     const totalLiquidAssets = computed(() => liquidAccountsWithBalance.value.reduce((s, acc) => s + (acc.baseBalance || 0), 0));
 
@@ -267,11 +429,9 @@ const app = createApp({
       let scope = dashboardScope.value;
       let sum = 0; 
       (data.accounts || []).forEach(a => { if(a && a.type === 'Asset') sum += getBaseBalance(a.id, calculateBalance(a.id, scope)); });
-      
       let allStockCost = calculateBalance('1103', 'all');
       let scopeStockCost = calculateBalance('1103', scope);
       let scopeRatio = allStockCost ? (scopeStockCost / allStockCost) : 0;
-      
       let totalInvMV = 0; let totalInvCost = 0;
       (data.investments || []).forEach(inv => { 
           if(inv) { 
@@ -293,12 +453,15 @@ const app = createApp({
 
     const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
     
+    // --- 套用非自然月計費週期的計算 ---
+    const activeBillingPeriod = computed(() => {
+        return typeof getCurrentBillingPeriod === 'function' ? getCurrentBillingPeriod(dashboardMonth.value + '-01', settings.billingStartDay || 1) : { startDate: dashboardMonth.value + '-01', endDate: dashboardMonth.value + '-31' };
+    });
+
     const currentMonthIncome = computed(() => {
-        let sum = 0;
-        let targetMonth = dashboardMonth.value;
+        let sum = 0; let p = activeBillingPeriod.value;
         (data.transactions || []).forEach(tx => {
-            let txMonth = tx && tx.date ? tx.date.substring(0,7) : '';
-            if(txMonth === targetMonth && !tx.is_refunded && !tx.is_refund) {
+            if(tx && tx.date >= p.startDate && tx.date <= p.endDate && !tx.is_refunded && !tx.is_refund) {
                 if (dashboardScope.value !== 'all' && tx.scope !== dashboardScope.value) return;
                 (tx.credits || []).forEach(c => {
                     let a = data.accounts.find(ac => ac && ac.id === c.account_id);
@@ -310,11 +473,9 @@ const app = createApp({
     });
 
     const currentMonthExpense = computed(() => {
-        let sum = 0;
-        let targetMonth = dashboardMonth.value;
+        let sum = 0; let p = activeBillingPeriod.value;
         (data.transactions || []).forEach(tx => {
-            let txMonth = tx && tx.date ? tx.date.substring(0,7) : '';
-            if(txMonth === targetMonth && !tx.is_refunded && !tx.is_refund) {
+            if(tx && tx.date >= p.startDate && tx.date <= p.endDate && !tx.is_refunded && !tx.is_refund) {
                 if (dashboardScope.value !== 'all' && tx.scope !== dashboardScope.value) return;
                 (tx.debits || []).forEach(d => {
                     let a = data.accounts.find(ac => ac && ac.id === d.account_id);
@@ -323,6 +484,35 @@ const app = createApp({
             }
         });
         return sum;
+    });
+
+    const dashboardBudgets = computed(() => {
+      let res = {}; let p = activeBillingPeriod.value; let expObj = {};
+      (data.transactions || []).forEach(tx => {
+        if (tx && !tx.is_refunded && !tx.is_refund && tx.date >= p.startDate && tx.date <= p.endDate) {
+          if (dashboardScope.value !== 'all' && tx.scope !== dashboardScope.value) return;
+          (tx.debits || []).forEach(d => {
+            let a = (data.accounts || []).find(ac => ac && ac.id === d.account_id);
+            if(a && a.type === 'Expense') { let cat = a.category || '未分類'; if(!expObj[cat]) expObj[cat] = 0; expObj[cat] += (Number(d.amount) || 0); }
+          });
+        }
+      });
+      for(let cat in (data.budgets || {})) {
+         let limit = Number(data.budgets[cat]) || 0; if(limit <= 0) continue;
+         let spent = expObj[cat] || 0;
+         res[cat] = { limit: limit, spent: spent, pct: Math.round((spent/limit)*100) };
+      }
+      return res;
+    });
+
+    const budgetStats = computed(() => {
+        let limit = 0, spent = 0;
+        for(let cat in dashboardBudgets.value) { limit += dashboardBudgets.value[cat].limit; spent += dashboardBudgets.value[cat].spent; }
+        let remaining = limit - spent;
+        let d = new Date(); let p = activeBillingPeriod.value;
+        let endD = new Date(p.endDate);
+        let daysLeft = Math.max(Math.ceil((endD - d) / (1000 * 60 * 60 * 24)), 1); 
+        return { totalLimit: limit, totalSpent: spent, totalRemaining: remaining, dailyRemaining: remaining > 0 ? Math.floor(remaining / daysLeft) : 0, daysLeft };
     });
 
     const sortedTransactions = computed(() => {
@@ -338,7 +528,8 @@ const app = createApp({
       return sortedTransactions.value.filter(tx => {
         if(!tx) return false;
         let kw = historyFilter.keyword.toLowerCase(), desc = getTxDesc(tx).toLowerCase(), accD = getDebitAccName(tx).toLowerCase(), accC = getCreditAccName(tx).toLowerCase();
-        let matchKw = !kw || desc.includes(kw) || accD.includes(kw) || accC.includes(kw);
+        let matchTags = (tx.tags || []).join(' ').toLowerCase().includes(kw);
+        let matchKw = !kw || desc.includes(kw) || accD.includes(kw) || accC.includes(kw) || matchTags;
         let matchScope = historyFilter.scope === 'all' || tx.scope === historyFilter.scope;
         let matchDate = (!historyFilter.dateFrom || tx.date >= historyFilter.dateFrom) && (!historyFilter.dateTo || tx.date <= historyFilter.dateTo);
         return matchKw && matchScope && matchDate;
@@ -359,39 +550,7 @@ const app = createApp({
     const incomeCategories = computed(() => (data.main_categories && data.main_categories.Income) ? data.main_categories.Income : []);
     const currentSettingCategories = computed(() => (data.main_categories && data.main_categories[settingCategoryMode.value]) ? data.main_categories[settingCategoryMode.value] : []);
 
-    const dashboardBudgets = computed(() => {
-      let res = {}; let expMonth = dashboardMonth.value || ''; let expObj = {};
-      (data.transactions || []).forEach(tx => {
-        let txDate = tx && tx.date ? tx.date : '';
-        if (tx && !tx.is_refunded && !tx.is_refund && txDate.length >= 7 && expMonth.length >= 7 && txDate.substring(0,7) === expMonth.substring(0,7)) {
-          if (dashboardScope.value !== 'all' && tx.scope !== dashboardScope.value) return;
-          (tx.debits || []).forEach(d => {
-            let a = (data.accounts || []).find(ac => ac && ac.id === d.account_id);
-            if(a && a.type === 'Expense') { let cat = a.category || '未分類'; if(!expObj[cat]) expObj[cat] = 0; expObj[cat] += (Number(d.amount) || 0); }
-          });
-        }
-      });
-      for(let cat in (data.budgets || {})) {
-         let limit = Number(data.budgets[cat]) || 0; if(limit <= 0) continue;
-         let spent = expObj[cat] || 0;
-         res[cat] = { limit: limit, spent: spent, pct: Math.round((spent/limit)*100) };
-      }
-      return res;
-    });
-
-    const budgetStats = computed(() => {
-        let limit = 0, spent = 0;
-        for(let cat in dashboardBudgets.value) { limit += dashboardBudgets.value[cat].limit; spent += dashboardBudgets.value[cat].spent; }
-        let remaining = limit - spent;
-        let d = new Date(); let p = (dashboardMonth.value || d.toISOString().substring(0,7)).split('-');
-        let year = p.length >= 1 ? Number(p[0]) : d.getFullYear(); let month = p.length >= 2 ? Number(p[1]) - 1 : d.getMonth();
-        let daysInMonth = new Date(year, month + 1, 0).getDate();
-        let currentDay = (year === d.getFullYear() && month === d.getMonth()) ? d.getDate() : (new Date(year, month, 1) < d ? daysInMonth : 1);
-        let daysLeft = Math.max(daysInMonth - currentDay + 1, 1); 
-        return { totalLimit: limit, totalSpent: spent, totalRemaining: remaining, dailyRemaining: remaining > 0 ? Math.floor(remaining / daysLeft) : 0, daysLeft };
-    });
-
-    const getAccName = (id) => { let a = (data.accounts || []).find(ac => ac && ac.id === id); return a ? a.name : (id || '未知'); };
+    const getAccName = (id) => { let a = (data.accounts || []).find(ac => ac && ac.id === id); return a ? (a.icon ? `${a.icon} ${a.name}` : a.name) : (id || '未知'); };
     const getTxDesc = (tx) => (tx && (tx.desc || tx.description)) ? (tx.desc || tx.description) : '無摘要';
     const getDebitAccName = (tx) => (tx && tx.debits && tx.debits[0]) ? getAccName(tx.debits[0].account_id) : '未知';
     const getCreditAccName = (tx) => (tx && tx.credits && tx.credits[0]) ? getAccName(tx.credits[0].account_id) : '未知';
@@ -448,149 +607,22 @@ const app = createApp({
     };
 
     const applyQuickTag = (tag) => {
-      let acc = (data.accounts || []).find(a => a && a.name === tag && (a.type === 'Expense' || a.type === 'Income'));
-      if (acc) { 
-        entryMode.value = acc.type.toLowerCase(); newTx.mainCategory = acc.category; newTx.subAccount = acc.id; newTx.desc = tag; newTx.isReimbursement = false;
-        if(data.smart_tags && data.smart_tags[tag]) newTx.paymentAcc = data.smart_tags[tag];
-      }
-    };
-
-    const onDividendSymbolChange = () => {
-      if (newTx.investDividendSymbol === 'manual') newTx.stockName = '';
-      else {
-         let inv = (data.investments || []).find(i => i && i.symbol === newTx.investDividendSymbol);
-         if (inv) newTx.stockName = (inv.name || '').replace(/^\[.*?\]\s*/, '');
-      }
-    };
-
-    watch(reportPeriod, (newVal) => {
-       let d = new Date();
-       if (newVal === 'this_month') {
-           reportStartDate.value = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-           reportEndDate.value = new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().split('T')[0];
-       } else if (newVal === 'this_quarter') {
-           let q = Math.floor(d.getMonth() / 3);
-           reportStartDate.value = new Date(d.getFullYear(), q * 3, 1).toISOString().split('T')[0];
-           reportEndDate.value = new Date(d.getFullYear(), q * 3 + 3, 0).toISOString().split('T')[0];
-       } else if (newVal === 'this_year') {
-           reportStartDate.value = new Date(d.getFullYear(), 0, 1).toISOString().split('T')[0];
-           reportEndDate.value = new Date(d.getFullYear(), 11, 31).toISOString().split('T')[0];
-       }
-    }, { immediate: true });
-
-    const bsData = computed(() => {
-        if (typeof calculateBalanceSheet !== 'function') return null;
-        return calculateBalanceSheet(data.accounts, data.transactions, data.investments, data.currencyRates, reportEndDate.value);
-    });
-    const isData = computed(() => {
-        if (typeof calculateIncomeStatement !== 'function') return null;
-        return calculateIncomeStatement(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value);
-    });
-    const cfData = computed(() => {
-        if (typeof calculateCashFlow !== 'function') return null;
-        return calculateCashFlow(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value);
-    });
-
-    // ------------------------------------------------------------------------
-    // 8. 核心操作 (Core Actions)
-    // ------------------------------------------------------------------------
-    const switchBook = (targetId) => {
-      let newId = currentBookId.value;
-      if (targetId && targetId.target && targetId.target.value) {
-        newId = targetId.target.value;
-      } else if (typeof targetId === 'string') {
-        newId = targetId;
-      }
-
-      let oldId = settings.currentBookId || 'default';
-      localStorage.setItem('ledger_backup_' + oldId, JSON.stringify(data)); 
-      
-      currentBookId.value = newId;
-      settings.currentBookId = newId;
-      saveSettings(false);
-      
-      resetData();
-
-      const newBackup = localStorage.getItem('ledger_backup_' + newId);
-      if (newBackup) { 
-         Object.assign(data, JSON.parse(newBackup));
-      } else { 
-         data.version = "6.3.0"; 
-      }
-      
-      if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {});
-      migrateLegacyData();
-      runAutoTasks();
-      setHistoryToCurrentMonth();
-
-      isDrawerOpen.value = false;
-      if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
-      if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
-      if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
-      if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
-      
-      alert(`已成功切換至: ${activeBookName.value}`);
-    };
-
-    const createNewBook = () => { showNewBookModal.value = true; };
-    const submitNewBook = () => {
-      if(!newBookName.value) return;
-      let newId = 'book_' + Date.now();
-      settings.booksIndex.push({ id: newId, name: newBookName.value });
-      currentBookId.value = newId; 
-      switchBook();
-      newBookName.value = ''; 
-      showNewBookModal.value = false;
-    };
-    
-    const deleteBook = (targetId) => {
-        if (settings.booksIndex.length <= 1) {
-            return alert("系統至少須保留一個帳本，無法刪除！");
-        }
-        
-        if (!confirm("確定要永久刪除此帳本及其所有本機儲存紀錄？此操作無法復原！")) {
-            return;
-        }
-        
-        localStorage.removeItem('ledger_backup_' + targetId);
-        settings.booksIndex = settings.booksIndex.filter(b => b && b.id !== targetId);
-        
-        if (targetId === currentBookId.value) {
-            currentBookId.value = settings.booksIndex[0].id;
-            switchBook(currentBookId.value);
-        } else {
-            saveSettings(false);
-        }
-        
-        alert('✅ 帳本刪除成功');
-    };
-
-    const submitNewAssetAccount = () => {
-      if(!newAssetAcc.name) return;
-      let finalType = newAssetAcc.name.includes('信用卡') || newAssetAcc.name.includes('欠款') || newAssetAcc.name.includes('貸款') ? 'Liability' : (newAssetAcc.type || 'Asset');
-      const newId = (finalType === 'Liability' ? 'liab_' : 'asset_') + Date.now();
-      data.accounts.push({ id: newId, name: newAssetAcc.name, type: finalType, currency: newAssetAcc.currency, is_hidden: false });
-      
-      if(newAssetAcc.initBalance && newAssetAcc.initBalance > 0) {
-        if (finalType === 'Asset') {
-            data.transactions.push({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初餘額: ${newAssetAcc.name}`, debits: [{ account_id: newId, amount: newAssetAcc.initBalance }], credits: [{ account_id: '3101', amount: newAssetAcc.initBalance }] });
-        } else {
-            data.transactions.push({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初欠款: ${newAssetAcc.name}`, debits: [{ account_id: '3101', amount: newAssetAcc.initBalance }], credits: [{ account_id: newId, amount: newAssetAcc.initBalance }] });
-        }
-      }
-      newAssetAcc.name = ''; newAssetAcc.type = 'Asset'; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
-      showAddAccountModal.value = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 帳戶建立成功！');
+      if (newTx.desc && !newTx.desc.includes(`#${tag}`)) newTx.desc += ` #${tag}`;
+      else if (!newTx.desc) newTx.desc = `#${tag}`;
     };
 
     const submitTransaction = () => {
       txError.value = '';
-      let txObj = { id: 'tx_' + Date.now(), date: newTx.date, scope: newTx.scope, desc: newTx.desc || '無摘要', debits: [], credits: [] };
+      let extractedTags = [];
+      let tagMatches = (newTx.desc || '').match(/#\S+/g);
+      if (tagMatches) extractedTags = tagMatches.map(t => t.substring(1));
+
+      let txObj = { id: 'tx_' + Date.now(), date: newTx.date, scope: newTx.scope, desc: newTx.desc || '無摘要', tags: extractedTags, debits: [], credits: [] };
       
       if (entryMode.value === 'expense') {
         if (!newTx.paymentAcc || !newTx.amount) return txError.value = '請填寫完整金額與扣款帳戶';
         let debitAcc = newTx.isReimbursement ? '1104' : newTx.subAccount;
         if (!debitAcc) return txError.value = '請選擇分類或勾選代墊';
-        
         if (!newTx.isReimbursement && newTx.desc) { if(!data.smart_tags) data.smart_tags = {}; data.smart_tags[newTx.desc] = newTx.paymentAcc; }
         
         if (newTx.isInst && newTx.periods > 1) {
@@ -640,11 +672,7 @@ const app = createApp({
              txObj.debits.push({ account_id: '1103', amount: totalAmt });
              txObj.credits.push({ account_id: newTx.paymentAcc, amount: totalAmt });
              txObj.desc = `買進 ${newTx.stockName || newTx.symbol} ${newTx.shares}股`;
-             txObj.invest_action = 'buy';
-             txObj.invest_symbol = newTx.symbol;
-             txObj.invest_shares = newTx.shares;
-             txObj.invest_cost_value = totalAmt;
-             
+             txObj.invest_action = 'buy'; txObj.invest_symbol = newTx.symbol; txObj.invest_shares = newTx.shares; txObj.invest_cost_value = totalAmt;
              if (inv) { inv.shares += newTx.shares; inv.total_cost += totalAmt; } 
              else { data.investments.push({ id: 'inv_'+Date.now(), symbol: newTx.symbol, name: newTx.stockName || newTx.symbol, shares: newTx.shares, total_cost: totalAmt, currency: 'TWD' }); }
            } else {
@@ -652,11 +680,7 @@ const app = createApp({
              let costProp = (inv.shares > 0) ? Math.round(inv.total_cost * (newTx.shares / inv.shares)) : 0;
              let gain = totalAmt - costProp;
              txObj.desc = `賣出 ${newTx.stockName || newTx.symbol} ${newTx.shares}股`;
-             txObj.invest_action = 'sell';
-             txObj.invest_symbol = newTx.symbol;
-             txObj.invest_shares = newTx.shares;
-             txObj.invest_cost_value = costProp;
-
+             txObj.invest_action = 'sell'; txObj.invest_symbol = newTx.symbol; txObj.invest_shares = newTx.shares; txObj.invest_cost_value = costProp;
              txObj.debits.push({ account_id: newTx.paymentAcc, amount: totalAmt });
              txObj.credits.push({ account_id: '1103', amount: costProp });
              if (gain > 0) { txObj.credits.push({ account_id: '4201', amount: gain }); } 
@@ -682,65 +706,31 @@ const app = createApp({
     };
 
     const openEditModal = (tx) => {
-        if(!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed || tx.auto_generated) {
-            return alert("特殊狀態或系統自動產生的明細無法直接透過此介面編輯，請刪除重建。");
-        }
-        editingTx.id = tx.id;
-        editingTx.date = tx.date;
-        editingTx.desc = getTxDesc(tx);
-        editingTx.amount = getDebitAmount(tx);
-        editingTx.scope = tx.scope || 'personal';
-        editingTx.debitAcc = (tx.debits && tx.debits[0]) ? tx.debits[0].account_id : '';
-        editingTx.creditAcc = (tx.credits && tx.credits[0]) ? tx.credits[0].account_id : '';
+        if(!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed || tx.auto_generated) return alert("特殊狀態明細無法直接編輯。");
+        editingTx.id = tx.id; editingTx.date = tx.date; editingTx.desc = getTxDesc(tx); editingTx.amount = getDebitAmount(tx); editingTx.scope = tx.scope || 'personal';
+        editingTx.debitAcc = (tx.debits && tx.debits[0]) ? tx.debits[0].account_id : ''; editingTx.creditAcc = (tx.credits && tx.credits[0]) ? tx.credits[0].account_id : '';
         editTxModal.value = true;
     };
 
     const saveEditTx = () => {
-        let tx = data.transactions.find(t => t && t.id === editingTx.id);
-        if(!tx) return;
-        tx.date = editingTx.date;
-        tx.desc = editingTx.desc;
-        tx.scope = editingTx.scope;
-        
-        if(tx.debits && tx.debits.length === 1 && editingTx.debitAcc) {
-            tx.debits[0].amount = editingTx.amount;
-            tx.debits[0].account_id = editingTx.debitAcc;
-        }
-        if(tx.credits && tx.credits.length === 1 && editingTx.creditAcc) {
-            tx.credits[0].amount = editingTx.amount;
-            tx.credits[0].account_id = editingTx.creditAcc;
-        }
-        
-        editTxModal.value = false;
-        autoBackup(); updateCharts();
-        alert('✅ 明細修改成功');
+        let tx = data.transactions.find(t => t && t.id === editingTx.id); if(!tx) return;
+        tx.date = editingTx.date; tx.desc = editingTx.desc; tx.scope = editingTx.scope;
+        if(tx.debits && tx.debits.length === 1 && editingTx.debitAcc) { tx.debits[0].amount = editingTx.amount; tx.debits[0].account_id = editingTx.debitAcc; }
+        if(tx.credits && tx.credits.length === 1 && editingTx.creditAcc) { tx.credits[0].amount = editingTx.amount; tx.credits[0].account_id = editingTx.creditAcc; }
+        editTxModal.value = false; autoBackup(); updateCharts(); alert('✅ 明細修改成功');
     };
 
-    const viewInstallmentDetails = (tx) => {
-        if(tx && tx.inst_id) {
-            let inst = data.installments.find(i => i && i.id === tx.inst_id);
-            if(inst) {
-                selectedInstallment.value = inst;
-                showInstallmentModal.value = true;
-            }
-        }
-    };
+    const viewInstallmentDetails = (tx) => { if(tx && tx.inst_id) { let inst = data.installments.find(i => i && i.id === tx.inst_id); if(inst) { selectedInstallment.value = inst; showInstallmentModal.value = true; } } };
 
     const openRefundModal = (tx) => {
       if (!tx) return;
       activeRefundTx.value = tx;
-      const originalAmt = getDebitAmount(tx);
-      const refundedAmt = Number(tx.refunded_amount) || 0;
-      refundData.maxAmount = originalAmt - refundedAmt;
-      refundData.amount = refundData.maxAmount; 
-      refundData.account = (tx.credits && tx.credits[0]) ? tx.credits[0].account_id : '';
+      const originalAmt = getDebitAmount(tx); const refundedAmt = Number(tx.refunded_amount) || 0;
+      refundData.maxAmount = originalAmt - refundedAmt; refundData.amount = refundData.maxAmount; refundData.account = (tx.credits && tx.credits[0]) ? tx.credits[0].account_id : '';
       showRefundModal.value = true;
     };
     
-    const closeRefundModal = () => {
-      showRefundModal.value = false;
-      activeRefundTx.value = null;
-    };
+    const closeRefundModal = () => { showRefundModal.value = false; activeRefundTx.value = null; };
 
     const submitRefund = () => {
       if (!activeRefundTx.value) return;
@@ -749,16 +739,7 @@ const app = createApp({
       let expAcc = (activeRefundTx.value.debits && activeRefundTx.value.debits[0]) ? activeRefundTx.value.debits[0].account_id : null;
       if(!expAcc) return alert("無法解析原始支出科目");
 
-      let refundTx = {
-        id: 'tx_refund_' + Date.now(),
-        date: new Date().toISOString().split('T')[0],
-        scope: activeRefundTx.value.scope,
-        desc: `[退款沖銷] ${activeRefundTx.value.desc || activeRefundTx.value.description || ''}`,
-        debits: [{ account_id: refundData.account, amount: refundData.amount }],
-        credits: [{ account_id: expAcc, amount: refundData.amount }],
-        is_refund: true,
-        ref_tx_id: activeRefundTx.value.id
-      };
+      let refundTx = { id: 'tx_refund_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: activeRefundTx.value.scope, desc: `[退款沖銷] ${activeRefundTx.value.desc || activeRefundTx.value.description || ''}`, debits: [{ account_id: refundData.account, amount: refundData.amount }], credits: [{ account_id: expAcc, amount: refundData.amount }], is_refund: true, ref_tx_id: activeRefundTx.value.id };
       data.transactions.unshift(refundTx);
       activeRefundTx.value.refunded_amount = (Number(activeRefundTx.value.refunded_amount) || 0) + refundData.amount;
       if (activeRefundTx.value.refunded_amount >= getDebitAmount(activeRefundTx.value)) activeRefundTx.value.is_refunded = true;
@@ -767,103 +748,29 @@ const app = createApp({
 
     const openReimburseModal = (tx) => { activeReimburseTx.value = tx; reimburseData.account = ''; showReimburseModal.value = true; };
     const closeReimburseModal = () => { showReimburseModal.value = false; activeReimburseTx.value = null; };
-    const submitReimburse = () => {
-        if (!activeReimburseTx.value) return;
-        if (!reimburseData.account) return alert('請選擇入帳帳戶');
-        reimburseTx(activeReimburseTx.value, reimburseData.account);
-        closeReimburseModal();
-    };
+    const submitReimburse = () => { if (!activeReimburseTx.value || !reimburseData.account) return alert('請選擇入帳帳戶'); reimburseTx(activeReimburseTx.value, reimburseData.account); closeReimburseModal(); };
     const reimburseTx = (tx, toAccountId) => {
          if (!tx || !toAccountId) return;
          let origAmount = getDebitAmount(tx);
-         data.transactions.unshift({
-            id: 'tx_reimb_' + Date.now(),
-            date: new Date().toISOString().split('T')[0],
-            scope: tx.scope,
-            desc: `[代墊報銷] ${(tx.desc || tx.description || '')}`,
-            debits: [{ account_id: toAccountId, amount: origAmount }],
-            credits: [{ account_id: '1104', amount: origAmount }],
-            ref_tx_id: tx.id
-        });
-        tx.is_reimbursed = true;
-        autoBackup(); updateCharts(); alert('✅ 報銷沖銷成功！');
+         data.transactions.unshift({ id: 'tx_reimb_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: tx.scope, desc: `[代墊報銷] ${(tx.desc || tx.description || '')}`, debits: [{ account_id: toAccountId, amount: origAmount }], credits: [{ account_id: '1104', amount: origAmount }], ref_tx_id: tx.id });
+         tx.is_reimbursed = true; autoBackup(); updateCharts(); alert('✅ 報銷沖銷成功！');
     };
 
     const deleteTransaction = (id) => {
       if(!confirm('確定刪除？此操作將連動還原相關庫存或排程狀態（若有）。')) return;
       let idx = data.transactions.findIndex(t => t && t.id === id); if (idx === -1) return;
       let tx = data.transactions[idx];
-
-      // 1. 還原固定資產自動折舊
-      if (tx && tx.auto_generated && tx.asset_id) { 
-          let a = data.fixed_assets.find(fa => fa && fa.id === tx.asset_id); 
-          if(a) a.last_depreciation_date = null; 
-      }
-      
-      // 2. 還原分期付款 (自動扣款的明細)
-      if (tx && tx.auto_generated && tx.inst_id) {
-          let inst = data.installments.find(i => i && i.id === tx.inst_id);
-          if(inst) {
-              inst.paid_periods = Math.max(0, inst.paid_periods - 1);
-              let p = inst.next_month.split('-');
-              let y = Number(p[0]); let m = Number(p[1]) - 1;
-              if(m < 1) { m = 12; y--; }
-              inst.next_month = `${y}-${String(m).padStart(2,'0')}`;
-          }
-      }
-
-      // 3. 還原退款沖銷
-      if (tx && tx.is_refund && tx.ref_tx_id) {
-          let orig = data.transactions.find(t => t && t.id === tx.ref_tx_id);
-          if (orig) {
-              let refundAmt = getDebitAmount(tx);
-              orig.refunded_amount = Math.max(0, (Number(orig.refunded_amount) || 0) - refundAmt);
-              if (orig.refunded_amount < getDebitAmount(orig)) orig.is_refunded = false;
-          }
-      }
-      
-      // 4. 還原代墊報銷
-      if (tx && tx.id.startsWith('tx_reimb_') && tx.ref_tx_id) {
-          let orig = data.transactions.find(t => t && t.id === tx.ref_tx_id);
-          if (orig) orig.is_reimbursed = false;
-      }
-
-      // 5. 股票庫存還原 (買進/賣出/期初)
-      if (tx && tx.invest_symbol && tx.invest_shares) {
-          let inv = data.investments.find(i => i && i.symbol === tx.invest_symbol);
-          if (inv) {
-              let s = Number(tx.invest_shares) || 0;
-              let c = Number(tx.invest_cost_value) || 0;
-              if (tx.invest_action === 'buy' || tx.invest_action === 'init') {
-                  inv.shares = Math.max(0, inv.shares - s);
-                  inv.total_cost = Math.max(0, inv.total_cost - c);
-              } else if (tx.invest_action === 'sell') {
-                  inv.shares += s;
-                  inv.total_cost += c;
-              }
-              if(inv.shares > 0) inv.last_price = inv.total_cost / inv.shares;
-              else inv.total_cost = 0;
-          }
-      } else if (tx && (tx.desc || '').match(/(買進|賣出|期初建倉)/)) {
-          console.warn('舊版股票紀錄刪除，請自行確認庫存是否需要手動校正。');
-      }
-
-      // 6. 還原期初貸款與帳戶
-      if (tx && tx.loan_init_id) {
-          data.loans = data.loans.filter(l => l && l.id !== tx.loan_init_id);
-          if(tx.loan_account_id) data.accounts = data.accounts.filter(a => a && a.id !== tx.loan_account_id);
-      }
-
-      // 7. 還原固定資產登錄
-      if (tx && tx.fa_init_id) {
-          data.fixed_assets = data.fixed_assets.filter(fa => fa && fa.id !== tx.fa_init_id);
-      }
-
-      data.transactions.splice(idx, 1); 
-      autoBackup(); updateCharts();
+      if (tx && tx.auto_generated && tx.asset_id) { let a = data.fixed_assets.find(fa => fa && fa.id === tx.asset_id); if(a) a.last_depreciation_date = null; }
+      if (tx && tx.auto_generated && tx.inst_id) { let inst = data.installments.find(i => i && i.id === tx.inst_id); if(inst) { inst.paid_periods = Math.max(0, inst.paid_periods - 1); let p = inst.next_month.split('-'); let y = Number(p[0]); let m = Number(p[1]) - 1; if(m < 1) { m = 12; y--; } inst.next_month = `${y}-${String(m).padStart(2,'0')}`; } }
+      if (tx && tx.is_refund && tx.ref_tx_id) { let orig = data.transactions.find(t => t && t.id === tx.ref_tx_id); if (orig) { let refundAmt = getDebitAmount(tx); orig.refunded_amount = Math.max(0, (Number(orig.refunded_amount) || 0) - refundAmt); if (orig.refunded_amount < getDebitAmount(orig)) orig.is_refunded = false; } }
+      if (tx && tx.id.startsWith('tx_reimb_') && tx.ref_tx_id) { let orig = data.transactions.find(t => t && t.id === tx.ref_tx_id); if (orig) orig.is_reimbursed = false; }
+      if (tx && tx.invest_symbol && tx.invest_shares) { let inv = data.investments.find(i => i && i.symbol === tx.invest_symbol); if (inv) { let s = Number(tx.invest_shares) || 0; let c = Number(tx.invest_cost_value) || 0; if (tx.invest_action === 'buy' || tx.invest_action === 'init') { inv.shares = Math.max(0, inv.shares - s); inv.total_cost = Math.max(0, inv.total_cost - c); } else if (tx.invest_action === 'sell') { inv.shares += s; inv.total_cost += c; } if(inv.shares > 0) inv.last_price = inv.total_cost / inv.shares; else inv.total_cost = 0; } }
+      if (tx && tx.loan_init_id) { data.loans = data.loans.filter(l => l && l.id !== tx.loan_init_id); if(tx.loan_account_id) data.accounts = data.accounts.filter(a => a && a.id !== tx.loan_account_id); }
+      if (tx && tx.fa_init_id) { data.fixed_assets = data.fixed_assets.filter(fa => fa && fa.id !== tx.fa_init_id); }
+      data.transactions.splice(idx, 1); autoBackup(); updateCharts();
     };
 
-    const submitInitialStock = () => {
+const submitInitialStock = () => {
         let s = Number(initStock.shares) || 0;
         if (initStock.unitType === 'lot') s *= 1000;
 
@@ -1123,7 +1030,6 @@ const app = createApp({
             if (!sym) continue;
 
             let price = null;
-
             try {
                 let res1 = await fetchWithTimeout(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW`, {}, 3000);
                 if (res1.ok) {
@@ -1180,6 +1086,7 @@ const app = createApp({
       try { const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}'); if(s && typeof s === 'object') Object.assign(settings, s); } catch(e) {} 
       if(!settings.appName) settings.appName = '智慧帳本'; 
       if(!settings.booksIndex || settings.booksIndex.length === 0) settings.booksIndex = [{id: 'default', name: '日常帳本'}];
+      if(settings.billingStartDay === undefined) settings.billingStartDay = 1;
       currentBookId.value = settings.currentBookId || 'default';
       if(!settings.pinEnabled) isUnlocked.value = true; 
     };
@@ -1194,7 +1101,9 @@ const app = createApp({
       nextTick(() => {
         try {
             if (typeof renderExpenseChart === 'function') {
-                expenseChartInstance.value = renderExpenseChart(expenseChartInstance.value, 'expenseChart', data.transactions, data.accounts, dashboardScope.value, dashboardMonth.value);
+                let p = activeBillingPeriod.value;
+                let filteredTxs = data.transactions.filter(tx => tx && tx.date >= p.startDate && tx.date <= p.endDate);
+                expenseChartInstance.value = renderExpenseChart(expenseChartInstance.value, 'expenseChart', filteredTxs, data.accounts, dashboardScope.value, dashboardMonth.value);
             }
             
             let scope = dashboardScope.value;
@@ -1244,6 +1153,7 @@ const app = createApp({
 
     watch(activeTab, () => { if(['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts(); refreshIcons(); });
     watch(dashboardScope, () => updateCharts());
+    watch(() => settings.billingStartDay, () => { autoBackup(false); updateCharts(); });
 
     const initData = async () => {
       try { const backup = localStorage.getItem('ledger_backup_' + currentBookId.value); if (backup) { Object.assign(data, JSON.parse(backup)); } } catch(e) {}
@@ -1264,24 +1174,29 @@ const app = createApp({
 
     const safeFormatNumber = typeof formatNumber === 'function' ? formatNumber : (n => Math.round(n).toLocaleString());
 
+    // --- 嚴格確保所有新增狀態與方法 100% 匯出 ---
     return { 
       isAppReady, activeTab, isDrawerOpen, entryMode, dashboardScope, isUnlocked, pinInput, pinError, 
       syncStatus, isSyncing, showAmounts, expenseMonth, dashboardMonth, fxRate,
+      isCalcOpen, calcExpression, isListening,
       reportView, reportPeriod, reportStartDate, reportEndDate,
       showAddAccountModal, showInitialStockModal, showAddFixedAssetModal, showDisposalModal, showAddLoanModal, showRateModal, 
       showResetModal, showNewBookModal, showAddGoalModal, showUpdateGoalModal, showManualStockModal, showRefundModal, showReimburseModal,
-      editTxModal, showInstallmentModal,
+      editTxModal, showInstallmentModal, showSplitModal, showProjectBudgetModal,
       activeRefundTx, refundData, activeReimburseTx, reimburseData, hasExpensesThisMonth, settings, currentBookId, newBookName, data, newTx, txError, 
       historyFilter, settingCategoryMode, newPreset, newMainCat, newSubCat, newAssetAcc, initStock, initFA, 
       disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
-      editingTx, selectedInstallment,
+      editingTx, selectedInstallment, splitBillForm, projectBudgetForm,
+      calcAppend, calcClear, calcBackspace, calcConfirm, startVoiceRecognition,
+      calculateSplit, addSplitMember, removeSplitMember, submitSplitToLedger,
+      submitProjectBudget, deleteProjectBudget, projectBudgetStats,
       changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput, onInvestSelectedSymbolChange, filterByAccount,
       activeBookName, availableBooks, assetAccounts, paymentAccounts, liabilityAccounts, activeInstallments, 
       getSubAccounts, safeQuickTags, safeInvestments, safeFixedAssets, safeLoans, safeRecurring, safeSavingsGoals,
       currentHoldings, historicalHoldings, calculateBalance, getBaseBalance, accountsWithBalance, 
       paymentAccountsWithBalance, assetAccountsWithBalance, liquidAccountsWithBalance, liabilityAccountsWithBalance, 
       balanceAccounts, totalLiquidAssets, upcomingBillsTotal, cashflowWarning, totalAssets, totalLiabilities, netWorth,
-      currentMonthIncome, currentMonthExpense,
+      activeBillingPeriod, currentMonthIncome, currentMonthExpense,
       sortedTransactions, filteredTransactions, ytdDividend, dashboardBudgets, budgetStats, getAccName, formatNumber: safeFormatNumber,
       getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getDebitAccType, getInvestTotalAmount, 
       getInvCurrentValue, getUnrealizedGain, getFAAccDep, getFABookValue, getAccumulatedInterest, loanRepayPreview, 
