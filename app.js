@@ -312,6 +312,14 @@ const app = createApp({
             }
         }
     };
+    const onDividendSymbolChange = () => {
+      if (newTx.investDividendSymbol === 'manual' || !newTx.investDividendSymbol) {
+         newTx.stockName = '';
+      } else {
+         let inv = (data.investments || []).find(i => i && i.symbol === newTx.investDividendSymbol);
+         if (inv) newTx.stockName = (inv.name || '').replace(/^\[.*?\]\s*/, '');
+      }
+    };
 
     const calculateInitStockCost = (changedField) => {
         let s = Number(initStock.shares) || 0;
