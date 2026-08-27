@@ -6,7 +6,7 @@ const app = createApp({
     // 1. 全域 UI 狀態
     // ------------------------------------------------------------------------
     const isAppReady = ref(false);
-    const activeTab = ref('dashboard');
+    const activeTab = ref('dashboard'); // 支援切換至 'group_split'
     const isDrawerOpen = ref(false); 
     const entryMode = ref('expense'); 
     const dashboardScope = ref('all');
@@ -20,7 +20,6 @@ const app = createApp({
     const dashboardMonth = ref(new Date().toISOString().substring(0,7));
     const fxRate = ref(1);
 
-    // --- 新增：計算機與語音狀態 ---
     const isCalcOpen = ref(false);
     const calcExpression = ref('');
     const isListening = ref(false);
@@ -56,38 +55,36 @@ const app = createApp({
     const showReimburseModal = ref(false);
     const editTxModal = ref(false);
     const showInstallmentModal = ref(false);
-    
-    // --- 新增：拆帳與專案預算彈窗 ---
-    const showSplitModal = ref(false);
     const showProjectBudgetModal = ref(false);
+    
+    // --- 群組結算中心專用彈窗與狀態 ---
+    const showGroupSplitProjectModal = ref(false);
+    const showGroupSplitRecordModal = ref(false);
+    const showGroupSettleLedgerModal = ref(false);
 
     // ------------------------------------------------------------------------
     // 4. 設定與全域資料模型 (Data Models)
     // ------------------------------------------------------------------------
     const settings = reactive({ 
         appName: '智慧帳本', 
-        googleClientId: '', 
-        googleToken: '', 
-        fileId: '', 
-        pinEnabled: false, 
-        pinCode: '0000', 
-        currentBookId: 'default',
-        booksIndex: [{id: 'default', name: '日常帳本'}],
-        billingStartDay: 1 // 新增：結算起算日
+        googleClientId: '', googleToken: '', fileId: '', 
+        pinEnabled: false, pinCode: '0000', 
+        currentBookId: 'default', booksIndex: [{id: 'default', name: '日常帳本'}],
+        billingStartDay: 1 
     });
     
     const currentBookId = ref('default');
     const newBookName = ref('');
 
     const data = reactive({
-      version: "6.3.1",
+      version: "6.4.0", // 升級版本號
       currencyRates: { TWD: 1, USD: 32.5, JPY: 0.22 },
       budgets: {}, recurring: [], quick_tags: [], smart_tags: {}, 
       main_categories: { Expense: [], Income: [] }, accounts: [], 
       transactions: [], fixed_assets: [], investments: [], installments: [], 
-      loans: [], savings_goals: [],
-      project_budgets: [], // 新增：專案預算清單
-      custom_tags: []      // 新增：自訂標籤庫
+      loans: [], savings_goals: [], project_budgets: [], custom_tags: [],
+      split_projects: [], // 群組分帳專案庫
+      split_records: []   // 群組代墊明細庫
     });
 
     // ------------------------------------------------------------------------
@@ -120,13 +117,6 @@ const app = createApp({
     const reimburseData = reactive({ account: '' });
     const editingTx = reactive({ id: '', date: '', desc: '', amount: 0, scope: 'personal', debitAcc: '', creditAcc: '' });
     const selectedInstallment = ref(null);
-    
-    // --- 新增：AA 分帳與專案預算表單 ---
-    const splitBillForm = reactive({
-        totalAmount: null, myPaid: null, myShare: null, expenseAcc: '', payerAcc: '',
-        mode: 'even', members: [{ name: '朋友A', amount: null }]
-    });
-
     const projectBudgetForm = reactive({ name: '', tag: '', limit: null, startDate: '', endDate: '' });
 
     const txError = ref('');
@@ -139,6 +129,153 @@ const app = createApp({
     let tokenClient = null;
 
     // ------------------------------------------------------------------------
+    // 6. 全新：類 Lightsplit 群組結算中心邏輯
+    // ------------------------------------------------------------------------
+    const activeSplitProjectId = ref('');
+    const groupSplitProjectForm = reactive({ id: '', name: '', members: [{name: '我'}, {name: ''}] });
+    const groupSplitRecordForm = reactive({ id: '', desc: '', payer: '我', amount: null, mode: 'even', splits: [] });
+    const groupSettleLedgerForm = reactive({ expenseAcc: '', payerAcc: '' });
+
+    const activeSplitProject = computed(() => (data.split_projects || []).find(p => p.id === activeSplitProjectId.value));
+    const activeSplitRecords = computed(() => (data.split_records || []).filter(r => r.project_id === activeSplitProjectId.value));
+    
+    // 連接 helpers.js 中的純運算引擎
+    const activeSplitBalances = computed(() => {
+        if(!activeSplitProject.value) return {};
+        return typeof calculateNetBalances === 'function' ? calculateNetBalances(activeSplitRecords.value, activeSplitProject.value.members) : {};
+    });
+    
+    // 最少轉帳次數的最佳化路徑矩陣
+    const activeSplitSettlements = computed(() => {
+        return typeof optimizeSettlements === 'function' ? optimizeSettlements(activeSplitBalances.value) : [];
+    });
+
+    const openGroupSplitCenter = () => { activeTab.value = 'group_split'; isDrawerOpen.value = false; };
+    const viewGroupSplitProject = (id) => { activeSplitProjectId.value = id; };
+    const backToSplitProjects = () => { activeSplitProjectId.value = ''; };
+
+    const addSplitMemberField = () => { groupSplitProjectForm.members.push({name: ''}); };
+    const removeSplitMemberField = (idx) => { groupSplitProjectForm.members.splice(idx, 1); };
+
+    const saveGroupSplitProject = () => {
+        if(!groupSplitProjectForm.name) return alert('請填寫專案名稱');
+        let validMembers = groupSplitProjectForm.members.filter(m => m.name.trim() !== '');
+        if(!validMembers.find(m => m.name === '我')) validMembers.unshift({name: '我'}); // 強制包含本帳本主人
+        
+        data.split_projects.push({
+            id: 'gsp_' + Date.now(),
+            name: groupSplitProjectForm.name,
+            date: new Date().toISOString().split('T')[0],
+            members: validMembers,
+            is_settled: false
+        });
+        groupSplitProjectForm.name = ''; groupSplitProjectForm.members = [{name: '我'}, {name: ''}];
+        showGroupSplitProjectModal.value = false; autoBackup();
+    };
+
+    const deleteGroupSplitProject = (id) => {
+        if(!confirm('確定刪除此分帳專案？(將一併刪除內部所有代墊明細)')) return;
+        data.split_projects = data.split_projects.filter(p => p.id !== id);
+        data.split_records = data.split_records.filter(r => r.project_id !== id);
+        if(activeSplitProjectId.value === id) activeSplitProjectId.value = '';
+        autoBackup();
+    };
+
+    const initGroupSplitRecordForm = () => {
+        if(!activeSplitProject.value) return;
+        groupSplitRecordForm.desc = ''; groupSplitRecordForm.payer = '我'; groupSplitRecordForm.amount = null; groupSplitRecordForm.mode = 'even';
+        groupSplitRecordForm.splits = activeSplitProject.value.members.map(m => ({ member: m.name, amount: null, included: true }));
+        showGroupSplitRecordModal.value = true;
+    };
+
+    const calculateGroupSplitRecord = () => {
+        if(groupSplitRecordForm.mode === 'even') {
+            let includedCount = groupSplitRecordForm.splits.filter(s => s.included).length;
+            if(includedCount === 0) return;
+            let perPerson = Math.round((groupSplitRecordForm.amount || 0) / includedCount);
+            groupSplitRecordForm.splits.forEach(s => { s.amount = s.included ? perPerson : 0; });
+        }
+    };
+    
+    watch(() => groupSplitRecordForm.amount, calculateGroupSplitRecord);
+    watch(() => groupSplitRecordForm.mode, calculateGroupSplitRecord);
+    watch(() => groupSplitRecordForm.splits, calculateGroupSplitRecord, {deep: true});
+
+    const saveGroupSplitRecord = () => {
+        if(!groupSplitRecordForm.desc || !groupSplitRecordForm.amount) return alert('請填寫完整項目與金額');
+        let totalSplit = groupSplitRecordForm.splits.reduce((sum, s) => sum + (Number(s.amount)||0), 0);
+        if(Math.abs(totalSplit - groupSplitRecordForm.amount) > 10) return alert('成員分攤總額與該筆總金額不符');
+
+        data.split_records.push({
+            id: 'gsr_' + Date.now(), project_id: activeSplitProjectId.value, date: new Date().toISOString().split('T')[0],
+            desc: groupSplitRecordForm.desc, payer: groupSplitRecordForm.payer, amount: groupSplitRecordForm.amount,
+            splits: JSON.parse(JSON.stringify(groupSplitRecordForm.splits))
+        });
+        showGroupSplitRecordModal.value = false; autoBackup();
+    };
+
+    const deleteGroupSplitRecord = (id) => {
+        if(confirm('確定刪除此筆代墊紀錄？')) { data.split_records = data.split_records.filter(r => r.id !== id); autoBackup(); }
+    };
+
+    const shareGroupSettlement = async () => {
+        if(!activeSplitProject.value) return;
+        let text = `📍 ${activeSplitProject.value.name} 結算報告\n\n💰 代墊明細：\n`;
+        activeSplitRecords.value.forEach(r => { text += `- ${r.desc}: ${r.payer} 先付 $${formatNumber(r.amount)}\n`; });
+        text += `\n📊 最佳轉帳路徑：\n`;
+        if(activeSplitSettlements.value.length === 0) { text += `✅ 大家互不相欠！\n`; } 
+        else { activeSplitSettlements.value.forEach(s => { text += `👉 [${s.from}] 需轉帳給 [${s.to}] $${formatNumber(s.amount)}\n`; }); }
+        text += `\n(Powered by 智慧帳本 Lightsplit)`;
+
+        if(navigator.share) { try { await navigator.share({ title: activeSplitProject.value.name, text: text }); } catch(e) {} } 
+        else { navigator.clipboard.writeText(text); alert('結算報告已複製到剪貼簿，可直接貼上至 LINE！'); }
+    };
+
+    const writeGroupSettlementToLedger = () => {
+        if(!activeSplitProject.value) return;
+        if(!groupSettleLedgerForm.expenseAcc || !groupSettleLedgerForm.payerAcc) return alert('請選擇支出科目與扣款帳戶');
+
+        let myBalance = activeSplitBalances.value['我'] || 0;
+        let myTotalExpense = 0, myTotalPaid = 0;
+        
+        activeSplitRecords.value.forEach(r => {
+            if(r.payer === '我') myTotalPaid += Number(r.amount);
+            let mySplit = r.splits.find(s => s.member === '我');
+            if(mySplit) myTotalExpense += Number(mySplit.amount);
+        });
+
+        if (myTotalPaid === 0 && myTotalExpense === 0) return alert('您在此專案中沒有任何花費與代墊，無需寫入帳本。');
+
+        let txObj = {
+            id: 'tx_gsp_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal',
+            desc: `[群組結算] ${activeSplitProject.value.name}`, tags: [activeSplitProject.value.name.replace(/\s+/g, '')],
+            debits: [], credits: []
+        };
+
+        if (myTotalExpense > 0) txObj.debits.push({ account_id: groupSettleLedgerForm.expenseAcc, amount: myTotalExpense });
+        
+        if (myBalance > 0) {
+            txObj.debits.push({ account_id: '1104', amount: myBalance }); // 別人欠我錢，應收款增加
+            txObj.credits.push({ account_id: groupSettleLedgerForm.payerAcc, amount: myTotalPaid }); // 沖銷我當初代墊刷出的錢
+        } else if (myBalance <= 0) {
+            // 我欠別人錢，代表我現在從銀行戶頭轉帳還他
+            txObj.credits.push({ account_id: groupSettleLedgerForm.payerAcc, amount: Math.abs(myBalance) });
+            // 如果這趟我有先刷部分款項，也一併紀錄扣款
+            if (myTotalPaid > 0) txObj.credits.push({ account_id: groupSettleLedgerForm.payerAcc, amount: myTotalPaid });
+        }
+
+        let consolidatedCredits = {};
+        txObj.credits.forEach(c => { consolidatedCredits[c.account_id] = (consolidatedCredits[c.account_id] || 0) + c.amount; });
+        txObj.credits = Object.keys(consolidatedCredits).map(accId => ({ account_id: accId, amount: consolidatedCredits[accId] }));
+
+        data.transactions.unshift(txObj);
+        activeSplitProject.value.is_settled = true;
+        showGroupSettleLedgerModal.value = false;
+        autoBackup(); updateCharts(); refreshIcons();
+        alert('✅ 群組結算已成功完美認列至複式帳本！');
+    };
+
+    // ------------------------------------------------------------------------
     // 計算機與語音處理邏輯
     // ------------------------------------------------------------------------
     const calcAppend = (val) => { calcExpression.value += val; };
@@ -147,20 +284,14 @@ const app = createApp({
     const calcConfirm = () => {
         let res = typeof evaluateCalc === 'function' ? evaluateCalc(calcExpression.value) : null;
         if (res !== null && res > 0) newTx.amount = res;
-        isCalcOpen.value = false;
-        calcExpression.value = '';
+        isCalcOpen.value = false; calcExpression.value = '';
     };
 
     const startVoiceRecognition = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            alert('您的瀏覽器不支援語音輸入功能。');
-            return;
-        }
+        if (!SpeechRecognition) { alert('您的瀏覽器不支援語音輸入功能。'); return; }
         const recognition = new SpeechRecognition();
-        recognition.lang = 'zh-TW';
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
+        recognition.lang = 'zh-TW'; recognition.interimResults = false; recognition.maxAlternatives = 1;
 
         recognition.onstart = () => { isListening.value = true; };
         recognition.onresult = (event) => {
@@ -171,9 +302,7 @@ const app = createApp({
             if (parsed.paymentAcc) newTx.paymentAcc = parsed.paymentAcc;
             
             let finalDesc = parsed.desc;
-            if (parsed.tags && parsed.tags.length > 0) {
-                finalDesc += ' ' + parsed.tags.map(t => '#' + t).join(' ');
-            }
+            if (parsed.tags && parsed.tags.length > 0) finalDesc += ' ' + parsed.tags.map(t => '#' + t).join(' ');
             newTx.desc = finalDesc.trim();
         };
         recognition.onerror = (event) => { console.warn('Speech error', event.error); alert('語音辨識發生錯誤'); };
@@ -181,107 +310,7 @@ const app = createApp({
         recognition.start();
     };
 
-    // ------------------------------------------------------------------------
-    // AA 拆帳與專案預算邏輯
-    // ------------------------------------------------------------------------
-    const calculateSplit = () => {
-        if (splitBillForm.mode === 'even') {
-            let totalPeople = 1 + splitBillForm.members.length;
-            let res = typeof splitBillCalculator === 'function' ? splitBillCalculator(splitBillForm.totalAmount, totalPeople, true) : { personalAmount: 0, receivableAmount: 0 };
-            splitBillForm.myShare = res.personalAmount;
-            let otherShare = res.receivableAmount / splitBillForm.members.length;
-            splitBillForm.members.forEach(m => m.amount = Math.round(otherShare));
-        } else {
-            let othersTotal = splitBillForm.members.reduce((s, m) => s + (Number(m.amount)||0), 0);
-            splitBillForm.myShare = Math.max(0, (Number(splitBillForm.totalAmount)||0) - othersTotal);
-        }
-    };
-
-    watch(() => splitBillForm.totalAmount, calculateSplit);
-    watch(() => splitBillForm.mode, calculateSplit);
-    watch(() => splitBillForm.members, calculateSplit, {deep: true});
-
-    const addSplitMember = () => { splitBillForm.members.push({ name: '新成員', amount: null }); calculateSplit(); };
-    const removeSplitMember = (idx) => { splitBillForm.members.splice(idx, 1); calculateSplit(); };
-
-    const submitSplitToLedger = () => {
-        if (!splitBillForm.totalAmount || !splitBillForm.payerAcc || !splitBillForm.expenseAcc) {
-            return alert('請填寫完整總金額、扣款帳戶與自身支出科目');
-        }
-        let othersTotal = splitBillForm.members.reduce((s, m) => s + (Number(m.amount)||0), 0);
-        let myTotal = splitBillForm.myShare;
-        
-        let extractedTags = [];
-        let tagMatches = (newTx.desc || '').match(/#\S+/g);
-        if (tagMatches) extractedTags = tagMatches.map(t => t.substring(1));
-
-        let txObj = {
-            id: 'tx_split_' + Date.now(),
-            date: new Date().toISOString().split('T')[0],
-            scope: 'personal',
-            desc: (newTx.desc ? (newTx.desc + ' ') : '') + 'AA分帳: ' + splitBillForm.members.map(m => m.name).join('、'),
-            tags: extractedTags,
-            debits: [],
-            credits: [{ account_id: splitBillForm.payerAcc, amount: splitBillForm.totalAmount }]
-        };
-
-        if (myTotal > 0) txObj.debits.push({ account_id: splitBillForm.expenseAcc, amount: myTotal });
-        if (othersTotal > 0) txObj.debits.push({ account_id: '1104', amount: othersTotal });
-
-        data.transactions.unshift(txObj);
-        showSplitModal.value = false;
-        splitBillForm.totalAmount = null; splitBillForm.expenseAcc = '';
-        splitBillForm.members = [{ name: '朋友A', amount: null }];
-        autoBackup(); updateCharts(); refreshIcons();
-        alert('✅ 拆帳紀錄已成功寫入帳本');
-    };
-
-    const submitProjectBudget = () => {
-        if (!projectBudgetForm.name || !projectBudgetForm.tag || !projectBudgetForm.limit || !projectBudgetForm.startDate || !projectBudgetForm.endDate) {
-            return alert('請填妥所有專案預算欄位');
-        }
-        let tagClean = projectBudgetForm.tag.replace('#', '');
-        data.project_budgets.push({
-            id: 'proj_' + Date.now(), name: projectBudgetForm.name, tag: tagClean, limit: projectBudgetForm.limit,
-            startDate: projectBudgetForm.startDate, endDate: projectBudgetForm.endDate
-        });
-        showProjectBudgetModal.value = false;
-        projectBudgetForm.name = ''; projectBudgetForm.tag = ''; projectBudgetForm.limit = null; projectBudgetForm.startDate = ''; projectBudgetForm.endDate = '';
-        autoBackup();
-    };
-
-    const deleteProjectBudget = (id) => {
-        if (confirm('確定刪除此專案預算？')) {
-            data.project_budgets = data.project_budgets.filter(p => p && p.id !== id);
-            autoBackup();
-        }
-    };
-
-    const projectBudgetStats = computed(() => {
-        return (data.project_budgets || []).map(proj => {
-            if (!proj) return null;
-            let spent = 0;
-            (data.transactions || []).forEach(tx => {
-                if (tx && tx.date >= proj.startDate && tx.date <= proj.endDate && !tx.is_refunded && !tx.is_refund) {
-                    let hasTag = (tx.tags && tx.tags.includes(proj.tag)) || (tx.desc && tx.desc.includes('#' + proj.tag));
-                    if (hasTag) {
-                        let isExp = false; let amt = 0;
-                        (tx.debits || []).forEach(d => {
-                            let a = (data.accounts || []).find(ac => ac && ac.id === d.account_id);
-                            if (a && a.type === 'Expense') { isExp = true; amt += Number(d.amount)||0; }
-                        });
-                        if (isExp) spent += amt;
-                    }
-                }
-            });
-            return {
-                ...proj, spent, remaining: proj.limit - spent,
-                pct: Math.min(Math.round((spent / proj.limit) * 100), 100)
-            };
-        }).filter(Boolean);
-    });
-
-    // ------------------------------------------------------------------------
+// ------------------------------------------------------------------------
     // 事件處理與核心邏輯
     // ------------------------------------------------------------------------
     const onSymbolInput = (target) => {
@@ -312,6 +341,7 @@ const app = createApp({
             }
         }
     };
+
     const onDividendSymbolChange = () => {
       if (newTx.investDividendSymbol === 'manual' || !newTx.investDividendSymbol) {
          newTx.stockName = '';
@@ -344,6 +374,7 @@ const app = createApp({
        data.installments = []; data.loans = []; data.savings_goals = []; data.recurring = []; 
        data.quick_tags = []; data.smart_tags = {}; data.main_categories = { Expense: [], Income: [] }; data.budgets = {};
        data.project_budgets = []; data.custom_tags = []; 
+       data.split_projects = []; data.split_records = [];
     };
 
     const migrateLegacyData = () => {
@@ -351,6 +382,8 @@ const app = createApp({
        if (!data.savings_goals) data.savings_goals = [];
        if (!data.project_budgets) data.project_budgets = [];
        if (!data.custom_tags) data.custom_tags = [];
+       if (!data.split_projects) data.split_projects = [];
+       if (!data.split_records) data.split_records = [];
        if (settings.billingStartDay === undefined) settings.billingStartDay = 1;
 
        // 舊分類與帳戶 Emoji 升級
@@ -419,7 +452,6 @@ const app = createApp({
     const assetAccountsWithBalance = computed(() => accountsWithBalance(assetAccounts.value));
     const liquidAccountsWithBalance = computed(() => accountsWithBalance(assetAccounts.value)); 
     const liabilityAccountsWithBalance = computed(() => accountsWithBalance(liabilityAccounts.value)); 
-
 
     const totalLiquidAssets = computed(() => liquidAccountsWithBalance.value.reduce((s, acc) => s + (acc.baseBalance || 0), 0));
 
@@ -619,6 +651,7 @@ const app = createApp({
       if (newTx.desc && !newTx.desc.includes(`#${tag}`)) newTx.desc += ` #${tag}`;
       else if (!newTx.desc) newTx.desc = `#${tag}`;
     };
+
     watch(reportPeriod, (newVal) => {
        let d = new Date();
        if (newVal === 'this_month') {
@@ -648,94 +681,6 @@ const app = createApp({
         if (typeof calculateCashFlow !== 'function') return null;
         return calculateCashFlow(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value);
     });
-
-    // ------------------------------------------------------------------------
-    // 8. 多帳本與帳戶核心操作
-    // ------------------------------------------------------------------------
-    const switchBook = (targetId) => {
-      let newId = currentBookId.value;
-      if (targetId && targetId.target && targetId.target.value) {
-        newId = targetId.target.value;
-      } else if (typeof targetId === 'string') {
-        newId = targetId;
-      }
-
-      let oldId = settings.currentBookId || 'default';
-      localStorage.setItem('ledger_backup_' + oldId, JSON.stringify(data)); 
-      
-      currentBookId.value = newId;
-      settings.currentBookId = newId;
-      saveSettings(false);
-      
-      resetData();
-
-      const newBackup = localStorage.getItem('ledger_backup_' + newId);
-      if (newBackup) { 
-         Object.assign(data, JSON.parse(newBackup));
-      } else { 
-         data.version = "6.3.1"; 
-      }
-      
-      if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {});
-      migrateLegacyData();
-      runAutoTasks();
-      setHistoryToCurrentMonth();
-
-      isDrawerOpen.value = false;
-      if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
-      if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
-      if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
-      if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
-      
-      alert(`已成功切換至: ${activeBookName.value}`);
-    };
-
-    const createNewBook = () => { showNewBookModal.value = true; };
-    
-    const submitNewBook = () => {
-      if(!newBookName.value) return;
-      let newId = 'book_' + Date.now();
-      settings.booksIndex.push({ id: newId, name: newBookName.value });
-      currentBookId.value = newId; 
-      switchBook();
-      newBookName.value = ''; 
-      showNewBookModal.value = false;
-    };
-    
-    const deleteBook = (targetId) => {
-        if (settings.booksIndex.length <= 1) {
-            return alert("系統至少須保留一個帳本，無法刪除！");
-        }
-        if (!confirm("確定要永久刪除此帳本及其所有本機儲存紀錄？此操作無法復原！")) {
-            return;
-        }
-        localStorage.removeItem('ledger_backup_' + targetId);
-        settings.booksIndex = settings.booksIndex.filter(b => b && b.id !== targetId);
-        if (targetId === currentBookId.value) {
-            currentBookId.value = settings.booksIndex[0].id;
-            switchBook(currentBookId.value);
-        } else {
-            saveSettings(false);
-        }
-        alert('✅ 帳本刪除成功');
-    };
-
-    const submitNewAssetAccount = () => {
-      if(!newAssetAcc.name) return;
-      let finalType = newAssetAcc.name.includes('信用卡') || newAssetAcc.name.includes('欠款') || newAssetAcc.name.includes('貸款') ? 'Liability' : (newAssetAcc.type || 'Asset');
-      const newId = (finalType === 'Liability' ? 'liab_' : 'asset_') + Date.now();
-      data.accounts.push({ id: newId, name: newAssetAcc.name, type: finalType, currency: newAssetAcc.currency, is_hidden: false });
-      
-      if(newAssetAcc.initBalance && newAssetAcc.initBalance > 0) {
-        if (finalType === 'Asset') {
-            data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初餘額: ${newAssetAcc.name}`, debits: [{ account_id: newId, amount: newAssetAcc.initBalance }], credits: [{ account_id: '3101', amount: newAssetAcc.initBalance }] });
-        } else {
-            data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初欠款: ${newAssetAcc.name}`, debits: [{ account_id: '3101', amount: newAssetAcc.initBalance }], credits: [{ account_id: newId, amount: newAssetAcc.initBalance }] });
-        }
-      }
-      newAssetAcc.name = ''; newAssetAcc.type = 'Asset'; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
-      showAddAccountModal.value = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 帳戶建立成功！');
-    };
 
     const submitTransaction = () => {
       txError.value = '';
@@ -886,6 +831,7 @@ const app = createApp({
       if(!confirm('確定刪除？此操作將連動還原相關庫存或排程狀態（若有）。')) return;
       let idx = data.transactions.findIndex(t => t && t.id === id); if (idx === -1) return;
       let tx = data.transactions[idx];
+      
       if (tx && tx.auto_generated && tx.asset_id) { let a = data.fixed_assets.find(fa => fa && fa.id === tx.asset_id); if(a) a.last_depreciation_date = null; }
       if (tx && tx.auto_generated && tx.inst_id) { let inst = data.installments.find(i => i && i.id === tx.inst_id); if(inst) { inst.paid_periods = Math.max(0, inst.paid_periods - 1); let p = inst.next_month.split('-'); let y = Number(p[0]); let m = Number(p[1]) - 1; if(m < 1) { m = 12; y--; } inst.next_month = `${y}-${String(m).padStart(2,'0')}`; } }
       if (tx && tx.is_refund && tx.ref_tx_id) { let orig = data.transactions.find(t => t && t.id === tx.ref_tx_id); if (orig) { let refundAmt = getDebitAmount(tx); orig.refunded_amount = Math.max(0, (Number(orig.refunded_amount) || 0) - refundAmt); if (orig.refunded_amount < getDebitAmount(orig)) orig.is_refunded = false; } }
@@ -893,63 +839,35 @@ const app = createApp({
       if (tx && tx.invest_symbol && tx.invest_shares) { let inv = data.investments.find(i => i && i.symbol === tx.invest_symbol); if (inv) { let s = Number(tx.invest_shares) || 0; let c = Number(tx.invest_cost_value) || 0; if (tx.invest_action === 'buy' || tx.invest_action === 'init') { inv.shares = Math.max(0, inv.shares - s); inv.total_cost = Math.max(0, inv.total_cost - c); } else if (tx.invest_action === 'sell') { inv.shares += s; inv.total_cost += c; } if(inv.shares > 0) inv.last_price = inv.total_cost / inv.shares; else inv.total_cost = 0; } }
       if (tx && tx.loan_init_id) { data.loans = data.loans.filter(l => l && l.id !== tx.loan_init_id); if(tx.loan_account_id) data.accounts = data.accounts.filter(a => a && a.id !== tx.loan_account_id); }
       if (tx && tx.fa_init_id) { data.fixed_assets = data.fixed_assets.filter(fa => fa && fa.id !== tx.fa_init_id); }
+      
+      // 處理群組結算刪除的連動還原
+      if (tx && tx.id.startsWith('tx_gsp_')) {
+          let pName = tx.desc.replace('[群組結算] ', '').trim();
+          let proj = data.split_projects.find(p => p && p.name === pName);
+          if (proj) proj.is_settled = false;
+      }
+      
       data.transactions.splice(idx, 1); autoBackup(); updateCharts();
     };
 
-const submitInitialStock = () => {
+    const submitInitialStock = () => {
         let s = Number(initStock.shares) || 0;
         if (initStock.unitType === 'lot') s *= 1000;
-
-        if (!initStock.symbol || s <= 0 || !(initStock.cost > 0 || initStock.price > 0)) {
-            return alert("請填寫完整股票代號、股數，以及單價或總成本");
-        }
-
+        if (!initStock.symbol || s <= 0 || !(initStock.cost > 0 || initStock.price > 0)) return alert("請填寫完整股票代號、股數，以及單價或總成本");
         let p = Number(initStock.price) || 0;
         let c = Number(initStock.cost) || 0;
-
         if (c <= 0 && p > 0) c = Math.round(s * p);
         if (p <= 0 && c > 0) p = Number((c / s).toFixed(2));
-
         let existingInv = data.investments.find(i => i && i.symbol === initStock.symbol);
         if (existingInv) {
-            existingInv.shares += s;
-            existingInv.total_cost += c;
+            existingInv.shares += s; existingInv.total_cost += c;
             if (existingInv.shares > 0) existingInv.last_price = existingInv.total_cost / existingInv.shares;
         } else {
-            data.investments.push({ 
-                id: 'inv_' + Date.now(), 
-                symbol: initStock.symbol, 
-                name: initStock.name || initStock.symbol, 
-                shares: s, 
-                total_cost: c, 
-                last_price: p || (c / s),
-                currency: 'TWD' 
-            });
+            data.investments.push({ id: 'inv_' + Date.now(), symbol: initStock.symbol, name: initStock.name || initStock.symbol, shares: s, total_cost: c, last_price: p || (c / s), currency: 'TWD' });
         }
-
-        data.transactions.unshift({ 
-            id: 'tx_init_' + Date.now(), 
-            date: new Date().toISOString().split('T')[0], 
-            scope: 'personal', 
-            desc: `期初建倉 ${initStock.name || initStock.symbol} ${s}股`, 
-            debits: [{ account_id: '1103', amount: c }], 
-            credits: [{ account_id: '3101', amount: c }],
-            invest_action: 'init',
-            invest_symbol: initStock.symbol,
-            invest_shares: s,
-            invest_cost_value: c
-        });
-
-        showInitialStockModal.value = false; 
-        initStock.symbol = ''; 
-        initStock.name = ''; 
-        initStock.shares = null; 
-        initStock.price = null;
-        initStock.cost = null;
-        initStock.unitType = 'share';
-        
-        autoBackup(); 
-        updateCharts();
+        data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初建倉 ${initStock.name || initStock.symbol} ${s}股`, debits: [{ account_id: '1103', amount: c }], credits: [{ account_id: '3101', amount: c }], invest_action: 'init', invest_symbol: initStock.symbol, invest_shares: s, invest_cost_value: c });
+        showInitialStockModal.value = false; initStock.symbol = ''; initStock.name = ''; initStock.shares = null; initStock.price = null; initStock.cost = null; initStock.unitType = 'share';
+        autoBackup(); updateCharts();
     };
 
     const submitFixedAsset = () => {
@@ -1143,9 +1061,6 @@ const submitInitialStock = () => {
       localStorage.removeItem('ledger_backup_' + currentBookId.value); window.location.reload(true);
     };
 
-    // ------------------------------------------------------------------------
-    // 10. 報價與匯率 API (支援多重線路備用)
-    // ------------------------------------------------------------------------
     const updateStockPrices = async () => {
         let updatedCount = 0;
         let twdInvestmentsCount = data.investments.filter(i => i && i.currency !== 'USD').length;
@@ -1180,34 +1095,20 @@ const submitInitialStock = () => {
                     return null;
                 };
 
-                try {
-                    price = await fetchTwseApi('tse');
-                    if (!price) price = await fetchTwseApi('otc');
-                } catch(e) { console.warn(`Route 2 failed for ${sym}`); }
+                try { price = await fetchTwseApi('tse'); if (!price) price = await fetchTwseApi('otc'); } catch(e) { console.warn(`Route 2 failed for ${sym}`); }
             }
 
-            if (price) {
-                inv.last_price = price;
-                updatedCount++;
-            }
+            if (price) { inv.last_price = price; updatedCount++; }
         }
 
-        if (updatedCount > 0 && updatedCount === twdInvestmentsCount) {
-            alert('股價自動更新完成！'); 
-            autoBackup(); 
-            updateCharts();
-        } else if (twdInvestmentsCount > 0) {
-            showManualStockModal.value = true;
-        }
+        if (updatedCount > 0 && updatedCount === twdInvestmentsCount) { alert('股價自動更新完成！'); autoBackup(); updateCharts(); } 
+        else if (twdInvestmentsCount > 0) { showManualStockModal.value = true; }
     };
 
     const submitManualStockUpdate = () => { showManualStockModal.value = false; autoBackup(); updateCharts(); alert('✅ 手動股價更新完成'); };
     const setHistoryToCurrentMonth = () => { const now = new Date(); const y = now.getFullYear(); const mStr = String(now.getMonth() + 1).padStart(2, '0'); historyFilter.dateFrom = `${y}-${mStr}-01`; historyFilter.dateTo = `${y}-${mStr}-${new Date(y, now.getMonth() + 1, 0).getDate()}`; };
     const fetchExchangeRate = async () => { try { const res = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 3000); const fx = await res.json(); if(fx && fx.rates && fx.rates.TWD) fxRate.value = fx.rates.TWD; } catch(e) {} };
     
-    // ------------------------------------------------------------------------
-    // 11. 初始化與生命週期 (Lifecycle)
-    // ------------------------------------------------------------------------
     const loadSettings = () => { 
       try { const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}'); if(s && typeof s === 'object') Object.assign(settings, s); } catch(e) {} 
       if(!settings.appName) settings.appName = '智慧帳本'; 
@@ -1231,16 +1132,11 @@ const submitInitialStock = () => {
                 let filteredTxs = data.transactions.filter(tx => tx && tx.date >= p.startDate && tx.date <= p.endDate);
                 expenseChartInstance.value = renderExpenseChart(expenseChartInstance.value, 'expenseChart', filteredTxs, data.accounts, dashboardScope.value, dashboardMonth.value);
             }
-            
-            let scope = dashboardScope.value;
-            let cTot=0, sTot=0;
+            let scope = dashboardScope.value; let cTot=0, sTot=0;
             (data.accounts || []).forEach(a => { if(a && a.type==='Asset' && !a.is_contra && a.id!=='1103' && a.id!=='1201' && a.id!=='1104') cTot += getBaseBalance(a.id, calculateBalance(a.id, scope)); });
             (data.investments || []).forEach(inv => { if(inv) sTot += (Number(inv.shares)||0) * (Number(inv.last_price)||0) * (data.currencyRates[inv.currency||'TWD']||1); });
             let fTot = calculateBalance('1201', scope) + calculateBalance('1201-DEP', scope);
-            
-            if (typeof renderAssetChart === 'function') {
-                assetChartInstance.value = renderAssetChart(assetChartInstance.value, 'assetChart', cTot, sTot, fTot);
-            }
+            if (typeof renderAssetChart === 'function') { assetChartInstance.value = renderAssetChart(assetChartInstance.value, 'assetChart', cTot, sTot, fTot); }
 
             let histLabels = []; let histData = []; let d = new Date();
             let allStockCost = calculateBalance('1103', 'all'); let scopeStockCost = calculateBalance('1103', scope);
@@ -1252,12 +1148,9 @@ const submitInitialStock = () => {
             for(let i=5; i>=0; i--) {
                 let tempDate = new Date(d.getFullYear(), d.getMonth() - i, 1);
                 let mStr = tempDate.getFullYear() + '-' + String(tempDate.getMonth()+1).padStart(2,'0');
-                histLabels.push(mStr);
-                let endOfMonth = mStr + '-31'; 
-                let aSum=0, lSum=0;
+                histLabels.push(mStr); let endOfMonth = mStr + '-31'; let aSum=0, lSum=0;
                 (data.accounts||[]).forEach(a => {
-                    if(!a) return;
-                    let bal = 0;
+                    if(!a) return; let bal = 0;
                     (data.transactions||[]).forEach(tx => {
                         if(!tx || tx.date > endOfMonth) return;
                         if(scope !== 'all' && tx.scope !== scope) return;
@@ -1268,15 +1161,12 @@ const submitInitialStock = () => {
                 });
                 aSum += scopeUnrealizedGain; histData.push(aSum - lSum);
             }
-            if (typeof renderNetWorthChart === 'function') {
-                netWorthChartInstance.value = renderNetWorthChart(netWorthChartInstance.value, 'netWorthChart', histLabels, histData);
-            }
+            if (typeof renderNetWorthChart === 'function') { netWorthChartInstance.value = renderNetWorthChart(netWorthChartInstance.value, 'netWorthChart', histLabels, histData); }
         } catch (err) { console.warn("Chart Render Error:", err); }
       });
     };
 
     const refreshIcons = () => { nextTick(() => { try { if (window.lucide) lucide.createIcons(); } catch(e){} }); };
-
     watch(activeTab, () => { if(['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts(); refreshIcons(); });
     watch(dashboardScope, () => updateCharts());
     watch(() => settings.billingStartDay, () => { autoBackup(false); updateCharts(); });
@@ -1288,8 +1178,7 @@ const submitInitialStock = () => {
       isAppReady.value = true;
       let loadingScreen = document.getElementById('native-loading'); if(loadingScreen) loadingScreen.style.display = 'none';
       if(window.google) initGoogleAuth(); else setTimeout(initGoogleAuth, 2000);
-      migrateLegacyData();
-      runAutoTasks(); if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts(); refreshIcons();
+      migrateLegacyData(); runAutoTasks(); if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts(); refreshIcons();
     };
 
     onMounted(() => {
@@ -1308,20 +1197,28 @@ const submitInitialStock = () => {
       reportView, reportPeriod, reportStartDate, reportEndDate,
       showAddAccountModal, showInitialStockModal, showAddFixedAssetModal, showDisposalModal, showAddLoanModal, showRateModal, 
       showResetModal, showNewBookModal, showAddGoalModal, showUpdateGoalModal, showManualStockModal, showRefundModal, showReimburseModal,
-      editTxModal, showInstallmentModal, showSplitModal, showProjectBudgetModal,
+      editTxModal, showInstallmentModal, showProjectBudgetModal,
+      
+      // 新增：群組結算導出
+      showGroupSplitProjectModal, showGroupSplitRecordModal, showGroupSettleLedgerModal,
+      activeSplitProjectId, groupSplitProjectForm, groupSplitRecordForm, groupSettleLedgerForm,
+      activeSplitProject, activeSplitRecords, activeSplitBalances, activeSplitSettlements,
+      openGroupSplitCenter, viewGroupSplitProject, backToSplitProjects, addSplitMemberField, removeSplitMemberField,
+      saveGroupSplitProject, deleteGroupSplitProject, initGroupSplitRecordForm, calculateGroupSplitRecord,
+      saveGroupSplitRecord, deleteGroupSplitRecord, shareGroupSettlement, writeGroupSettlementToLedger,
+      
       activeRefundTx, refundData, activeReimburseTx, reimburseData, hasExpensesThisMonth, settings, currentBookId, newBookName, data, newTx, txError, 
       historyFilter, settingCategoryMode, newPreset, newMainCat, newSubCat, newAssetAcc, initStock, initFA, 
       disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
-      editingTx, selectedInstallment, splitBillForm, projectBudgetForm,
+      editingTx, selectedInstallment, projectBudgetForm,
       calcAppend, calcClear, calcBackspace, calcConfirm, startVoiceRecognition,
-      calculateSplit, addSplitMember, removeSplitMember, submitSplitToLedger,
       submitProjectBudget, deleteProjectBudget, projectBudgetStats,
       changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput, onInvestSelectedSymbolChange, filterByAccount,
       activeBookName, availableBooks, assetAccounts, paymentAccounts, liabilityAccounts, activeInstallments, 
       getSubAccounts, safeQuickTags, safeInvestments, safeFixedAssets, safeLoans, safeRecurring, safeSavingsGoals,
       currentHoldings, historicalHoldings, calculateBalance, getBaseBalance, accountsWithBalance, 
       paymentAccountsWithBalance, assetAccountsWithBalance, liquidAccountsWithBalance, liabilityAccountsWithBalance, 
-       totalLiquidAssets, upcomingBillsTotal, cashflowWarning, totalAssets, totalLiabilities, netWorth,
+      totalLiquidAssets, upcomingBillsTotal, cashflowWarning, totalAssets, totalLiabilities, netWorth,
       activeBillingPeriod, currentMonthIncome, currentMonthExpense,
       sortedTransactions, filteredTransactions, ytdDividend, dashboardBudgets, budgetStats, getAccName, formatNumber: safeFormatNumber,
       getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getDebitAccType, getInvestTotalAmount, 

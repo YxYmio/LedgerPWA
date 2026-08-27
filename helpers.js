@@ -62,6 +62,81 @@ const splitBillCalculator = (totalAmount, peopleCount, isPayer = true) => {
     return { personalAmount: perPerson, receivableAmount: receivable };
 };
 
+// ==========================================
+// 全新 Lightsplit 群組結算引擎 (AA 演算法)
+// ==========================================
+
+// 1. 計算群組內每位成員的淨結餘 (代墊總額 - 應分擔總額)
+// records 格式範例: [{ payer: 'A', amount: 1000, splits: [{member: 'A', amount: 500}, {member: 'B', amount: 500}] }]
+const calculateNetBalances = (records, members) => {
+    let balances = {};
+    (members || []).forEach(m => { balances[m.name] = 0; });
+
+    (records || []).forEach(record => {
+        if (!record) return;
+        // 加上代墊金額 (視為債權增加)
+        if (balances[record.payer] !== undefined) {
+            balances[record.payer] += (Number(record.amount) || 0);
+        }
+        // 扣除應分攤金額 (視為債務增加)
+        (record.splits || []).forEach(split => {
+            if (balances[split.member] !== undefined) {
+                balances[split.member] -= (Number(split.amount) || 0);
+            }
+        });
+    });
+    return balances;
+};
+
+// 2. 貪婪演算法：計算最佳化結算矩陣 (最少轉帳次數)
+// 傳入 balances 格式: { 'A': 500, 'B': -200, 'C': -300 }
+const optimizeSettlements = (balances) => {
+    let debtors = [];
+    let creditors = [];
+
+    // 拆分債務人(-)與債權人(+)
+    for (let member in balances) {
+        let amount = balances[member];
+        // 處理浮點數誤差，只處理大於 1 元的帳
+        if (amount < -0.5) debtors.push({ member, amount: Math.abs(amount) });
+        else if (amount > 0.5) creditors.push({ member, amount });
+    }
+
+    // 金額由大到小排序，優先抵銷大額債務，確保最佳化
+    debtors.sort((a, b) => b.amount - a.amount);
+    creditors.sort((a, b) => b.amount - a.amount);
+
+    let settlements = [];
+    let i = 0; // debtors index
+    let j = 0; // creditors index
+
+    while (i < debtors.length && j < creditors.length) {
+        let debtor = debtors[i];
+        let creditor = creditors[j];
+
+        let settleAmount = Math.min(debtor.amount, creditor.amount);
+        settleAmount = Math.round(settleAmount);
+
+        if (settleAmount > 0) {
+            settlements.push({
+                from: debtor.member,
+                to: creditor.member,
+                amount: settleAmount
+            });
+        }
+
+        debtor.amount -= settleAmount;
+        creditor.amount -= settleAmount;
+
+        if (debtor.amount < 0.5) i++;
+        if (creditor.amount < 0.5) j++;
+    }
+
+    return settlements;
+};
+
+// ==========================================
+
 // 安全的計算機數學表達式解析器
 const evaluateCalc = (expression) => {
     try {
@@ -119,6 +194,10 @@ const setupDefaultData = (data, defaultCategories) => {
     if(!data.currencyRates) data.currencyRates = { TWD: 1, USD: 32.5, JPY: 0.22 };
     if(!data.main_categories) data.main_categories = { Expense: [], Income: [] };
     
+    // --- 群組分帳 (類 Lightsplit) 資料結構相容 ---
+    if(!data.split_projects) data.split_projects = [];
+    if(!data.split_records) data.split_records = [];
+
     if(!data.accounts || data.accounts.length === 0) {
         data.main_categories.Expense = defaultCategories.Expense.map(c => c.category);
         data.main_categories.Income = defaultCategories.Income.map(c => c.category);
@@ -172,7 +251,7 @@ const setupDefaultData = (data, defaultCategories) => {
 
         // 自動補齊舊資料的 Emoji 屬性
         if (!acc.icon) {
-            let matchedBrand = Object.keys(BANK_BRAND_COLORS).find(brand => acc.name.includes(brand));
+            let matchedBrand = Object.keys(typeof BANK_BRAND_COLORS !== 'undefined' ? BANK_BRAND_COLORS : {}).find(brand => acc.name.includes(brand));
             if (matchedBrand) {
                 acc.icon = BANK_BRAND_COLORS[matchedBrand].icon || '🏦';
             } else {
