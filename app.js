@@ -87,7 +87,8 @@ const app = createApp({
       mainCategory: '', subAccount: '', paymentAcc: '', fromAcc: '', toAcc: '', investAction: 'buy', 
       symbol: '', stockName: '', shares: null, price: null, fee: null, tax: null, 
       isInst: false, periods: 3, isFA: false, faName: '', faMonths: 60, loanId: '',
-      isReimbursement: false, investDividendSymbol: '', manualSymbol: '', manualName: ''
+      isReimbursement: false, investDividendSymbol: '', manualSymbol: '', manualName: '',
+      investSelectedSymbol: ''
     });
     
     const initStock = reactive({ 
@@ -142,6 +143,19 @@ const app = createApp({
         if (matchName) {
             if (target === 'tx') newTx.stockName = matchName;
             if (target === 'init') initStock.name = matchName;
+        }
+    };
+
+    const onInvestSelectedSymbolChange = () => {
+        if (newTx.investSelectedSymbol === 'manual' || !newTx.investSelectedSymbol) {
+            newTx.symbol = '';
+            newTx.stockName = '';
+        } else {
+            let inv = (data.investments || []).find(i => i && i.symbol === newTx.investSelectedSymbol);
+            if (inv) {
+                newTx.symbol = inv.symbol;
+                newTx.stockName = (inv.name || '').replace(/^\[.*?\]\s*/, '');
+            }
         }
     };
 
@@ -420,7 +434,7 @@ const app = createApp({
       if(tx && tx.is_refund) return 'bg-slate-400';
       if(tD === 'Expense') return 'bg-red-500';
       if(tC === 'Income') return 'bg-green-500';
-      if(desc.includes('買進')||desc.includes('賣出')||desc.includes('配息')) return 'bg-orange-500';
+      if(desc.includes('買進')||desc.includes('賣出')||desc.includes('配息')||desc.includes('建倉')) return 'bg-orange-500';
       if(tx && tx.loan_id) return 'bg-rose-500';
       return 'bg-purple-500'; 
     };
@@ -592,9 +606,11 @@ const app = createApp({
         }
         if (!newTx.isReimbursement && newTx.isFA && newTx.faMonths > 0) {
            let monthlyDep = Math.round(newTx.amount / newTx.faMonths);
-           data.fixed_assets.push({ id: 'fa_'+Date.now(), name: newTx.faName||newTx.desc, purchase_date: newTx.date, original_cost: newTx.amount, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: newTx.date, is_disposed: false });
+           let newFaId = 'fa_'+Date.now();
+           data.fixed_assets.push({ id: newFaId, name: newTx.faName||newTx.desc, purchase_date: newTx.date, original_cost: newTx.amount, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: newTx.date, is_disposed: false });
            txObj.debits[0].account_id = '1201';
            txObj.desc = `購入固定資產: ${newTx.faName||newTx.desc}`;
+           txObj.fa_init_id = newFaId;
            newTx.isFA = false; newTx.faMonths = 60; newTx.faName = '';
         }
       } else if (entryMode.value === 'income') {
@@ -619,17 +635,28 @@ const app = createApp({
            if (!newTx.symbol || !newTx.shares || !newTx.price || !newTx.paymentAcc) return txError.value = '欄位不完整';
            let totalAmt = getInvestTotalAmount();
            let inv = (data.investments || []).find(i => i && i.symbol === newTx.symbol);
+           
            if (newTx.investAction === 'buy') {
              txObj.debits.push({ account_id: '1103', amount: totalAmt });
              txObj.credits.push({ account_id: newTx.paymentAcc, amount: totalAmt });
              txObj.desc = `買進 ${newTx.stockName || newTx.symbol} ${newTx.shares}股`;
+             txObj.invest_action = 'buy';
+             txObj.invest_symbol = newTx.symbol;
+             txObj.invest_shares = newTx.shares;
+             txObj.invest_cost_value = totalAmt;
+             
              if (inv) { inv.shares += newTx.shares; inv.total_cost += totalAmt; } 
              else { data.investments.push({ id: 'inv_'+Date.now(), symbol: newTx.symbol, name: newTx.stockName || newTx.symbol, shares: newTx.shares, total_cost: totalAmt, currency: 'TWD' }); }
            } else {
              if (!inv || inv.shares < newTx.shares) return txError.value = '賣出股數不可超過庫存';
-             let costProp = inv.total_cost * (newTx.shares / inv.shares);
+             let costProp = (inv.shares > 0) ? Math.round(inv.total_cost * (newTx.shares / inv.shares)) : 0;
              let gain = totalAmt - costProp;
              txObj.desc = `賣出 ${newTx.stockName || newTx.symbol} ${newTx.shares}股`;
+             txObj.invest_action = 'sell';
+             txObj.invest_symbol = newTx.symbol;
+             txObj.invest_shares = newTx.shares;
+             txObj.invest_cost_value = costProp;
+
              txObj.debits.push({ account_id: newTx.paymentAcc, amount: totalAmt });
              txObj.credits.push({ account_id: '1103', amount: costProp });
              if (gain > 0) { txObj.credits.push({ account_id: '4201', amount: gain }); } 
@@ -648,7 +675,7 @@ const app = createApp({
         txObj.credits.push({ account_id: newTx.paymentAcc, amount: newTx.amount });
       }
 
-      data.transactions.push(txObj);
+      data.transactions.unshift(txObj);
       newTx.amount = null; newTx.desc = ''; newTx.shares = null; newTx.price = null; newTx.fee = null; newTx.tax = null; newTx.loanId = ''; newTx.manualSymbol = ''; newTx.manualName = '';
       autoBackup(); updateCharts(); refreshIcons();
       alert('✅ 記帳成功！'); 
@@ -732,7 +759,7 @@ const app = createApp({
         is_refund: true,
         ref_tx_id: activeRefundTx.value.id
       };
-      data.transactions.push(refundTx);
+      data.transactions.unshift(refundTx);
       activeRefundTx.value.refunded_amount = (Number(activeRefundTx.value.refunded_amount) || 0) + refundData.amount;
       if (activeRefundTx.value.refunded_amount >= getDebitAmount(activeRefundTx.value)) activeRefundTx.value.is_refunded = true;
       closeRefundModal(); autoBackup(); updateCharts(); alert('✅ 退款沖銷成功！');
@@ -749,7 +776,7 @@ const app = createApp({
     const reimburseTx = (tx, toAccountId) => {
          if (!tx || !toAccountId) return;
          let origAmount = getDebitAmount(tx);
-         data.transactions.push({
+         data.transactions.unshift({
             id: 'tx_reimb_' + Date.now(),
             date: new Date().toISOString().split('T')[0],
             scope: tx.scope,
@@ -763,11 +790,77 @@ const app = createApp({
     };
 
     const deleteTransaction = (id) => {
-      if(!confirm('確定刪除？')) return;
+      if(!confirm('確定刪除？此操作將連動還原相關庫存或排程狀態（若有）。')) return;
       let idx = data.transactions.findIndex(t => t && t.id === id); if (idx === -1) return;
       let tx = data.transactions[idx];
-      if (tx && tx.auto_generated && tx.asset_id) { let a = data.fixed_assets.find(fa => fa && fa.id === tx.asset_id); if(a) a.last_depreciation_date = null; }
-      data.transactions.splice(idx, 1); autoBackup(); updateCharts();
+
+      // 1. 還原固定資產自動折舊
+      if (tx && tx.auto_generated && tx.asset_id) { 
+          let a = data.fixed_assets.find(fa => fa && fa.id === tx.asset_id); 
+          if(a) a.last_depreciation_date = null; 
+      }
+      
+      // 2. 還原分期付款 (自動扣款的明細)
+      if (tx && tx.auto_generated && tx.inst_id) {
+          let inst = data.installments.find(i => i && i.id === tx.inst_id);
+          if(inst) {
+              inst.paid_periods = Math.max(0, inst.paid_periods - 1);
+              let p = inst.next_month.split('-');
+              let y = Number(p[0]); let m = Number(p[1]) - 1;
+              if(m < 1) { m = 12; y--; }
+              inst.next_month = `${y}-${String(m).padStart(2,'0')}`;
+          }
+      }
+
+      // 3. 還原退款沖銷
+      if (tx && tx.is_refund && tx.ref_tx_id) {
+          let orig = data.transactions.find(t => t && t.id === tx.ref_tx_id);
+          if (orig) {
+              let refundAmt = getDebitAmount(tx);
+              orig.refunded_amount = Math.max(0, (Number(orig.refunded_amount) || 0) - refundAmt);
+              if (orig.refunded_amount < getDebitAmount(orig)) orig.is_refunded = false;
+          }
+      }
+      
+      // 4. 還原代墊報銷
+      if (tx && tx.id.startsWith('tx_reimb_') && tx.ref_tx_id) {
+          let orig = data.transactions.find(t => t && t.id === tx.ref_tx_id);
+          if (orig) orig.is_reimbursed = false;
+      }
+
+      // 5. 股票庫存還原 (買進/賣出/期初)
+      if (tx && tx.invest_symbol && tx.invest_shares) {
+          let inv = data.investments.find(i => i && i.symbol === tx.invest_symbol);
+          if (inv) {
+              let s = Number(tx.invest_shares) || 0;
+              let c = Number(tx.invest_cost_value) || 0;
+              if (tx.invest_action === 'buy' || tx.invest_action === 'init') {
+                  inv.shares = Math.max(0, inv.shares - s);
+                  inv.total_cost = Math.max(0, inv.total_cost - c);
+              } else if (tx.invest_action === 'sell') {
+                  inv.shares += s;
+                  inv.total_cost += c;
+              }
+              if(inv.shares > 0) inv.last_price = inv.total_cost / inv.shares;
+              else inv.total_cost = 0;
+          }
+      } else if (tx && (tx.desc || '').match(/(買進|賣出|期初建倉)/)) {
+          console.warn('舊版股票紀錄刪除，請自行確認庫存是否需要手動校正。');
+      }
+
+      // 6. 還原期初貸款與帳戶
+      if (tx && tx.loan_init_id) {
+          data.loans = data.loans.filter(l => l && l.id !== tx.loan_init_id);
+          if(tx.loan_account_id) data.accounts = data.accounts.filter(a => a && a.id !== tx.loan_account_id);
+      }
+
+      // 7. 還原固定資產登錄
+      if (tx && tx.fa_init_id) {
+          data.fixed_assets = data.fixed_assets.filter(fa => fa && fa.id !== tx.fa_init_id);
+      }
+
+      data.transactions.splice(idx, 1); 
+      autoBackup(); updateCharts();
     };
 
     const submitInitialStock = () => {
@@ -784,23 +877,34 @@ const app = createApp({
         if (c <= 0 && p > 0) c = Math.round(s * p);
         if (p <= 0 && c > 0) p = Number((c / s).toFixed(2));
 
-        data.investments.push({ 
-            id: 'inv_' + Date.now(), 
-            symbol: initStock.symbol, 
-            name: initStock.name || initStock.symbol, 
-            shares: s, 
-            total_cost: c, 
-            last_price: p || (c / s),
-            currency: 'TWD' 
-        });
+        let existingInv = data.investments.find(i => i && i.symbol === initStock.symbol);
+        if (existingInv) {
+            existingInv.shares += s;
+            existingInv.total_cost += c;
+            if (existingInv.shares > 0) existingInv.last_price = existingInv.total_cost / existingInv.shares;
+        } else {
+            data.investments.push({ 
+                id: 'inv_' + Date.now(), 
+                symbol: initStock.symbol, 
+                name: initStock.name || initStock.symbol, 
+                shares: s, 
+                total_cost: c, 
+                last_price: p || (c / s),
+                currency: 'TWD' 
+            });
+        }
 
-        data.transactions.push({ 
+        data.transactions.unshift({ 
             id: 'tx_init_' + Date.now(), 
             date: new Date().toISOString().split('T')[0], 
             scope: 'personal', 
-            desc: `期初建倉 ${initStock.name || initStock.symbol}`, 
+            desc: `期初建倉 ${initStock.name || initStock.symbol} ${s}股`, 
             debits: [{ account_id: '1103', amount: c }], 
-            credits: [{ account_id: '3101', amount: c }] 
+            credits: [{ account_id: '3101', amount: c }],
+            invest_action: 'init',
+            invest_symbol: initStock.symbol,
+            invest_shares: s,
+            invest_cost_value: c
         });
 
         showInitialStockModal.value = false; 
@@ -818,8 +922,9 @@ const app = createApp({
     const submitFixedAsset = () => {
       if(!initFA.name || !initFA.cost || !initFA.months) return alert("請填寫完整");
       let monthlyDep = Math.round(initFA.cost / initFA.months);
-      data.fixed_assets.push({ id: 'fa_'+Date.now(), name: initFA.name, purchase_date: initFA.date, original_cost: initFA.cost, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: null, is_disposed: false });
-      data.transactions.push({ id: 'tx_fa_'+Date.now(), date: initFA.date, scope: initFA.scope, desc: `購入固定資產 ${initFA.name}`, debits: [{ account_id: '1201', amount: initFA.cost }], credits: [{ account_id: '3101', amount: initFA.cost }] });
+      let newFaId = 'fa_'+Date.now();
+      data.fixed_assets.push({ id: newFaId, name: initFA.name, purchase_date: initFA.date, original_cost: initFA.cost, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: null, is_disposed: false });
+      data.transactions.unshift({ id: 'tx_fa_'+Date.now(), date: initFA.date, scope: initFA.scope, desc: `購入固定資產 ${initFA.name}`, debits: [{ account_id: '1201', amount: initFA.cost }], credits: [{ account_id: '3101', amount: initFA.cost }], fa_init_id: newFaId });
       showAddFixedAssetModal.value = false; initFA.name = ''; initFA.cost = null; initFA.months = 60; initFA.scope = 'personal'; autoBackup(); updateCharts(); alert('✅ 固定資產登錄成功！');
     };
 
@@ -838,7 +943,7 @@ const app = createApp({
          if(gain > 0) txObj.credits.push({ account_id: '4201', amount: gain });
          else if (gain < 0) txObj.debits.push({ account_id: '4201', amount: Math.abs(gain) });
       }
-      data.transactions.push(txObj); fa.is_disposed = true; showDisposalModal.value = false; autoBackup(); updateCharts(); alert('✅ 處分完成！');
+      data.transactions.unshift(txObj); fa.is_disposed = true; showDisposalModal.value = false; autoBackup(); updateCharts(); alert('✅ 處分完成！');
     };
 
     const submitAddLoan = () => {
@@ -846,7 +951,7 @@ const app = createApp({
       let accId = 'loan_liab_' + Date.now(); let loanId = 'loan_' + Date.now();
       data.accounts.push({ id: accId, name: initLoan.name, type: 'Liability', currency: 'TWD', is_hidden: false });
       data.loans.push({ id: loanId, name: initLoan.name, liability_acc_id: accId, interest_rate: initLoan.rate, monthly_payment: initLoan.payment });
-      data.transactions.push({ id: 'tx_loan_init_'+Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初貸款本金: ${initLoan.name}`, debits: [{ account_id: '3101', amount: initLoan.principal }], credits: [{ account_id: accId, amount: initLoan.principal }] });
+      data.transactions.unshift({ id: 'tx_loan_init_'+Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初貸款本金: ${initLoan.name}`, debits: [{ account_id: '3101', amount: initLoan.principal }], credits: [{ account_id: accId, amount: initLoan.principal }], loan_init_id: loanId, loan_account_id: accId });
       newTx.loanId = loanId; initLoan.name = ''; initLoan.principal = null; initLoan.rate = null; initLoan.payment = null; showAddLoanModal.value = false; autoBackup(); updateCharts(); alert('✅ 貸款建立成功！');
     };
 
@@ -898,7 +1003,7 @@ const app = createApp({
         if (ld && ld.length >= 7 && ld.substring(0,7) < curM) {
           let accDep = getFAAccDep(fa);
           if (accDep + fa.monthly_depreciation > fa.original_cost) return; 
-          data.transactions.push({ id: 'tx_dep_'+Date.now()+Math.random(), date: new Date().toISOString().split('T')[0], desc: `${fa.name} 自動折舊`, scope: 'family', auto_generated: true, asset_id: fa.id, debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }], credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }] });
+          data.transactions.unshift({ id: 'tx_dep_'+Date.now()+Math.random(), date: new Date().toISOString().split('T')[0], desc: `${fa.name} 自動折舊`, scope: 'family', auto_generated: true, asset_id: fa.id, debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }], credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }] });
           fa.last_depreciation_date = new Date().toISOString().split('T')[0];
         }
       });
@@ -906,7 +1011,7 @@ const app = createApp({
         if(!inst || !inst.next_month) return;
         while (inst.paid_periods < inst.periods && inst.next_month <= curM) {
           let day = inst.date_day || '01'; let amt = (inst.paid_periods === 0 && inst.first_amount) ? inst.first_amount : inst.amount_per_period;
-          data.transactions.push({ id: 'tx_inst_'+Date.now()+Math.random(), date: `${inst.next_month}-${day}`, desc: `${inst.desc} (${inst.paid_periods+1}/${inst.periods}期)`, scope: inst.scope, auto_generated: true, inst_id: inst.id, debits: [{ account_id: inst.debit_acc, amount: amt }], credits: [{ account_id: inst.credit_acc, amount: amt }] });
+          data.transactions.unshift({ id: 'tx_inst_'+Date.now()+Math.random(), date: `${inst.next_month}-${day}`, desc: `${inst.desc} (${inst.paid_periods+1}/${inst.periods}期)`, scope: inst.scope, auto_generated: true, inst_id: inst.id, debits: [{ account_id: inst.debit_acc, amount: amt }], credits: [{ account_id: inst.credit_acc, amount: amt }] });
           inst.paid_periods++;
           let p = inst.next_month.split('-'); let y = Number(p[0]); let m = Number(p[1]) + 1; if(m > 12) { m = 1; y++; }
           inst.next_month = `${y}-${String(m).padStart(2,'0')}`;
@@ -924,7 +1029,7 @@ const app = createApp({
               let sub = data.accounts.find(a => a && a.type === 'Income' && a.name === rec.desc);
               txObj.debits.push({ account_id: rec.account, amount: rec.amount }); txObj.credits.push({ account_id: sub ? sub.id : '4201', amount: rec.amount });
            }
-           data.transactions.push(txObj); rec.last_exec_month = curM;
+           data.transactions.unshift(txObj); rec.last_exec_month = curM;
         }
       });
     };
@@ -1170,7 +1275,7 @@ const app = createApp({
       historyFilter, settingCategoryMode, newPreset, newMainCat, newSubCat, newAssetAcc, initStock, initFA, 
       disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
       editingTx, selectedInstallment,
-      changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput, filterByAccount,
+      changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput, onInvestSelectedSymbolChange, filterByAccount,
       activeBookName, availableBooks, assetAccounts, paymentAccounts, liabilityAccounts, activeInstallments, 
       getSubAccounts, safeQuickTags, safeInvestments, safeFixedAssets, safeLoans, safeRecurring, safeSavingsGoals,
       currentHoldings, historicalHoldings, calculateBalance, getBaseBalance, accountsWithBalance, 
