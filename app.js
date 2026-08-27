@@ -411,6 +411,7 @@ const app = createApp({
     const assetAccountsWithBalance = computed(() => accountsWithBalance(assetAccounts.value));
     const liquidAccountsWithBalance = computed(() => accountsWithBalance(assetAccounts.value)); 
     const liabilityAccountsWithBalance = computed(() => accountsWithBalance(liabilityAccounts.value)); 
+    const balanceAccounts = computed(() => accountsWithBalance(paymentAccounts.value));
 
     const totalLiquidAssets = computed(() => liquidAccountsWithBalance.value.reduce((s, acc) => s + (acc.baseBalance || 0), 0));
 
