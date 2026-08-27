@@ -371,7 +371,7 @@ const app = createApp({
     const liabilityAccounts = computed(() => { return (data.accounts || []).filter(a => a && a.type === 'Liability' && !(a.id || '').startsWith('loan_liab_') && !a.is_hidden); });
     
     const activeInstallments = computed(() => (data.installments || []).filter(i => i && i.paid_periods < i.periods));
-    const getSubAccounts = (type, mainCat, incHidden = false) => (data.accounts || []).filter(a => a && a.type === type && a.category === mainCat && (incHidden || !a.is_hidden));
+    const getSubAccounts = (type, mainCat, incHidden = false) => (data.accounts || []).filter(a => a && a.type === type && (!mainCat || a.category === mainCat) && (incHidden || !a.is_hidden));
     
     const safeQuickTags = computed(() => data.quick_tags || []);
     const safeInvestments = computed(() => data.investments || []);
