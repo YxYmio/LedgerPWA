@@ -619,7 +619,35 @@ const app = createApp({
       if (newTx.desc && !newTx.desc.includes(`#${tag}`)) newTx.desc += ` #${tag}`;
       else if (!newTx.desc) newTx.desc = `#${tag}`;
     };
+    watch(reportPeriod, (newVal) => {
+       let d = new Date();
+       if (newVal === 'this_month') {
+           reportStartDate.value = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+           reportEndDate.value = new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().split('T')[0];
+       } else if (newVal === 'this_quarter') {
+           let q = Math.floor(d.getMonth() / 3);
+           reportStartDate.value = new Date(d.getFullYear(), q * 3, 1).toISOString().split('T')[0];
+           reportEndDate.value = new Date(d.getFullYear(), q * 3 + 3, 0).toISOString().split('T')[0];
+       } else if (newVal === 'this_year') {
+           reportStartDate.value = new Date(d.getFullYear(), 0, 1).toISOString().split('T')[0];
+           reportEndDate.value = new Date(d.getFullYear(), 11, 31).toISOString().split('T')[0];
+       }
+    }, { immediate: true });
 
+    const bsData = computed(() => {
+        if (typeof calculateBalanceSheet !== 'function') return null;
+        return calculateBalanceSheet(data.accounts, data.transactions, data.investments, data.currencyRates, reportEndDate.value);
+    });
+    
+    const isData = computed(() => {
+        if (typeof calculateIncomeStatement !== 'function') return null;
+        return calculateIncomeStatement(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value);
+    });
+    
+    const cfData = computed(() => {
+        if (typeof calculateCashFlow !== 'function') return null;
+        return calculateCashFlow(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value);
+    });
     const submitTransaction = () => {
       txError.value = '';
       let extractedTags = [];
