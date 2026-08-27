@@ -1,22 +1,23 @@
-const CACHE_NAME = 'ledger-pwa-v2'; // 當您升級 App 時，請修改這個版本號 (例如 v2, v3...)
+const CACHE_NAME = 'ledger-pwa-v3'; // 升級版本號以強制更新
+// 移除所有外部 CDN (Tailwind, Vue 等)，只保留本地端自己的檔案
 const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
-  'https://cdn.tailwindcss.com',
-  'https://unpkg.com/vue@3/dist/vue.esm-browser.js',
-  'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://unpkg.com/lucide@latest'
+  './styles.css',
+  './constants.js',
+  './helpers.js',
+  './reports.js',
+  './charts.js',
+  './app.js'
 ];
 
 // 1. 安裝階段：將靜態資源寫入快取
 self.addEventListener('install', event => {
-  // 強制立即接管控制權，不必等待舊版 Service Worker 關閉
   self.skipWaiting(); 
-  
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      console.log('Service Worker: 快取檔案中');
+      console.log('Service Worker: 快取本地檔案中');
       return cache.addAll(urlsToCache);
     })
   );
