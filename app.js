@@ -648,6 +648,95 @@ const app = createApp({
         if (typeof calculateCashFlow !== 'function') return null;
         return calculateCashFlow(data.accounts, data.transactions, reportStartDate.value, reportEndDate.value);
     });
+
+    // ------------------------------------------------------------------------
+    // 8. 多帳本與帳戶核心操作
+    // ------------------------------------------------------------------------
+    const switchBook = (targetId) => {
+      let newId = currentBookId.value;
+      if (targetId && targetId.target && targetId.target.value) {
+        newId = targetId.target.value;
+      } else if (typeof targetId === 'string') {
+        newId = targetId;
+      }
+
+      let oldId = settings.currentBookId || 'default';
+      localStorage.setItem('ledger_backup_' + oldId, JSON.stringify(data)); 
+      
+      currentBookId.value = newId;
+      settings.currentBookId = newId;
+      saveSettings(false);
+      
+      resetData();
+
+      const newBackup = localStorage.getItem('ledger_backup_' + newId);
+      if (newBackup) { 
+         Object.assign(data, JSON.parse(newBackup));
+      } else { 
+         data.version = "6.3.1"; 
+      }
+      
+      if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {});
+      migrateLegacyData();
+      runAutoTasks();
+      setHistoryToCurrentMonth();
+
+      isDrawerOpen.value = false;
+      if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
+      if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
+      if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
+      if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
+      
+      alert(`已成功切換至: ${activeBookName.value}`);
+    };
+
+    const createNewBook = () => { showNewBookModal.value = true; };
+    
+    const submitNewBook = () => {
+      if(!newBookName.value) return;
+      let newId = 'book_' + Date.now();
+      settings.booksIndex.push({ id: newId, name: newBookName.value });
+      currentBookId.value = newId; 
+      switchBook();
+      newBookName.value = ''; 
+      showNewBookModal.value = false;
+    };
+    
+    const deleteBook = (targetId) => {
+        if (settings.booksIndex.length <= 1) {
+            return alert("系統至少須保留一個帳本，無法刪除！");
+        }
+        if (!confirm("確定要永久刪除此帳本及其所有本機儲存紀錄？此操作無法復原！")) {
+            return;
+        }
+        localStorage.removeItem('ledger_backup_' + targetId);
+        settings.booksIndex = settings.booksIndex.filter(b => b && b.id !== targetId);
+        if (targetId === currentBookId.value) {
+            currentBookId.value = settings.booksIndex[0].id;
+            switchBook(currentBookId.value);
+        } else {
+            saveSettings(false);
+        }
+        alert('✅ 帳本刪除成功');
+    };
+
+    const submitNewAssetAccount = () => {
+      if(!newAssetAcc.name) return;
+      let finalType = newAssetAcc.name.includes('信用卡') || newAssetAcc.name.includes('欠款') || newAssetAcc.name.includes('貸款') ? 'Liability' : (newAssetAcc.type || 'Asset');
+      const newId = (finalType === 'Liability' ? 'liab_' : 'asset_') + Date.now();
+      data.accounts.push({ id: newId, name: newAssetAcc.name, type: finalType, currency: newAssetAcc.currency, is_hidden: false });
+      
+      if(newAssetAcc.initBalance && newAssetAcc.initBalance > 0) {
+        if (finalType === 'Asset') {
+            data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初餘額: ${newAssetAcc.name}`, debits: [{ account_id: newId, amount: newAssetAcc.initBalance }], credits: [{ account_id: '3101', amount: newAssetAcc.initBalance }] });
+        } else {
+            data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初欠款: ${newAssetAcc.name}`, debits: [{ account_id: '3101', amount: newAssetAcc.initBalance }], credits: [{ account_id: newId, amount: newAssetAcc.initBalance }] });
+        }
+      }
+      newAssetAcc.name = ''; newAssetAcc.type = 'Asset'; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
+      showAddAccountModal.value = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 帳戶建立成功！');
+    };
+
     const submitTransaction = () => {
       txError.value = '';
       let extractedTags = [];
