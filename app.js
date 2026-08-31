@@ -201,6 +201,12 @@ const app = createApp({
     watch(() => groupSplitRecordForm.amount, calculateGroupSplitRecord);
     watch(() => groupSplitRecordForm.mode, calculateGroupSplitRecord);
     watch(() => groupSplitRecordForm.splits, calculateGroupSplitRecord, {deep: true});
+    watch(() => newTx.subAccount, (newVal) => {
+        if (newVal && !newTx.isReimbursement) {
+            let acc = (data.accounts || []).find(a => a && a.id === newVal);
+            if (acc && acc.category) newTx.mainCategory = acc.category;
+        }
+    });
 
     const saveGroupSplitRecord = () => {
         if(!groupSplitRecordForm.desc || !groupSplitRecordForm.amount || !groupSplitRecordForm.expenseAcc) return alert('請填寫完整項目、金額與支出科目');
@@ -800,7 +806,14 @@ const app = createApp({
       let tagMatches = (newTx.desc || '').match(/#\S+/g);
       if (tagMatches) extractedTags = tagMatches.map(t => t.substring(1));
 
-      let txObj = { id: 'tx_' + Date.now(), date: newTx.date, scope: newTx.scope, desc: newTx.desc || '無摘要', tags: extractedTags, debits: [], credits: [] };
+     let finalDesc = (newTx.desc || '').trim();
+      if (!finalDesc && newTx.subAccount && !newTx.isReimbursement) {
+          let accName = getAccName(newTx.subAccount);
+          finalDesc = accName.replace(/^[^\s]+\s/, ''); // 去除前面的 Emoji
+      }
+      if (!finalDesc) finalDesc = '無摘要';
+      
+      let txObj = { id: 'tx_' + Date.now(), date: newTx.date, scope: newTx.scope, desc: finalDesc, tags: extractedTags, debits: [], credits: [] };
       
       if (entryMode.value === 'expense') {
         if (!newTx.paymentAcc || !newTx.amount) return txError.value = '請填寫完整金額與扣款帳戶';
