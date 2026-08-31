@@ -336,7 +336,7 @@ const app = createApp({
         autoBackup(); updateCharts(); refreshIcons();
         alert('✅ 群組結算已成功完美認列至複式帳本！');
     };
-    };
+
 
     // ------------------------------------------------------------------------
     // 計算機與語音處理邏輯
@@ -466,7 +466,7 @@ const app = createApp({
     const availableBooks = computed(() => settings.booksIndex || []);
 
     const assetAccounts = computed(() => { return (data.accounts || []).filter(a => a && a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && !a.is_hidden); });
-    const paymentAccounts = computed(() => { return (data.accounts || []).filter(a => a && ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && a.id !== '1104') || a.type === 'Liability') && !(a.id || '').startsWith('loan_liab_') && !a.is_hidden); });
+    const paymentAccounts = computed(() => { return (data.accounts || []).filter(a => a && ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201') || a.type === 'Liability') && !(a.id || '').startsWith('loan_liab_') && !a.is_hidden); });
     const liabilityAccounts = computed(() => { return (data.accounts || []).filter(a => a && a.type === 'Liability' && !(a.id || '').startsWith('loan_liab_') && !a.is_hidden); });
     
     const activeInstallments = computed(() => (data.installments || []).filter(i => i && i.paid_periods < i.periods));
@@ -927,16 +927,6 @@ const app = createApp({
       alert(`已成功切換至: ${activeBookName.value}`);
     };
 
-    const createNewBook = () => { showNewBookModal.value = true; };
-    
-    const submitNewBook = () => {
-      if(!newBookName.value) return;
-      let newId = 'book_' + Date.now();
-      settings.booksIndex.push({ id: newId, name: newBookName.value });
-      switchBook(newId); // 顯式傳遞新 ID，交由 switchBook 處理邏輯
-      newBookName.value = ''; 
-      showNewBookModal.value = false;
-    };
 
     const createNewBook = () => { showNewBookModal.value = true; };
     
@@ -944,8 +934,7 @@ const app = createApp({
       if(!newBookName.value) return;
       let newId = 'book_' + Date.now();
       settings.booksIndex.push({ id: newId, name: newBookName.value });
-      currentBookId.value = newId; 
-      switchBook();
+      switchBook(newId); 
       newBookName.value = ''; 
       showNewBookModal.value = false;
     };
