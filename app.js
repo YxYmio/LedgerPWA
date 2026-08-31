@@ -398,10 +398,14 @@ const app = createApp({
         }
     };
 
-    const changeTab = (tab) => { activeTab.value = tab; isDrawerOpen.value = false; };
+   const changeTab = (tab) => { activeTab.value = tab; isDrawerOpen.value = false; };
     const filterByAccount = (acc) => {
        if (!acc) return;
        historyFilter.keyword = acc.name || ''; historyFilter.dateFrom = ''; historyFilter.dateTo = ''; historyFilter.scope = 'all'; activeTab.value = 'history';
+    };
+    const viewProjectDetails = (tag) => {
+       if (!tag) return;
+       historyFilter.keyword = '#' + tag; historyFilter.dateFrom = ''; historyFilter.dateTo = ''; historyFilter.scope = 'all'; activeTab.value = 'history'; isDrawerOpen.value = false;
     };
 
     const resetData = () => {
@@ -1405,7 +1409,7 @@ data.accounts.push({ id: newId, name: newAssetAcc.name, type: finalType, currenc
       disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
       editingTx, selectedInstallment, projectBudgetForm,
       calcAppend, calcClear, calcBackspace, calcConfirm, startVoiceRecognition,
-      submitProjectBudget, deleteProjectBudget, projectBudgetStats,
+      submitProjectBudget, deleteProjectBudget, projectBudgetStats, viewProjectDetails,
       changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput, onInvestSelectedSymbolChange, filterByAccount,
       activeBookName, availableBooks, assetAccounts, paymentAccounts, liabilityAccounts, activeInstallments, 
       getSubAccounts, safeQuickTags, safeInvestments, safeFixedAssets, safeLoans, safeRecurring, safeSavingsGoals,
