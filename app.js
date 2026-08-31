@@ -103,7 +103,7 @@ const app = createApp({
     });
     
     const initStock = reactive({ symbol: '', name: '', shares: null, price: null, cost: null, unitType: 'share' });
-    const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD', icon: '' });
+    const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD', icon: '', billingDay: 1 });
     const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60, scope: 'personal' });
     const disposalAsset = ref(null);
     const disposalForm = reactive({ type: 'scrap', price: null, account: '' });
@@ -465,7 +465,7 @@ const app = createApp({
     const activeBookName = computed(() => { let b = settings.booksIndex.find(x => x && x.id === currentBookId.value); return b ? b.name : '智慧帳本'; });
     const availableBooks = computed(() => settings.booksIndex || []);
 
-    const assetAccounts = computed(() => { return (data.accounts || []).filter(a => a && a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && a.id !== '1104' && !a.is_hidden); });
+    const assetAccounts = computed(() => { return (data.accounts || []).filter(a => a && a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && !a.is_hidden); });
     const paymentAccounts = computed(() => { return (data.accounts || []).filter(a => a && ((a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && a.id !== '1104') || a.type === 'Liability') && !(a.id || '').startsWith('loan_liab_') && !a.is_hidden); });
     const liabilityAccounts = computed(() => { return (data.accounts || []).filter(a => a && a.type === 'Liability' && !(a.id || '').startsWith('loan_liab_') && !a.is_hidden); });
     
@@ -888,7 +888,7 @@ const app = createApp({
       alert('✅ 記帳成功！'); 
     };
 
-    const switchBook = (targetId) => {
+   const switchBook = (targetId) => {
       let newId = currentBookId.value;
       if (targetId && targetId.target && targetId.target.value) {
         newId = targetId.target.value;
@@ -923,7 +923,19 @@ const app = createApp({
       if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
       if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
       
+      autoBackup(false); // 確保新建帳本立刻存入本機，防止白屏
       alert(`已成功切換至: ${activeBookName.value}`);
+    };
+
+    const createNewBook = () => { showNewBookModal.value = true; };
+    
+    const submitNewBook = () => {
+      if(!newBookName.value) return;
+      let newId = 'book_' + Date.now();
+      settings.booksIndex.push({ id: newId, name: newBookName.value });
+      switchBook(newId); // 顯式傳遞新 ID，交由 switchBook 處理邏輯
+      newBookName.value = ''; 
+      showNewBookModal.value = false;
     };
 
     const createNewBook = () => { showNewBookModal.value = true; };
@@ -952,12 +964,16 @@ const app = createApp({
         alert('✅ 帳本刪除成功');
     };
 
-    const submitNewAssetAccount = () => {
+   const submitNewAssetAccount = () => {
       if(!newAssetAcc.name) return;
       let finalType = newAssetAcc.name.includes('信用卡') || newAssetAcc.name.includes('欠款') || newAssetAcc.name.includes('貸款') ? 'Liability' : (newAssetAcc.type || 'Asset');
       const newId = (finalType === 'Liability' ? 'liab_' : 'asset_') + Date.now();
       let finalIcon = newAssetAcc.icon || (finalType === 'Liability' ? '💳' : '🏦');
-data.accounts.push({ id: newId, name: newAssetAcc.name, type: finalType, currency: newAssetAcc.currency, is_hidden: false, icon: finalIcon });
+      
+      data.accounts.push({ 
+          id: newId, name: newAssetAcc.name, type: finalType, currency: newAssetAcc.currency, 
+          is_hidden: false, icon: finalIcon, billing_day: finalType === 'Liability' ? newAssetAcc.billingDay : null 
+      });
       
       if(newAssetAcc.initBalance && newAssetAcc.initBalance > 0) {
         if (finalType === 'Asset') {
@@ -967,7 +983,9 @@ data.accounts.push({ id: newId, name: newAssetAcc.name, type: finalType, currenc
         }
       }
       newAssetAcc.name = ''; newAssetAcc.type = 'Asset'; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
-      showAddAccountModal.value = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 帳戶建立成功！');newAssetAcc.icon = '';
+      showAddAccountModal.value = false; autoBackup(); updateCharts(); refreshIcons(); 
+      alert('✅ 帳戶建立成功！');
+      newAssetAcc.icon = ''; newAssetAcc.billingDay = 1;
     };
 
     const openEditModal = (tx) => {
