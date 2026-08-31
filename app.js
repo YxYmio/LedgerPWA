@@ -6,7 +6,7 @@ const app = createApp({
     // 1. 全域 UI 狀態
     // ------------------------------------------------------------------------
     const isAppReady = ref(false);
-    const activeTab = ref('dashboard'); // 支援切換至 'group_split'
+    const activeTab = ref('dashboard');
     const isDrawerOpen = ref(false); 
     const entryMode = ref('expense'); 
     const dashboardScope = ref('all');
@@ -57,10 +57,13 @@ const app = createApp({
     const showInstallmentModal = ref(false);
     const showProjectBudgetModal = ref(false);
     
-    // --- 群組結算中心專用彈窗與狀態 ---
     const showGroupSplitProjectModal = ref(false);
     const showGroupSplitRecordModal = ref(false);
     const showGroupSettleLedgerModal = ref(false);
+    
+    // --- Phase 4: 分享結算報告彈窗 ---
+    const showSharedSettlementModal = ref(false);
+    const sharedData = ref(null);
 
     // ------------------------------------------------------------------------
     // 4. 設定與全域資料模型 (Data Models)
@@ -77,14 +80,14 @@ const app = createApp({
     const newBookName = ref('');
 
     const data = reactive({
-      version: "6.4.0", // 升級版本號
+      version: "6.4.0",
       currencyRates: { TWD: 1, USD: 32.5, JPY: 0.22 },
       budgets: {}, recurring: [], quick_tags: [], smart_tags: {}, 
       main_categories: { Expense: [], Income: [] }, accounts: [], 
       transactions: [], fixed_assets: [], investments: [], installments: [], 
       loans: [], savings_goals: [], project_budgets: [], custom_tags: [],
-      split_projects: [], // 群組分帳專案庫
-      split_records: []   // 群組代墊明細庫
+      split_projects: [],
+      split_records: []
     });
 
     // ------------------------------------------------------------------------
@@ -129,7 +132,7 @@ const app = createApp({
     let tokenClient = null;
 
     // ------------------------------------------------------------------------
-    // 6. 全新：類 Lightsplit 群組結算中心邏輯
+    // 6. 類 Lightsplit 群組結算中心邏輯 (含 Phase 4 分享功能)
     // ------------------------------------------------------------------------
     const activeSplitProjectId = ref('');
     const groupSplitProjectForm = reactive({ id: '', name: '', members: [{name: '我'}, {name: ''}] });
@@ -139,13 +142,11 @@ const app = createApp({
     const activeSplitProject = computed(() => (data.split_projects || []).find(p => p.id === activeSplitProjectId.value));
     const activeSplitRecords = computed(() => (data.split_records || []).filter(r => r.project_id === activeSplitProjectId.value));
     
-    // 連接 helpers.js 中的純運算引擎
     const activeSplitBalances = computed(() => {
         if(!activeSplitProject.value) return {};
         return typeof calculateNetBalances === 'function' ? calculateNetBalances(activeSplitRecords.value, activeSplitProject.value.members) : {};
     });
     
-    // 最少轉帳次數的最佳化路徑矩陣
     const activeSplitSettlements = computed(() => {
         return typeof optimizeSettlements === 'function' ? optimizeSettlements(activeSplitBalances.value) : [];
     });
@@ -160,7 +161,7 @@ const app = createApp({
     const saveGroupSplitProject = () => {
         if(!groupSplitProjectForm.name) return alert('請填寫專案名稱');
         let validMembers = groupSplitProjectForm.members.filter(m => m.name.trim() !== '');
-        if(!validMembers.find(m => m.name === '我')) validMembers.unshift({name: '我'}); // 強制包含本帳本主人
+        if(!validMembers.find(m => m.name === '我')) validMembers.unshift({name: '我'});
         
         data.split_projects.push({
             id: 'gsp_' + Date.now(),
@@ -218,6 +219,18 @@ const app = createApp({
         if(confirm('確定刪除此筆代墊紀錄？')) { data.split_records = data.split_records.filter(r => r.id !== id); autoBackup(); }
     };
 
+    // Phase 4: Magic Link 產生器
+    const generateMagicLink = () => {
+        if(!activeSplitProject.value) return '';
+        let payload = {
+            n: activeSplitProject.value.name,
+            r: activeSplitRecords.value.map(rec => ({ d: rec.desc, p: rec.payer, a: rec.amount })),
+            s: activeSplitSettlements.value.map(stl => ({ f: stl.from, t: stl.to, a: stl.amount }))
+        };
+        let b64 = typeof b64EncodeUnicode === 'function' ? b64EncodeUnicode(JSON.stringify(payload)) : '';
+        return b64 ? `${window.location.origin}${window.location.pathname}?shared=${b64}` : '';
+    };
+
     const shareGroupSettlement = async () => {
         if(!activeSplitProject.value) return;
         let text = `📍 ${activeSplitProject.value.name} 結算報告\n\n💰 代墊明細：\n`;
@@ -225,10 +238,35 @@ const app = createApp({
         text += `\n📊 最佳轉帳路徑：\n`;
         if(activeSplitSettlements.value.length === 0) { text += `✅ 大家互不相欠！\n`; } 
         else { activeSplitSettlements.value.forEach(s => { text += `👉 [${s.from}] 需轉帳給 [${s.to}] $${formatNumber(s.amount)}\n`; }); }
+        
+        // 加入 Magic Link
+        let magicLink = generateMagicLink();
+        if (magicLink) {
+             text += `\n🔗 點擊查看動態結算報告：\n${magicLink}\n`;
+        }
         text += `\n(Powered by 智慧帳本 Lightsplit)`;
 
         if(navigator.share) { try { await navigator.share({ title: activeSplitProject.value.name, text: text }); } catch(e) {} } 
         else { navigator.clipboard.writeText(text); alert('結算報告已複製到剪貼簿，可直接貼上至 LINE！'); }
+    };
+
+    // Phase 4: 攔截與解析網址參數
+    const checkSharedUrl = () => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const sharedObj = params.get('shared');
+            if(sharedObj) {
+                let decoded = typeof b64DecodeUnicode === 'function' ? b64DecodeUnicode(sharedObj) : '{}';
+                let parsed = JSON.parse(decoded);
+                if (parsed && parsed.n) {
+                    sharedData.value = parsed;
+                    showSharedSettlementModal.value = true;
+                }
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        } catch(e) {
+            console.warn('解析分享連結失敗', e);
+        }
     };
 
     const writeGroupSettlementToLedger = () => {
@@ -255,12 +293,10 @@ const app = createApp({
         if (myTotalExpense > 0) txObj.debits.push({ account_id: groupSettleLedgerForm.expenseAcc, amount: myTotalExpense });
         
         if (myBalance > 0) {
-            txObj.debits.push({ account_id: '1104', amount: myBalance }); // 別人欠我錢，應收款增加
-            txObj.credits.push({ account_id: groupSettleLedgerForm.payerAcc, amount: myTotalPaid }); // 沖銷我當初代墊刷出的錢
+            txObj.debits.push({ account_id: '1104', amount: myBalance });
+            txObj.credits.push({ account_id: groupSettleLedgerForm.payerAcc, amount: myTotalPaid });
         } else if (myBalance <= 0) {
-            // 我欠別人錢，代表我現在從銀行戶頭轉帳還他
             txObj.credits.push({ account_id: groupSettleLedgerForm.payerAcc, amount: Math.abs(myBalance) });
-            // 如果這趟我有先刷部分款項，也一併紀錄扣款
             if (myTotalPaid > 0) txObj.credits.push({ account_id: groupSettleLedgerForm.payerAcc, amount: myTotalPaid });
         }
 
@@ -310,7 +346,7 @@ const app = createApp({
         recognition.start();
     };
 
-// ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
     // 事件處理與核心邏輯
     // ------------------------------------------------------------------------
     const onSymbolInput = (target) => {
@@ -386,7 +422,6 @@ const app = createApp({
        if (!data.split_records) data.split_records = [];
        if (settings.billingStartDay === undefined) settings.billingStartDay = 1;
 
-       // 舊分類與帳戶 Emoji 升級
        (data.accounts || []).forEach(acc => {
            if (acc && !acc.icon) {
                let matchedBrand = Object.keys(typeof BANK_BRAND_COLORS !== 'undefined' ? BANK_BRAND_COLORS : {}).find(brand => acc.name.includes(brand));
@@ -494,7 +529,6 @@ const app = createApp({
 
     const netWorth = computed(() => totalAssets.value - totalLiabilities.value);
     
-    // --- 套用非自然月計費週期的計算 ---
     const activeBillingPeriod = computed(() => {
         return typeof getCurrentBillingPeriod === 'function' ? getCurrentBillingPeriod(dashboardMonth.value + '-01', settings.billingStartDay || 1) : { startDate: dashboardMonth.value + '-01', endDate: dashboardMonth.value + '-31' };
     });
@@ -776,6 +810,87 @@ const app = createApp({
       alert('✅ 記帳成功！'); 
     };
 
+    const switchBook = (targetId) => {
+      let newId = currentBookId.value;
+      if (targetId && targetId.target && targetId.target.value) {
+        newId = targetId.target.value;
+      } else if (typeof targetId === 'string') {
+        newId = targetId;
+      }
+
+      let oldId = settings.currentBookId || 'default';
+      localStorage.setItem('ledger_backup_' + oldId, JSON.stringify(data)); 
+      
+      currentBookId.value = newId;
+      settings.currentBookId = newId;
+      saveSettings(false);
+      
+      resetData();
+
+      const newBackup = localStorage.getItem('ledger_backup_' + newId);
+      if (newBackup) { 
+         Object.assign(data, JSON.parse(newBackup));
+      } else { 
+         data.version = "6.4.0"; 
+      }
+      
+      if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {});
+      migrateLegacyData();
+      runAutoTasks();
+      setHistoryToCurrentMonth();
+
+      isDrawerOpen.value = false;
+      if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
+      if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
+      if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
+      if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts();
+      
+      alert(`已成功切換至: ${activeBookName.value}`);
+    };
+
+    const createNewBook = () => { showNewBookModal.value = true; };
+    
+    const submitNewBook = () => {
+      if(!newBookName.value) return;
+      let newId = 'book_' + Date.now();
+      settings.booksIndex.push({ id: newId, name: newBookName.value });
+      currentBookId.value = newId; 
+      switchBook();
+      newBookName.value = ''; 
+      showNewBookModal.value = false;
+    };
+    
+    const deleteBook = (targetId) => {
+        if (settings.booksIndex.length <= 1) { return alert("系統至少須保留一個帳本，無法刪除！"); }
+        if (!confirm("確定要永久刪除此帳本及其所有本機儲存紀錄？此操作無法復原！")) return;
+        localStorage.removeItem('ledger_backup_' + targetId);
+        settings.booksIndex = settings.booksIndex.filter(b => b && b.id !== targetId);
+        if (targetId === currentBookId.value) {
+            currentBookId.value = settings.booksIndex[0].id;
+            switchBook(currentBookId.value);
+        } else {
+            saveSettings(false);
+        }
+        alert('✅ 帳本刪除成功');
+    };
+
+    const submitNewAssetAccount = () => {
+      if(!newAssetAcc.name) return;
+      let finalType = newAssetAcc.name.includes('信用卡') || newAssetAcc.name.includes('欠款') || newAssetAcc.name.includes('貸款') ? 'Liability' : (newAssetAcc.type || 'Asset');
+      const newId = (finalType === 'Liability' ? 'liab_' : 'asset_') + Date.now();
+      data.accounts.push({ id: newId, name: newAssetAcc.name, type: finalType, currency: newAssetAcc.currency, is_hidden: false });
+      
+      if(newAssetAcc.initBalance && newAssetAcc.initBalance > 0) {
+        if (finalType === 'Asset') {
+            data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初餘額: ${newAssetAcc.name}`, debits: [{ account_id: newId, amount: newAssetAcc.initBalance }], credits: [{ account_id: '3101', amount: newAssetAcc.initBalance }] });
+        } else {
+            data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初欠款: ${newAssetAcc.name}`, debits: [{ account_id: '3101', amount: newAssetAcc.initBalance }], credits: [{ account_id: newId, amount: newAssetAcc.initBalance }] });
+        }
+      }
+      newAssetAcc.name = ''; newAssetAcc.type = 'Asset'; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
+      showAddAccountModal.value = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 帳戶建立成功！');
+    };
+
     const openEditModal = (tx) => {
         if(!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed || tx.auto_generated) return alert("特殊狀態明細無法直接編輯。");
         editingTx.id = tx.id; editingTx.date = tx.date; editingTx.desc = getTxDesc(tx); editingTx.amount = getDebitAmount(tx); editingTx.scope = tx.scope || 'personal';
@@ -840,7 +955,6 @@ const app = createApp({
       if (tx && tx.loan_init_id) { data.loans = data.loans.filter(l => l && l.id !== tx.loan_init_id); if(tx.loan_account_id) data.accounts = data.accounts.filter(a => a && a.id !== tx.loan_account_id); }
       if (tx && tx.fa_init_id) { data.fixed_assets = data.fixed_assets.filter(fa => fa && fa.id !== tx.fa_init_id); }
       
-      // 處理群組結算刪除的連動還原
       if (tx && tx.id.startsWith('tx_gsp_')) {
           let pName = tx.desc.replace('[群組結算] ', '').trim();
           let proj = data.split_projects.find(p => p && p.name === pName);
@@ -849,6 +963,51 @@ const app = createApp({
       
       data.transactions.splice(idx, 1); autoBackup(); updateCharts();
     };
+
+    const submitProjectBudget = () => {
+        if (!projectBudgetForm.name || !projectBudgetForm.tag || !projectBudgetForm.limit || !projectBudgetForm.startDate || !projectBudgetForm.endDate) {
+            return alert('請填妥所有專案預算欄位');
+        }
+        let tagClean = projectBudgetForm.tag.replace('#', '');
+        data.project_budgets.push({
+            id: 'proj_' + Date.now(), name: projectBudgetForm.name, tag: tagClean, limit: projectBudgetForm.limit,
+            startDate: projectBudgetForm.startDate, endDate: projectBudgetForm.endDate
+        });
+        showProjectBudgetModal.value = false;
+        projectBudgetForm.name = ''; projectBudgetForm.tag = ''; projectBudgetForm.limit = null; projectBudgetForm.startDate = ''; projectBudgetForm.endDate = '';
+        autoBackup();
+    };
+
+    const deleteProjectBudget = (id) => {
+        if (confirm('確定刪除此專案預算？')) {
+            data.project_budgets = data.project_budgets.filter(p => p && p.id !== id);
+            autoBackup();
+        }
+    };
+
+    const projectBudgetStats = computed(() => {
+        return (data.project_budgets || []).map(proj => {
+            if (!proj) return null;
+            let spent = 0;
+            (data.transactions || []).forEach(tx => {
+                if (tx && tx.date >= proj.startDate && tx.date <= proj.endDate && !tx.is_refunded && !tx.is_refund) {
+                    let hasTag = (tx.tags && tx.tags.includes(proj.tag)) || (tx.desc && tx.desc.includes('#' + proj.tag));
+                    if (hasTag) {
+                        let isExp = false; let amt = 0;
+                        (tx.debits || []).forEach(d => {
+                            let a = (data.accounts || []).find(ac => ac && ac.id === d.account_id);
+                            if (a && a.type === 'Expense') { isExp = true; amt += Number(d.amount)||0; }
+                        });
+                        if (isExp) spent += amt;
+                    }
+                }
+            });
+            return {
+                ...proj, spent, remaining: proj.limit - spent,
+                pct: Math.min(Math.round((spent / proj.limit) * 100), 100)
+            };
+        }).filter(Boolean);
+    });
 
     const submitInitialStock = () => {
         let s = Number(initStock.shares) || 0;
@@ -985,9 +1144,6 @@ const app = createApp({
       });
     };
 
-    // ------------------------------------------------------------------------
-    // 9. Google Drive 同步機制
-    // ------------------------------------------------------------------------
     const autoBackup = (syncCloud = true) => { 
       localStorage.setItem('ledger_backup_' + settings.currentBookId, JSON.stringify(data)); 
       if(syncCloud && settings.googleToken) syncWithGoogleDrive(false); 
@@ -1183,6 +1339,7 @@ const app = createApp({
 
     onMounted(() => {
       loadSettings();
+      checkSharedUrl();
       if(isUnlocked.value) { initData(); } 
       else { isAppReady.value = true; let loadingScreen = document.getElementById('native-loading'); if(loadingScreen) loadingScreen.style.display = 'none'; refreshIcons(); }
     });
@@ -1199,8 +1356,8 @@ const app = createApp({
       showResetModal, showNewBookModal, showAddGoalModal, showUpdateGoalModal, showManualStockModal, showRefundModal, showReimburseModal,
       editTxModal, showInstallmentModal, showProjectBudgetModal,
       
-      // 新增：群組結算導出
       showGroupSplitProjectModal, showGroupSplitRecordModal, showGroupSettleLedgerModal,
+      showSharedSettlementModal, sharedData,
       activeSplitProjectId, groupSplitProjectForm, groupSplitRecordForm, groupSettleLedgerForm,
       activeSplitProject, activeSplitRecords, activeSplitBalances, activeSplitSettlements,
       openGroupSplitCenter, viewGroupSplitProject, backToSplitProjects, addSplitMemberField, removeSplitMemberField,
