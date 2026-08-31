@@ -877,12 +877,14 @@
                 </div>
                 <div class="pl-2 pr-2 mt-2 space-y-1.5 text-sm">
                   <div class="flex justify-between font-bold text-slate-700 dark:text-slate-300 border-b dark:border-slate-700 pb-1"><span>流動資產</span><span>${{ formatNumber((bsData && bsData.currentAssets) ? bsData.currentAssets : 0) }}</span></div>
-                  <div v-for="a in (bsData && bsData.currentAssetsList) ? bsData.currentAssetsList : []" :key="a && a.name ? a.name : ''" class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2">
-                    <span>{{ a && a.name ? a.name : '' }}</span><span>${{ formatNumber(a && a.amount ? a.amount : 0) }}</span>
+                  <!-- 流動資產 -->                 
+                  <div v-for="a in (bsData && bsData.currentAssetsList) ? bsData.currentAssetsList : []" :key="a && a.name ? a.name : ''" @click="filterByAccount(a, '', reportEndDate)"" class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2 cursor-pointer hover:text-blue-600 transition">
+  <span>{{ a && a.name ? a.name : '' }}</span><span>${{ formatNumber(a && a.amount ? a.amount : 0) }}</span>
                   </div>
                   <div class="flex justify-between font-bold text-slate-700 dark:text-slate-300 border-b dark:border-slate-700 pb-1 pt-2"><span>非流動資產 (投資/固定)</span><span>${{ formatNumber((bsData && bsData.nonCurrentAssets) ? bsData.nonCurrentAssets : 0) }}</span></div>
-                  <div v-for="a in (bsData && bsData.nonCurrentAssetsList) ? bsData.nonCurrentAssetsList : []" :key="a && a.name ? a.name : ''" class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2">
-                    <span>{{ a && a.name ? a.name : '' }}</span><span>${{ formatNumber(a && a.amount ? a.amount : 0) }}</span>
+                 <!-- 非流動資產 -->
+                  <div v-for="a in (bsData && bsData.nonCurrentAssetsList) ? bsData.nonCurrentAssetsList : []" :key="a && a.name ? a.name : ''" @click="filterByAccount(a, '', reportEndDate)"" class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2 cursor-pointer hover:text-blue-600 transition">
+  <span>{{ a && a.name ? a.name : '' }}</span><span>${{ formatNumber(a && a.amount ? a.amount : 0) }}</span>
                   </div>
                 </div>
               </div>
@@ -892,8 +894,9 @@
                   <span>負債總計 (B)</span><span>${{ formatNumber((bsData && bsData.totalLiab) ? bsData.totalLiab : 0) }}</span>
                 </div>
                 <div class="pl-2 pr-2 mt-2 space-y-1.5 text-sm">
-                  <div v-for="a in (bsData && bsData.liabList) ? bsData.liabList : []" :key="a && a.name ? a.name : ''" class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2">
-                    <span>{{ a && a.name ? a.name : '' }}</span><span>${{ formatNumber(a && a.amount ? a.amount : 0) }}</span>
+                  <!-- 負債 -->
+                  <div v-for="a in (bsData && bsData.liabList) ? bsData.liabList : []" :key="a && a.name ? a.name : ''" @click="filterByAccount(a, '', reportEndDate)"" class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2 cursor-pointer hover:text-blue-600 transition">
+  <span>{{ a && a.name ? a.name : '' }}</span><span>${{ formatNumber(a && a.amount ? a.amount : 0) }}</span>
                   </div>
                 </div>
               </div>
@@ -929,8 +932,9 @@
                     <span>營業收入與收益總計</span><span>${{ formatNumber((isData && isData.totalRev) ? isData.totalRev : 0) }}</span>
                   </div>
                   <div class="pl-3 mt-1.5 space-y-1">
-                    <div v-for="(amt, name) in (isData && isData.rev) ? isData.rev : {}" :key="name" class="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                      <span>{{ name }}</span><span>${{ formatNumber(amt) }}</span>
+                    <!-- 營業收入 -->
+                    <div v-for="(amt, name) in (isData && isData.rev) ? isData.rev : {}" :key="name" @click="filterByAccount({name: name}, reportStartDate, reportEndDate)" class="flex justify-between text-xs text-slate-600 dark:text-slate-400 cursor-pointer hover:text-green-600 transition">
+  <span>{{ name }}</span><span>${{ formatNumber(amt) }}</span>
                     </div>
                   </div>
                 </div>
@@ -940,8 +944,9 @@
                     <span>營業費用與支出總計</span><span>${{ formatNumber((isData && isData.totalExp) ? isData.totalExp : 0) }}</span>
                   </div>
                   <div class="pl-3 mt-1.5 space-y-1">
-                    <div v-for="(amt, name) in (isData && isData.exp) ? isData.exp : {}" :key="name" class="flex justify-between text-xs text-slate-600 dark:text-slate-400">
-                      <span>{{ name }}</span><span>${{ formatNumber(amt) }}</span>
+                    <!-- 營業費用 -->
+                    <div v-for="(amt, name) in (isData && isData.exp) ? isData.exp : {}" :key="name" @click="filterByAccount({name: name}, reportStartDate, reportEndDate)"class="flex justify-between text-xs text-slate-600 dark:text-slate-400 cursor-pointer hover:text-red-600 transition">
+  <span>{{ name }}</span><span>${{ formatNumber(amt) }}</span>
                     </div>
                   </div>
                 </div>

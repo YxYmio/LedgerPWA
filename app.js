@@ -433,9 +433,14 @@ const app = createApp({
     };
 
    const changeTab = (tab) => { activeTab.value = tab; isDrawerOpen.value = false; };
-    const filterByAccount = (acc) => {
-       if (!acc) return;
-       historyFilter.keyword = acc.name || ''; historyFilter.dateFrom = ''; historyFilter.dateTo = ''; historyFilter.scope = 'all'; activeTab.value = 'history';
+    const filterByAccount = (acc, fromDate = '', toDate = '') => {
+   if (!acc) return;
+   historyFilter.keyword = acc.name || ''; 
+   historyFilter.dateFrom = fromDate || ''; 
+   historyFilter.dateTo = toDate || ''; 
+   historyFilter.scope = 'all'; 
+   activeTab.value = 'history';
+   window.scrollTo({ top: 0, behavior: 'smooth' }); // 強制將畫面滑動回頂部
     };
     const viewProjectDetails = (tag) => {
        if (!tag) return;
