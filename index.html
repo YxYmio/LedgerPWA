@@ -705,6 +705,33 @@
              </div>
           </div>
         </div>
+<!-- ================= 4-5. 儲蓄目標 Tab (Savings) ================= -->
+<div v-show="activeTab === 'savings'" class="space-y-4">
+  <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2">
+    <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white"><i data-lucide="crosshair" class="w-5 h-5 text-pink-500"></i> 儲蓄目標計畫</h2>
+    <button @click="showAddGoalModal = true" class="text-xs bg-pink-50 text-pink-600 border border-pink-200 dark:bg-pink-900/30 dark:border-pink-700 dark:text-pink-300 px-2 py-1 rounded font-bold shadow-sm transition">+ 新增目標</button>
+  </div>
+  <div class="space-y-3">
+     <div v-if="!safeSavingsGoals || safeSavingsGoals.length === 0" class="text-center text-slate-400 text-xs py-4 border border-dashed rounded-lg dark:border-slate-700">目前無儲蓄目標</div>
+     <div v-for="goal in safeSavingsGoals" :key="goal && goal.id ? goal.id : ''" class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm relative">
+        <button @click="deleteGoal(goal && goal.id ? goal.id : '')" class="absolute top-3 right-3 text-slate-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+        <div class="flex justify-between items-start mb-1 pr-6">
+            <div class="font-bold text-slate-800 dark:text-white text-sm truncate">{{ goal && goal.name ? goal.name : '' }}</div>
+            <button @click="openUpdateGoalModal(goal)" class="text-[10px] bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 px-2 py-1 rounded shadow-sm border border-pink-200 dark:border-pink-800 hover:bg-pink-100 transition whitespace-nowrap">更新進度</button>
+        </div>
+        <div class="flex justify-between text-[10px] text-slate-500 mb-2">
+           <span>目標日: {{ (goal && goal.deadline) ? goal.deadline : '未設定' }}</span>
+        </div>
+        <div class="flex justify-between items-end mb-1">
+           <span class="text-[10px] text-slate-500">已存: ${{ formatNumber(goal && goal.saved ? goal.saved : 0) }}</span>
+           <span class="font-bold text-xs text-pink-600 dark:text-pink-400">目標: ${{ formatNumber(goal && goal.target ? goal.target : 0) }}</span>
+        </div>
+        <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+          <div class="h-full bg-pink-500 rounded-full transition-all" :style="{ width: Math.min(((goal && goal.saved ? goal.saved : 0) / (goal && goal.target ? goal.target : 1)) * 100, 100) + '%' }"></div>
+        </div>
+     </div>
+  </div>
+</div>
         <!-- ================= 5. 資產與貸款 Tab (Assets) ================= -->
         <div v-show="activeTab === 'assets'" class="space-y-4">
           <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2">
@@ -1046,7 +1073,7 @@
                 <input type="text" v-model="newSubCat.name" placeholder="新增子類別 (可含Emoji)" class="border p-2 rounded-lg flex-1 dark:bg-slate-900 outline-none text-sm bg-white dark:text-white">
                 <button @click="addSubCategory" class="bg-blue-600 hover:bg-blue-700 transition text-white px-3.5 rounded-lg font-bold text-sm shadow-sm">+</button>
               </div>
-              <div class="border rounded-xl p-2 dark:border-slate-700 bg-white dark:bg-slate-800 max-h-64 overflow-y-auto custom-scrollbar shadow-sm">
+              <div class="border rounded-xl p-2 dark:border-slate-700 bg-white dark:bg-slate-800 custom-scrollbar shadow-sm">
                 <div v-for="cat in currentSettingCategories" :key="cat" class="mb-3 last:mb-0">
                   <div class="font-bold text-sm bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg flex justify-between items-center shadow-sm">
                     {{ cat }} <button @click="deleteMainCategory(settingCategoryMode, cat)" class="text-slate-400 hover:text-red-500 bg-white dark:bg-slate-800 p-1 rounded transition"><i data-lucide="x" class="w-3 h-3"></i></button>
@@ -1103,7 +1130,7 @@
               </select>
               <button @click="addRecurring" class="w-full bg-emerald-600 hover:bg-emerald-700 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-md mt-2 flex justify-center items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> 建立排程</button>
             </div>
-            <div class="mt-3 border rounded-xl p-2 dark:border-slate-700 bg-white dark:bg-slate-800 max-h-48 overflow-y-auto custom-scrollbar shadow-sm">
+            <div class="mt-3 border rounded-xl p-2 dark:border-slate-700 bg-white dark:bg-slate-800 custom-scrollbar shadow-sm">
               <div v-if="safeRecurring && safeRecurring.length === 0" class="text-center text-slate-400 text-xs py-4">目前無週期排程</div>
               <div v-for="rec in safeRecurring" :key="rec && rec.id ? rec.id : ''" class="flex justify-between items-center text-sm py-2 px-2 border-b dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded transition">
                 <div>
@@ -1851,7 +1878,7 @@
       </div>
 
       <!-- ================= 底部輕量導覽列 ================= -->     
-      <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-2 py-2 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-[calc(env(safe-area-inset-bottom)+8px)] rounded-t-2xl">    
+      <nav class="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-2 py-2 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-[calc(env(safe-area-inset-bottom)+8px)] rounded-t-2xl">   
          <button @click="changeTab('dashboard')" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
           <i data-lucide="layout-dashboard" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">總覽</span>
         </button>
