@@ -136,8 +136,8 @@ const app = createApp({
     // ------------------------------------------------------------------------
     const activeSplitProjectId = ref('');
     const groupSplitProjectForm = reactive({ id: '', name: '', members: [{name: '我'}, {name: ''}] });
-    const groupSplitRecordForm = reactive({ id: '', desc: '', payer: '我', amount: null, mode: 'even', splits: [] });
-    const groupSettleLedgerForm = reactive({ expenseAcc: '', payerAcc: '' });
+    const groupSplitRecordForm = reactive({ id: '', desc: '', expenseAcc: '', payer: '我', amount: null, mode: 'even', splits: [] });
+    const groupSettleLedgerForm = reactive({ advanceAcc: '', settleAcc: '' });
 
     const activeSplitProject = computed(() => (data.split_projects || []).find(p => p.id === activeSplitProjectId.value));
     const activeSplitRecords = computed(() => (data.split_records || []).filter(r => r.project_id === activeSplitProjectId.value));
@@ -184,7 +184,7 @@ const app = createApp({
 
     const initGroupSplitRecordForm = () => {
         if(!activeSplitProject.value) return;
-        groupSplitRecordForm.desc = ''; groupSplitRecordForm.payer = '我'; groupSplitRecordForm.amount = null; groupSplitRecordForm.mode = 'even';
+        groupSplitRecordForm.desc = ''; groupSplitRecordForm.expenseAcc = ''; groupSplitRecordForm.payer = '我'; groupSplitRecordForm.amount = null; groupSplitRecordForm.mode = 'even';
         groupSplitRecordForm.splits = activeSplitProject.value.members.map(m => ({ member: m.name, amount: null, included: true }));
         showGroupSplitRecordModal.value = true;
     };
@@ -203,13 +203,13 @@ const app = createApp({
     watch(() => groupSplitRecordForm.splits, calculateGroupSplitRecord, {deep: true});
 
     const saveGroupSplitRecord = () => {
-        if(!groupSplitRecordForm.desc || !groupSplitRecordForm.amount) return alert('請填寫完整項目與金額');
+        if(!groupSplitRecordForm.desc || !groupSplitRecordForm.amount || !groupSplitRecordForm.expenseAcc) return alert('請填寫完整項目、金額與支出科目');
         let totalSplit = groupSplitRecordForm.splits.reduce((sum, s) => sum + (Number(s.amount)||0), 0);
         if(Math.abs(totalSplit - groupSplitRecordForm.amount) > 10) return alert('成員分攤總額與該筆總金額不符');
 
         data.split_records.push({
             id: 'gsr_' + Date.now(), project_id: activeSplitProjectId.value, date: new Date().toISOString().split('T')[0],
-            desc: groupSplitRecordForm.desc, payer: groupSplitRecordForm.payer, amount: groupSplitRecordForm.amount,
+            desc: groupSplitRecordForm.desc, expenseAcc: groupSplitRecordForm.expenseAcc, payer: groupSplitRecordForm.payer, amount: groupSplitRecordForm.amount,
             splits: JSON.parse(JSON.stringify(groupSplitRecordForm.splits))
         });
         showGroupSplitRecordModal.value = false; autoBackup();
@@ -268,17 +268,24 @@ const app = createApp({
         }
     };
 
-    const writeGroupSettlementToLedger = () => {
+   const writeGroupSettlementToLedger = () => {
         if(!activeSplitProject.value) return;
-        if(!groupSettleLedgerForm.expenseAcc || !groupSettleLedgerForm.payerAcc) return alert('請選擇支出科目與扣款帳戶');
+        if(!groupSettleLedgerForm.advanceAcc || !groupSettleLedgerForm.settleAcc) return alert('請完整選擇代墊與結算用實體帳戶');
 
         let myBalance = activeSplitBalances.value['我'] || 0;
-        let myTotalExpense = 0, myTotalPaid = 0;
-        
+        let myTotalPaid = 0;
+        let myExpensesByCategory = {}; 
+        let myTotalExpense = 0;
+
         activeSplitRecords.value.forEach(r => {
             if(r.payer === '我') myTotalPaid += Number(r.amount);
             let mySplit = r.splits.find(s => s.member === '我');
-            if(mySplit) myTotalExpense += Number(mySplit.amount);
+            if(mySplit && Number(mySplit.amount) > 0) {
+                let amt = Number(mySplit.amount);
+                myTotalExpense += amt;
+                let expAcc = r.expenseAcc || '5102'; // 系統防呆
+                myExpensesByCategory[expAcc] = (myExpensesByCategory[expAcc] || 0) + amt;
+            }
         });
 
         if (myTotalPaid === 0 && myTotalExpense === 0) return alert('您在此專案中沒有任何花費與代墊，無需寫入帳本。');
@@ -289,25 +296,46 @@ const app = createApp({
             debits: [], credits: []
         };
 
-        if (myTotalExpense > 0) txObj.debits.push({ account_id: groupSettleLedgerForm.expenseAcc, amount: myTotalExpense });
-        
-        if (myBalance > 0) {
-            txObj.debits.push({ account_id: '1104', amount: myBalance });
-            txObj.credits.push({ account_id: groupSettleLedgerForm.payerAcc, amount: myTotalPaid });
-        } else if (myBalance <= 0) {
-            txObj.credits.push({ account_id: groupSettleLedgerForm.payerAcc, amount: Math.abs(myBalance) });
-            if (myTotalPaid > 0) txObj.credits.push({ account_id: groupSettleLedgerForm.payerAcc, amount: myTotalPaid });
+        // 1. 將實際開銷細緻化認列為各科目支出 (借方)
+        for (let accId in myExpensesByCategory) {
+            txObj.debits.push({ account_id: accId, amount: myExpensesByCategory[accId] });
         }
 
-        let consolidatedCredits = {};
-        txObj.credits.forEach(c => { consolidatedCredits[c.account_id] = (consolidatedCredits[c.account_id] || 0) + c.amount; });
-        txObj.credits = Object.keys(consolidatedCredits).map(accId => ({ account_id: accId, amount: consolidatedCredits[accId] }));
+        // 2. 結算淨結餘與代墊款 (雙軌帳戶處理)
+        if (myBalance > 0) {
+            // 別人欠我錢：增加應收款 (借方)
+            txObj.debits.push({ account_id: '1104', amount: myBalance });
+            // 當初我付的錢：從代墊帳戶真實扣款 (貸方)
+            txObj.credits.push({ account_id: groupSettleLedgerForm.advanceAcc, amount: myTotalPaid });
+        } else if (myBalance < 0) {
+            // 我欠別人錢：直接從結算實體帳戶掏錢轉帳還款 (貸方)
+            txObj.credits.push({ account_id: groupSettleLedgerForm.settleAcc, amount: Math.abs(myBalance) });
+            // 如果當初我有墊小額款項，也要從代墊帳戶真實扣款 (貸方)
+            if (myTotalPaid > 0) {
+                txObj.credits.push({ account_id: groupSettleLedgerForm.advanceAcc, amount: myTotalPaid });
+            }
+        } else {
+            // 完美相抵互不相欠
+            if (myTotalPaid > 0) {
+                txObj.credits.push({ account_id: groupSettleLedgerForm.advanceAcc, amount: myTotalPaid });
+            }
+        }
+
+        // 陣列整合壓平防呆
+        const consolidate = (entries) => {
+            let map = {};
+            entries.forEach(e => { map[e.account_id] = (map[e.account_id] || 0) + e.amount; });
+            return Object.keys(map).map(k => ({ account_id: k, amount: map[k] }));
+        };
+        txObj.debits = consolidate(txObj.debits);
+        txObj.credits = consolidate(txObj.credits);
 
         data.transactions.unshift(txObj);
         activeSplitProject.value.is_settled = true;
         showGroupSettleLedgerModal.value = false;
         autoBackup(); updateCharts(); refreshIcons();
         alert('✅ 群組結算已成功完美認列至複式帳本！');
+    };
     };
 
     // ------------------------------------------------------------------------
@@ -666,9 +694,20 @@ const app = createApp({
 
     const getAccName = (id) => { let a = (data.accounts || []).find(ac => ac && ac.id === id); return a ? (a.icon ? `${a.icon} ${a.name}` : a.name) : (id || '未知'); };
     const getTxDesc = (tx) => (tx && (tx.desc || tx.description)) ? (tx.desc || tx.description) : '無摘要';
-    const getDebitAccName = (tx) => (tx && tx.debits && tx.debits[0]) ? getAccName(tx.debits[0].account_id) : '未知';
-    const getCreditAccName = (tx) => (tx && tx.credits && tx.credits[0]) ? getAccName(tx.credits[0].account_id) : '未知';
-    const getDebitAmount = (tx) => (tx && tx.debits && tx.debits[0]) ? (Number(tx.debits[0].amount)||0) : 0;
+    const getDebitAccName = (tx) => {
+        if (!tx || !tx.debits || tx.debits.length === 0) return '未知';
+        let names = [...new Set(tx.debits.map(d => getAccName(d.account_id)))];
+        return names.length > 2 ? names.slice(0, 2).join(', ') + '...' : names.join(', ');
+    };
+    const getCreditAccName = (tx) => {
+        if (!tx || !tx.credits || tx.credits.length === 0) return '未知';
+        let names = [...new Set(tx.credits.map(c => getAccName(c.account_id)))];
+        return names.length > 2 ? names.slice(0, 2).join(', ') + '...' : names.join(', ');
+    };
+    const getDebitAmount = (tx) => {
+        if (!tx || !tx.debits) return 0;
+        return tx.debits.reduce((sum, d) => sum + (Number(d.amount)||0), 0);
+    };
     const getDebitAccType = (tx) => { if (tx && tx.debits && tx.debits[0]) { let a = data.accounts.find(ac => ac && ac.id === tx.debits[0].account_id); return a ? a.type : ''; } return ''; };
     
     const getInvestTotalAmount = () => {
