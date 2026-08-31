@@ -647,7 +647,190 @@
              </button>
           </div>
         </div>
+<!-- ================= 4. 預算 Tab (Budget) ================= -->
+        <div v-show="activeTab === 'budget'" class="space-y-4">
+          <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2">
+            <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white"><i data-lucide="pie-chart" class="w-5 h-5 text-green-500"></i> 預算管理</h2>
+          </div>
+          
+          <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700">
+            <div class="flex justify-between text-sm mb-1 text-slate-600 dark:text-slate-400">
+              <span class="font-bold">總預算可用餘額</span>
+              <span>本期剩餘 {{ budgetStats && budgetStats.daysLeft ? budgetStats.daysLeft : 0 }} 天</span>
+            </div>
+            <div class="text-2xl font-black mb-2" :class="(budgetStats && budgetStats.totalRemaining < 0) ? 'text-red-500' : 'text-green-600'">${{ formatNumber(budgetStats && budgetStats.totalRemaining ? budgetStats.totalRemaining : 0) }}</div>
+            <div class="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden">
+              <div class="h-full rounded-full transition-all" :class="(budgetStats && budgetStats.totalSpent > budgetStats.totalLimit) ? 'bg-red-500' : 'bg-green-500'" :style="{ width: Math.min(((budgetStats && budgetStats.totalSpent ? budgetStats.totalSpent : 0) / (budgetStats && budgetStats.totalLimit ? budgetStats.totalLimit : 1)) * 100, 100) + '%' }"></div>
+            </div>
+          </div>
+          
+          <div class="space-y-3">
+             <div v-for="(b, cat) in dashboardBudgets" :key="cat" class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="font-bold text-sm text-slate-800 dark:text-white">{{ cat }}</span>
+                  <span class="text-xs font-mono" :class="(b && b.spent > b.limit) ? 'text-red-500' : 'text-slate-500'">${{ formatNumber(b && b.spent ? b.spent : 0) }} / ${{ formatNumber(b && b.limit ? b.limit : 0) }}</span>
+                </div>
+                <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                  <div class="h-full rounded-full transition-all" :class="(b && b.spent > b.limit) ? 'bg-red-500' : 'bg-blue-500'" :style="{ width: Math.min((b && b.pct ? b.pct : 0), 100) + '%' }"></div>
+                </div>
+             </div>
+          </div>
+          
+          <div class="mt-6">
+            <div class="flex justify-between items-center mb-3 border-b dark:border-slate-700 pb-2">
+              <h3 class="font-bold flex items-center gap-2 text-slate-700 dark:text-slate-200"><i data-lucide="briefcase" class="w-4 h-4 text-indigo-500"></i> 專案計畫追蹤</h3>
+              <button @click="showProjectBudgetModal = true" class="text-xs bg-indigo-50 text-indigo-600 border border-indigo-200 dark:bg-indigo-900/30 dark:border-indigo-700 dark:text-indigo-300 px-2 py-1 rounded font-bold shadow-sm transition">+ 新增計畫</button>
+            </div>
+            <div class="space-y-3">
+               <div v-if="!projectBudgetStats || projectBudgetStats.length === 0" class="text-center text-slate-400 text-xs py-4">目前無進行中的專案計畫</div>
+               <div v-for="proj in projectBudgetStats" :key="proj && proj.id ? proj.id : ''" class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm relative">
+                  <button @click="deleteProjectBudget(proj && proj.id ? proj.id : '')" class="absolute top-3 right-3 text-slate-400 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                  <div class="font-bold text-slate-800 dark:text-white text-sm mb-1">{{ proj && proj.name ? proj.name : '' }} <span class="text-xs bg-slate-100 dark:bg-slate-700 px-1 rounded text-slate-500 font-normal">#{{ proj && proj.tag ? proj.tag : '' }}</span></div>
+                  <div class="flex justify-between text-xs text-slate-500 mb-2">
+                     <span>{{ proj && proj.startDate ? proj.startDate : '' }} ~ {{ proj && proj.endDate ? proj.endDate : '' }}</span>
+                  </div>
+                  <div class="flex justify-between items-end mb-1">
+                     <span class="text-xs text-slate-500">已用: ${{ formatNumber(proj && proj.spent ? proj.spent : 0) }}</span>
+                     <span class="font-bold text-sm" :class="(proj && proj.remaining < 0) ? 'text-red-500' : 'text-indigo-600 dark:text-indigo-400'">剩餘: ${{ formatNumber(proj && proj.remaining ? proj.remaining : 0) }}</span>
+                  </div>
+                  <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                    <div class="h-full rounded-full transition-all" :class="(proj && proj.remaining < 0) ? 'bg-red-500' : 'bg-indigo-500'" :style="{ width: (proj && proj.pct ? proj.pct : 0) + '%' }"></div>
+                  </div>
+               </div>
+            </div>
+          </div>
+        </div>
 
+        <!-- ================= 4-1. 儲蓄 Tab (Savings) ================= -->
+        <div v-show="activeTab === 'savings'" class="space-y-4">
+          <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2">
+            <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white"><i data-lucide="crosshair" class="w-5 h-5 text-pink-500"></i> 儲蓄目標計畫</h2>
+            <button @click="showAddGoalModal = true" class="text-xs bg-pink-50 text-pink-600 border border-pink-200 dark:bg-pink-900/30 dark:border-pink-700 dark:text-pink-300 px-2 py-1 rounded font-bold shadow-sm transition">+ 新增目標</button>
+          </div>
+          <div v-if="!safeSavingsGoals || safeSavingsGoals.length === 0" class="text-center text-slate-400 text-sm py-10 bg-white dark:bg-slate-800 rounded-xl border dark:border-slate-700 shadow-sm mt-4">尚無建立任何儲蓄目標</div>
+          <div class="grid grid-cols-2 gap-3">
+             <div v-for="goal in safeSavingsGoals" :key="goal && goal.id ? goal.id : ''" class="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm relative flex flex-col items-center text-center">
+                <button @click="deleteGoal(goal && goal.id ? goal.id : '')" class="absolute top-2 right-2 text-slate-400 hover:text-red-500 p-1"><i data-lucide="x" class="w-3 h-3"></i></button>
+                <div class="font-bold text-sm text-slate-800 dark:text-white mb-1 mt-2">{{ goal && goal.name ? goal.name : '' }}</div>
+                <div class="text-[10px] text-slate-500 mb-3">{{ (goal && goal.deadline) ? goal.deadline : '無期限' }}</div>
+                
+                <div class="relative w-20 h-20 mb-3 flex items-center justify-center">
+                  <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                    <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="currentColor" stroke-width="3.5" class="text-slate-200 dark:text-slate-700"></circle>
+                    <circle cx="18" cy="18" r="15.915" fill="transparent" stroke="currentColor" stroke-width="3.5" :stroke-dasharray="`${Math.min((((goal && goal.saved ? goal.saved : 0)/(goal && goal.target ? goal.target : 1))*100), 100)}, 100`" class="text-pink-500"></circle>
+                  </svg>
+                  <div class="absolute text-xs font-bold text-slate-700 dark:text-slate-200">{{ Math.round((((goal && goal.saved ? goal.saved : 0)/(goal && goal.target ? goal.target : 1))*100)) }}%</div>
+                </div>
+                
+                <div class="text-xs font-mono text-slate-600 dark:text-slate-400 mb-2">${{ formatNumber(goal && goal.saved ? goal.saved : 0) }} / ${{ formatNumber(goal && goal.target ? goal.target : 0) }}</div>
+                <button @click="openUpdateGoalModal(goal)" class="w-full text-xs font-bold bg-pink-50 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400 py-1.5 rounded-lg border border-pink-100 dark:border-pink-800/50 hover:bg-pink-100 transition shadow-sm">存錢</button>
+             </div>
+          </div>
+        </div>
+
+        <!-- ================= 5. 資產與貸款 Tab (Assets) ================= -->
+        <div v-show="activeTab === 'assets'" class="space-y-4">
+          <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2">
+            <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white"><i data-lucide="wallet" class="w-5 h-5 text-blue-500"></i> 資產與貸款</h2>
+            <button @click="showAddAccountModal = true" class="text-xs bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-300 px-2 py-1 rounded font-bold shadow-sm transition">+ 新增帳戶</button>
+          </div>
+          
+          <div>
+            <h3 class="text-sm font-bold text-slate-600 dark:text-slate-400 mb-2 flex items-center gap-1"><i data-lucide="piggy-bank" class="w-4 h-4"></i> 流動資產 (帳戶/現金)</h3>
+            <div class="space-y-2">
+               <div v-for="acc in liquidAccountsWithBalance" :key="acc && acc.id ? acc.id : ''" @click="filterByAccount(acc)" class="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm flex justify-between items-center cursor-pointer hover:border-blue-300 transition">
+                  <div class="flex items-center gap-2">
+                     <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-lg">{{ acc && acc.icon ? acc.icon : '' }}</div>
+                     <div>
+                       <div class="font-bold text-sm text-slate-800 dark:text-white">{{ acc && acc.name ? acc.name : '' }}</div>
+                       <div class="text-[10px] text-slate-500">{{ acc && acc.currency ? acc.currency : '' }}</div>
+                     </div>
+                  </div>
+                  <div class="font-mono font-bold" :class="(acc && acc.balance < 0) ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'">${{ formatNumber(acc && acc.balance ? acc.balance : 0) }}</div>
+               </div>
+            </div>
+          </div>
+          
+          <div v-if="liabilityAccountsWithBalance && liabilityAccountsWithBalance.length > 0">
+            <h3 class="text-sm font-bold text-slate-600 dark:text-slate-400 mb-2 mt-4 flex items-center gap-1"><i data-lucide="credit-card" class="w-4 h-4"></i> 信用卡與負債</h3>
+            <div class="space-y-2">
+               <div v-for="acc in liabilityAccountsWithBalance" :key="acc && acc.id ? acc.id : ''" @click="filterByAccount(acc)" class="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm flex justify-between items-center cursor-pointer hover:border-rose-300 transition">
+                  <div class="flex items-center gap-2">
+                     <div class="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-lg">{{ acc && acc.icon ? acc.icon : '' }}</div>
+                     <div>
+                       <div class="font-bold text-sm text-slate-800 dark:text-white">{{ acc && acc.name ? acc.name : '' }}</div>
+                     </div>
+                  </div>
+                  <div class="font-mono font-bold text-rose-500">${{ formatNumber(Math.abs(acc && acc.balance ? acc.balance : 0)) }}</div>
+               </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center mb-2 mt-4">
+               <h3 class="text-sm font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1"><i data-lucide="building-2" class="w-4 h-4"></i> 長期貸款</h3>
+               <button @click="showAddLoanModal = true" class="text-xs text-rose-500 font-bold">+ 新增</button>
+            </div>
+            <div class="space-y-2">
+               <div v-if="!safeLoans || safeLoans.length === 0" class="text-center text-slate-400 text-xs py-3 border border-dashed rounded-lg dark:border-slate-700">無貸款項目</div>
+               <div v-for="loan in safeLoans" :key="loan && loan.id ? loan.id : ''" class="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm relative overflow-hidden">
+                  <div class="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
+                  <div class="flex justify-between items-start mb-2 pl-2">
+                     <div class="font-bold text-sm text-slate-800 dark:text-white">{{ loan && loan.name ? loan.name : '' }}</div>
+                     <button @click="openRateModal(loan)" class="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-1.5 py-0.5 rounded border dark:border-slate-600 hover:bg-slate-200 transition">調利率</button>
+                  </div>
+                  <div class="flex justify-between text-xs text-slate-500 pl-2"><span>剩餘本金</span><span class="font-mono font-bold text-rose-500">${{ formatNumber(Math.abs(calculateBalance(loan && loan.liability_acc_id ? loan.liability_acc_id : '', 'all'))) }}</span></div>
+                  <div class="flex justify-between text-xs text-slate-500 pl-2 mt-1"><span>目前年利率</span><span class="font-mono">{{ loan && loan.interest_rate ? loan.interest_rate : 0 }}%</span></div>
+                  <div class="flex justify-between text-xs text-slate-500 pl-2 mt-1"><span>累計已繳利息</span><span class="font-mono">${{ formatNumber(getAccumulatedInterest(loan && loan.id ? loan.id : '')) }}</span></div>
+               </div>
+            </div>
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center mb-2 mt-4">
+               <h3 class="text-sm font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1"><i data-lucide="trending-up" class="w-4 h-4"></i> 投資組合現值</h3>
+               <div class="flex gap-2">
+                 <button @click="updateStockPrices" class="text-xs text-indigo-500 font-bold bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-800 shadow-sm">更新現價</button>
+                 <button @click="showInitialStockModal = true" class="text-xs text-orange-500 font-bold">+ 期初建倉</button>
+               </div>
+            </div>
+            <div class="space-y-2">
+               <div v-if="!safeInvestments || safeInvestments.length === 0" class="text-center text-slate-400 text-xs py-3 border border-dashed rounded-lg dark:border-slate-700">無庫存標的</div>
+               <div v-for="inv in (safeInvestments || []).filter(i => i && i.shares > 0)" :key="inv && inv.symbol ? inv.symbol : ''" class="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm">
+                  <div class="flex justify-between items-center mb-1">
+                     <div class="font-bold text-sm text-slate-800 dark:text-white">{{ (inv && inv.name) ? inv.name : (inv && inv.symbol ? inv.symbol : '') }} <span class="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 px-1 rounded ml-1">{{ inv && inv.symbol ? inv.symbol : '' }}</span></div>
+                     <div class="font-mono font-black text-slate-800 dark:text-white">${{ formatNumber(getInvCurrentValue(inv)) }}</div>
+                  </div>
+                  <div class="flex justify-between text-xs text-slate-500">
+                     <span>{{ inv && inv.shares ? inv.shares : 0 }} 股 | 均價 ${{ formatNumber((inv && inv.total_cost ? inv.total_cost : 0)/(inv && inv.shares ? inv.shares : 1)) }}</span>
+                     <span :class="getUnrealizedGain(inv) >= 0 ? 'text-red-500' : 'text-green-600'">未實現 {{ getUnrealizedGain(inv) >= 0 ? '+' : '' }}${{ formatNumber(getUnrealizedGain(inv)) }}</span>
+                  </div>
+               </div>
+            </div>
+          </div>
+          
+          <div>
+            <div class="flex justify-between items-center mb-2 mt-4">
+               <h3 class="text-sm font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1"><i data-lucide="monitor" class="w-4 h-4"></i> 固定資產</h3>
+               <button @click="showAddFixedAssetModal = true" class="text-xs text-teal-600 font-bold">+ 登錄</button>
+            </div>
+            <div class="space-y-2">
+               <div v-if="!safeFixedAssets || safeFixedAssets.length === 0" class="text-center text-slate-400 text-xs py-3 border border-dashed rounded-lg dark:border-slate-700">無資產紀錄</div>
+               <div v-for="fa in safeFixedAssets" :key="fa && fa.id ? fa.id : ''" class="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm relative overflow-hidden">
+                  <div class="absolute left-0 top-0 bottom-0 w-1 bg-teal-500"></div>
+                  <div class="flex justify-between items-start mb-1 pl-2">
+                     <div class="font-bold text-sm text-slate-800 dark:text-white">{{ fa && fa.name ? fa.name : '' }}</div>
+                     <button @click="openDisposalModal(fa)" class="text-[10px] text-red-500 bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded border border-red-100 dark:border-red-800 hover:bg-red-100 transition">處分</button>
+                  </div>
+                  <div class="flex justify-between text-xs text-slate-500 pl-2"><span>購入成本</span><span class="font-mono">${{ formatNumber(fa && fa.original_cost ? fa.original_cost : 0) }}</span></div>
+                  <div class="flex justify-between text-xs text-slate-500 pl-2 mt-0.5"><span>累計折舊</span><span class="font-mono text-rose-500">-${{ formatNumber(getFAAccDep(fa)) }}</span></div>
+                  <div class="flex justify-between text-xs text-slate-500 pl-2 mt-1 border-t dark:border-slate-700 pt-1">
+                     <span class="font-bold">帳面淨值</span><span class="font-mono font-bold text-teal-600 dark:text-teal-400">${{ formatNumber(getFABookValue(fa)) }}</span>
+                  </div>
+               </div>
+            </div>
+          </div>
+        </div>
 <!-- ================= 6. 財務報表 Tab (Reports) ================= -->
         <div v-show="activeTab === 'reports'" class="space-y-4">
           <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2">

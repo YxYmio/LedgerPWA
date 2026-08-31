@@ -15,7 +15,7 @@ const app = createApp({
     const pinError = ref('');
     const syncStatus = ref('offline'); 
     const isSyncing = ref(false);
-    const showAmounts = ref(true);
+    const showAmounts = ref(false);
     const expenseMonth = ref(new Date().toISOString().substring(0,7)); 
     const dashboardMonth = ref(new Date().toISOString().substring(0,7));
     const fxRate = ref(1);
@@ -247,8 +247,7 @@ const app = createApp({
         text += `\n(Powered by 智慧帳本 Lightsplit)`;
 
         if(navigator.share) { try { await navigator.share({ title: activeSplitProject.value.name, text: text }); } catch(e) {} } 
-        else { navigator.clipboard.writeText(text); alert('結算報告已複製到剪貼簿，可直接貼上至 LINE！'); }
-    };
+        else { navigator.clipboard.writeText(text); alert('✅ 已複製至剪貼簿，可直接貼到 LINE 等通訊軟體！'); }
 
     // Phase 4: 攔截與解析網址參數
     const checkSharedUrl = () => {
