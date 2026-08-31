@@ -248,7 +248,7 @@ const app = createApp({
 
         if(navigator.share) { try { await navigator.share({ title: activeSplitProject.value.name, text: text }); } catch(e) {} } 
         else { navigator.clipboard.writeText(text); alert('✅ 已複製至剪貼簿，可直接貼到 LINE 等通訊軟體！'); }
-
+        }; 
     // Phase 4: 攔截與解析網址參數
     const checkSharedUrl = () => {
         try {
