@@ -103,7 +103,7 @@ const app = createApp({
     });
     
     const initStock = reactive({ symbol: '', name: '', shares: null, price: null, cost: null, unitType: 'share' });
-    const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD' });
+    const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD', icon: '' });
     const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60, scope: 'personal' });
     const disposalAsset = ref(null);
     const disposalForm = reactive({ type: 'scrap', price: null, account: '' });
@@ -442,6 +442,42 @@ const app = createApp({
     const getSubAccounts = (type, mainCat, incHidden = false) => (data.accounts || []).filter(a => a && a.type === type && (!mainCat || a.category === mainCat) && (incHidden || !a.is_hidden));
     
     const safeQuickTags = computed(() => data.quick_tags || []);
+    const activeProjectTags = computed(() => {
+        let tags = [];
+        (data.project_budgets || []).forEach(p => { if (p && p.tag) tags.push(p.tag); });
+        (data.split_projects || []).forEach(p => { if (p && !p.is_settled && p.name) tags.push(p.name.replace(/\s+/g, '')); });
+        return [...new Set(tags)];
+    });
+    
+    const combinedQuickTags = computed(() => {
+        return {
+            projects: activeProjectTags.value,
+            presets: (data.quick_tags || []).filter(t => !activeProjectTags.value.includes(t))
+        };
+    });
+
+    const recentExpenses = computed(() => {
+        return sortedTransactions.value.filter(tx => {
+            if (!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed) return false;
+            let isExp = false;
+            if (tx.debits && tx.debits.length > 0) {
+                let acc = (data.accounts || []).find(a => a && a.id === tx.debits[0].account_id);
+                if (acc && acc.type === 'Expense') isExp = true;
+            }
+            return isExp;
+        }).slice(0, 5); // 抓取近 5 筆支出
+    });
+
+    const applyRecentTx = (tx) => {
+        if (!tx) return;
+        newTx.desc = getTxDesc(tx).replace(/#\S+/g, '').trim(); // 帶入摘要並過濾掉舊標籤
+        newTx.amount = getDebitAmount(tx);
+        if (tx.debits && tx.debits[0]) {
+            let expAcc = (data.accounts || []).find(a => a && a.id === tx.debits[0].account_id);
+            if (expAcc) { newTx.mainCategory = expAcc.category || ''; newTx.subAccount = expAcc.id || ''; }
+        }
+        if (tx.credits && tx.credits[0]) newTx.paymentAcc = tx.credits[0].account_id || '';
+    };
     const safeInvestments = computed(() => data.investments || []);
     const safeFixedAssets = computed(() => (data.fixed_assets || []).filter(fa => fa && !fa.is_disposed));
     const safeLoans = computed(() => data.loans || []);
@@ -878,7 +914,8 @@ const app = createApp({
       if(!newAssetAcc.name) return;
       let finalType = newAssetAcc.name.includes('信用卡') || newAssetAcc.name.includes('欠款') || newAssetAcc.name.includes('貸款') ? 'Liability' : (newAssetAcc.type || 'Asset');
       const newId = (finalType === 'Liability' ? 'liab_' : 'asset_') + Date.now();
-      data.accounts.push({ id: newId, name: newAssetAcc.name, type: finalType, currency: newAssetAcc.currency, is_hidden: false });
+      let finalIcon = newAssetAcc.icon || (finalType === 'Liability' ? '💳' : '🏦');
+data.accounts.push({ id: newId, name: newAssetAcc.name, type: finalType, currency: newAssetAcc.currency, is_hidden: false, icon: finalIcon });
       
       if(newAssetAcc.initBalance && newAssetAcc.initBalance > 0) {
         if (finalType === 'Asset') {
@@ -888,7 +925,7 @@ const app = createApp({
         }
       }
       newAssetAcc.name = ''; newAssetAcc.type = 'Asset'; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
-      showAddAccountModal.value = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 帳戶建立成功！');
+      showAddAccountModal.value = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 帳戶建立成功！');newAssetAcc.icon = '';
     };
 
     const openEditModal = (tx) => {
@@ -1380,7 +1417,7 @@ const app = createApp({
       sortedTransactions, filteredTransactions, ytdDividend, dashboardBudgets, budgetStats, getAccName, formatNumber: safeFormatNumber,
       getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getDebitAccType, getInvestTotalAmount, 
       getInvCurrentValue, getUnrealizedGain, getFAAccDep, getFABookValue, getAccumulatedInterest, loanRepayPreview, 
-      getTxColorBand, getTxAmountColor, applyQuickTag, onDividendSymbolChange, bsData, isData, cfData,
+      getTxColorBand, getTxAmountColor, applyQuickTag, onDividendSymbolChange,activeProjectTags, combinedQuickTags, recentExpenses, applyRecentTx, bsData, isData, cfData,
       switchBook, createNewBook, submitNewBook, deleteBook, submitNewAssetAccount, submitTransaction, openRefundModal, closeRefundModal, submitRefund,
       openReimburseModal, closeReimburseModal, submitReimburse, reimburseTx, openEditModal, saveEditTx, viewInstallmentDetails,
       deleteTransaction, submitInitialStock, calculateInitStockCost, submitFixedAsset, openDisposalModal, submitDisposal, submitAddLoan, 
