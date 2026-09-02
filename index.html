@@ -149,6 +149,22 @@
         </div>
       </header>
 
+<!-- ================= 底部輕量導覽列 ================= -->     
+      <nav class="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-2 py-2 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-[calc(env(safe-area-inset-bottom)+8px)] rounded-t-2xl">   
+         <button @click="changeTab('dashboard')" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
+          <i data-lucide="layout-dashboard" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">總覽</span>
+        </button>
+        <button @click="changeTab('entry')" :class="activeTab==='entry' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
+          <i data-lucide="edit-3" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">記帳</span>
+        </button>
+        <button @click="changeTab('history')" :class="activeTab==='history' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
+          <i data-lucide="list" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">明細</span>
+        </button>
+        <button @click="changeTab('budget')" :class="activeTab==='budget' ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
+          <i data-lucide="target" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">預算</span>
+        </button>
+      </nav>
+
       <main class="p-4">
         
         <div v-if="(!settings || !settings.googleToken) && activeTab !== 'settings'" @click="changeTab('settings')" class="bg-yellow-50 border border-yellow-200 text-yellow-800 p-3 rounded-lg mb-4 flex items-center cursor-pointer shadow-sm dark:bg-yellow-900/30 dark:border-yellow-700/50 dark:text-yellow-300">
@@ -678,35 +694,50 @@
           </div>
         </div>
 <!-- ================= 4. 預算 Tab (Budget) ================= -->
-        <div v-show="activeTab === 'budget'" class="space-y-4">
-          <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2">
-            <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white"><i data-lucide="pie-chart" class="w-5 h-5 text-green-500"></i> 預算管理</h2>
-          </div>
-          
-          <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700">
-            <div class="flex justify-between text-sm mb-1 text-slate-600 dark:text-slate-400">
-              <span class="font-bold">總預算可用餘額</span>
-              <span>本期剩餘 {{ budgetStats && budgetStats.daysLeft ? budgetStats.daysLeft : 0 }} 天</span>
-            </div>
-            <div class="text-2xl font-black mb-2" :class="(budgetStats && budgetStats.totalRemaining < 0) ? 'text-red-500' : 'text-green-600'">${{ formatNumber(budgetStats && budgetStats.totalRemaining ? budgetStats.totalRemaining : 0) }}</div>
-            <div class="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden">
-              <div class="h-full rounded-full transition-all" :class="(budgetStats && budgetStats.totalSpent > budgetStats.totalLimit) ? 'bg-red-500' : 'bg-green-500'" :style="{ width: Math.min(((budgetStats && budgetStats.totalSpent ? budgetStats.totalSpent : 0) / (budgetStats && budgetStats.totalLimit ? budgetStats.totalLimit : 1)) * 100, 100) + '%' }"></div>
-            </div>
-          </div>
-          
-          <div class="space-y-3">
-             <div v-if="!dashboardBudgets || Object.keys(dashboardBudgets).length === 0" class="text-center text-slate-400 text-xs py-4 border border-dashed rounded-lg dark:border-slate-700">請至設定中建立各分類預算</div>
-             <div v-for="(b, cat) in dashboardBudgets" :key="cat" class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm">
-                <div class="flex justify-between items-center mb-2">
-                  <span class="font-bold text-sm text-slate-800 dark:text-white">{{ cat }}</span>
-                  <span class="text-xs font-mono" :class="(b && b.spent > b.limit) ? 'text-red-500' : 'text-slate-500'">${{ formatNumber(b && b.spent ? b.spent : 0) }} / ${{ formatNumber(b && b.limit ? b.limit : 0) }}</span>
-                </div>
-                <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                  <div class="h-full rounded-full transition-all" :class="(b && b.spent > b.limit) ? 'bg-red-500' : 'bg-blue-500'" :style="{ width: Math.min((b && b.pct ? b.pct : 0), 100) + '%' }"></div>
-                </div>
-             </div>
-          </div>
+<div v-show="activeTab === 'budget'" class="space-y-4">
+  <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2">
+    <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white"><i data-lucide="pie-chart" class="w-5 h-5 text-green-500"></i> 預算管理</h2>
+  </div>
+
+  <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700">
+    <div class="flex justify-between text-sm mb-1 text-slate-600 dark:text-slate-400">
+      <span class="font-bold">總預算可用餘額</span>
+      <span>本期剩餘 {{ budgetStats && budgetStats.daysLeft ? budgetStats.daysLeft : 0 }} 天</span>
+    </div>
+    <div class="text-2xl font-black mb-2" :class="(budgetStats && budgetStats.totalRemaining < 0) ? 'text-red-500' : 'text-green-600'">${{ formatNumber(budgetStats && budgetStats.totalRemaining ? budgetStats.totalRemaining : 0) }}</div>
+    <div class="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden">
+      <div class="h-full rounded-full transition-all" :class="(budgetStats && budgetStats.totalSpent > budgetStats.totalLimit) ? 'bg-red-500' : 'bg-green-500'" :style="{ width: Math.min(((budgetStats && budgetStats.totalSpent ? budgetStats.totalSpent : 0) / (budgetStats && budgetStats.totalLimit ? budgetStats.totalLimit : 1)) * 100, 100) + '%' }"></div>
+    </div>
+  </div>
+
+  <!-- 預算設定區塊 -->
+  <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700 mt-4">
+    <h3 class="text-md font-bold mb-3 flex items-center gap-2 text-green-600 dark:text-green-400">
+      <i data-lucide="settings" class="w-4 h-4"></i> 各分類預算設定
+    </h3>
+    <div v-if="!expenseCategories || expenseCategories.length === 0" class="text-slate-500 text-sm text-center">請先建立支出主類別</div>
+    <div class="space-y-3">
+      <div v-for="cat in expenseCategories" :key="cat" class="flex items-center justify-between gap-3">
+        <span class="text-sm font-bold text-slate-700 dark:text-slate-300 w-1/3">{{ cat }}</span>
+        <input type="number" v-model.number="data.budgets[cat]" @change="autoBackup" placeholder="預算金額" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white font-mono text-right text-green-600 font-bold">
+      </div>
+    </div>
+  </div>
+
+  <!-- 各類別預算進度條 -->
+  <div class="space-y-3 mt-4">
+     <div v-if="!dashboardBudgets || Object.keys(dashboardBudgets).length === 0" class="text-center text-slate-400 text-xs py-4 border border-dashed rounded-lg dark:border-slate-700">請設定上方各分類預算</div>
+     <div v-for="(b, cat) in dashboardBudgets" :key="cat" class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm">
+        <div class="flex justify-between items-center mb-2">
+          <span class="font-bold text-sm text-slate-800 dark:text-white">{{ cat }}</span>
+          <span class="text-xs font-mono" :class="(b && b.spent > b.limit) ? 'text-red-500' : 'text-slate-500'">${{ formatNumber(b && b.spent ? b.spent : 0) }} / ${{ formatNumber(b && b.limit ? b.limit : 0) }}</span>
         </div>
+        <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+          <div class="h-full rounded-full transition-all" :class="(b && b.spent > b.limit) ? 'bg-red-500' : 'bg-blue-500'" :style="{ width: Math.min((b && b.pct ? b.pct : 0), 100) + '%' }"></div>
+        </div>
+     </div>
+  </div>
+</div>
 <!-- ================= 4-5. 儲蓄目標 Tab (Savings) ================= -->
 <div v-show="activeTab === 'savings'" class="space-y-4">
   <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2">
@@ -1901,21 +1932,7 @@
         </div>
       </div>
 
-      <!-- ================= 底部輕量導覽列 ================= -->     
-      <nav class="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-2 py-2 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-[calc(env(safe-area-inset-bottom)+8px)] rounded-t-2xl">   
-         <button @click="changeTab('dashboard')" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
-          <i data-lucide="layout-dashboard" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">總覽</span>
-        </button>
-        <button @click="changeTab('entry')" :class="activeTab==='entry' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
-          <i data-lucide="edit-3" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">記帳</span>
-        </button>
-        <button @click="changeTab('history')" :class="activeTab==='history' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
-          <i data-lucide="list" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">明細</span>
-        </button>
-        <button @click="changeTab('budget')" :class="activeTab==='budget' ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
-          <i data-lucide="target" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">預算</span>
-        </button>
-      </nav>
+      
     </div>
   </div>
 
