@@ -432,7 +432,7 @@ const app = createApp({
         }
     };
 
-   const changeTab = (tab) => { activeTab.value = tab; isDrawerOpen.value = false; };
+    const changeTab = (tab) => { activeTab.value = tab; isDrawerOpen.value = false; };
     const filterByAccount = (acc, fromDate = '', toDate = '') => {
    if (!acc) return;
    historyFilter.keyword = acc.name || ''; 
@@ -440,7 +440,7 @@ const app = createApp({
    historyFilter.dateTo = toDate || ''; 
    historyFilter.scope = 'all'; 
    activeTab.value = 'history';
-   window.scrollTo({ top: 0, behavior: 'smooth' }); // 強制將畫面滑動回頂部
+   setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
     };
     const viewProjectDetails = (tag) => {
        if (!tag) return;
@@ -813,8 +813,8 @@ const app = createApp({
 
      let finalDesc = (newTx.desc || '').trim();
       if (!finalDesc && newTx.subAccount && !newTx.isReimbursement) {
-          let accName = getAccName(newTx.subAccount);
-          finalDesc = accName.replace(/^[^\s]+\s/, ''); // 去除前面的 Emoji
+          let acc = (data.accounts || []).find(a => a && a.id === newTx.subAccount);
+          if (acc && acc.name) finalDesc = acc.name;
       }
       if (!finalDesc) finalDesc = '無摘要';
       
@@ -1036,14 +1036,28 @@ const app = createApp({
       closeRefundModal(); autoBackup(); updateCharts(); alert('✅ 退款沖銷成功！');
     };
 
-    const openReimburseModal = (tx) => { activeReimburseTx.value = tx; reimburseData.account = ''; showReimburseModal.value = true; };
+    const openReimburseModal = (tx) => { 
+        activeReimburseTx.value = tx; 
+        reimburseData.account = ''; 
+        let origAmt = getDebitAmount(tx);
+        let reimbAmt = Number(tx.reimbursed_amount) || 0;
+        reimburseData.maxAmount = origAmt - reimbAmt;
+        reimburseData.amount = reimburseData.maxAmount;
+        showReimburseModal.value = true; 
+    };
     const closeReimburseModal = () => { showReimburseModal.value = false; activeReimburseTx.value = null; };
-    const submitReimburse = () => { if (!activeReimburseTx.value || !reimburseData.account) return alert('請選擇入帳帳戶'); reimburseTx(activeReimburseTx.value, reimburseData.account); closeReimburseModal(); };
-    const reimburseTx = (tx, toAccountId) => {
-         if (!tx || !toAccountId) return;
-         let origAmount = getDebitAmount(tx);
-         data.transactions.unshift({ id: 'tx_reimb_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: tx.scope, desc: `[代墊報銷] ${(tx.desc || tx.description || '')}`, debits: [{ account_id: toAccountId, amount: origAmount }], credits: [{ account_id: '1104', amount: origAmount }], ref_tx_id: tx.id });
-         tx.is_reimbursed = true; autoBackup(); updateCharts(); alert('✅ 報銷沖銷成功！');
+    const submitReimburse = () => { 
+        if (!activeReimburseTx.value || !reimburseData.account) return alert('請選擇入帳帳戶'); 
+        if (reimburseData.amount <= 0 || reimburseData.amount > reimburseData.maxAmount) return alert("報銷金額無效或大於可報銷餘額");
+        reimburseTx(activeReimburseTx.value, reimburseData.account, reimburseData.amount); 
+        closeReimburseModal(); 
+    };
+    const reimburseTx = (tx, toAccountId, amount) => {
+         if (!tx || !toAccountId || !amount) return;
+         data.transactions.unshift({ id: 'tx_reimb_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: tx.scope, desc: `[代墊報銷] ${(tx.desc || tx.description || '')}`, debits: [{ account_id: toAccountId, amount: amount }], credits: [{ account_id: '1104', amount: amount }], ref_tx_id: tx.id });
+         tx.reimbursed_amount = (Number(tx.reimbursed_amount) || 0) + amount;
+         if (tx.reimbursed_amount >= getDebitAmount(tx)) { tx.is_reimbursed = true; }
+         autoBackup(); updateCharts(); alert('✅ 報銷沖銷成功！');
     };
 
     const deleteTransaction = (id) => {
@@ -1054,7 +1068,14 @@ const app = createApp({
       if (tx && tx.auto_generated && tx.asset_id) { let a = data.fixed_assets.find(fa => fa && fa.id === tx.asset_id); if(a) a.last_depreciation_date = null; }
       if (tx && tx.auto_generated && tx.inst_id) { let inst = data.installments.find(i => i && i.id === tx.inst_id); if(inst) { inst.paid_periods = Math.max(0, inst.paid_periods - 1); let p = inst.next_month.split('-'); let y = Number(p[0]); let m = Number(p[1]) - 1; if(m < 1) { m = 12; y--; } inst.next_month = `${y}-${String(m).padStart(2,'0')}`; } }
       if (tx && tx.is_refund && tx.ref_tx_id) { let orig = data.transactions.find(t => t && t.id === tx.ref_tx_id); if (orig) { let refundAmt = getDebitAmount(tx); orig.refunded_amount = Math.max(0, (Number(orig.refunded_amount) || 0) - refundAmt); if (orig.refunded_amount < getDebitAmount(orig)) orig.is_refunded = false; } }
-      if (tx && tx.id.startsWith('tx_reimb_') && tx.ref_tx_id) { let orig = data.transactions.find(t => t && t.id === tx.ref_tx_id); if (orig) orig.is_reimbursed = false; }
+      if (tx && tx.id.startsWith('tx_reimb_') && tx.ref_tx_id) { 
+          let orig = data.transactions.find(t => t && t.id === tx.ref_tx_id); 
+          if (orig) {
+              let reimbAmt = getDebitAmount(tx);
+              orig.reimbursed_amount = Math.max(0, (Number(orig.reimbursed_amount) || 0) - reimbAmt);
+              if (orig.reimbursed_amount < getDebitAmount(orig)) orig.is_reimbursed = false;
+          } 
+      }
       if (tx && tx.invest_symbol && tx.invest_shares) { let inv = data.investments.find(i => i && i.symbol === tx.invest_symbol); if (inv) { let s = Number(tx.invest_shares) || 0; let c = Number(tx.invest_cost_value) || 0; if (tx.invest_action === 'buy' || tx.invest_action === 'init') { inv.shares = Math.max(0, inv.shares - s); inv.total_cost = Math.max(0, inv.total_cost - c); } else if (tx.invest_action === 'sell') { inv.shares += s; inv.total_cost += c; } if(inv.shares > 0) inv.last_price = inv.total_cost / inv.shares; else inv.total_cost = 0; } }
       if (tx && tx.loan_init_id) { data.loans = data.loans.filter(l => l && l.id !== tx.loan_init_id); if(tx.loan_account_id) data.accounts = data.accounts.filter(a => a && a.id !== tx.loan_account_id); }
       if (tx && tx.fa_init_id) { data.fixed_assets = data.fixed_assets.filter(fa => fa && fa.id !== tx.fa_init_id); }
