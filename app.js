@@ -110,7 +110,7 @@ const app = createApp({
     const activeLoan = ref(null);
     const rateData = reactive({ rate: null });
     const newRecurring = reactive({ type: 'expense', desc: '', amount: null, day: 1, account: '' });
-    const initGoal = reactive({ name: '', target: null, deadline: '' });
+    const initGoal = reactive({ name: '', target: null, deadline: '', tag: '' });
     const activeGoal = ref(null);
     const updateGoalData = reactive({ amount: null, type: 'add' });
     const activeRefundTx = ref(null);
@@ -544,6 +544,7 @@ const app = createApp({
         let tags = [];
         (data.project_budgets || []).forEach(p => { if (p && p.tag) tags.push(p.tag); });
         (data.split_projects || []).forEach(p => { if (p && !p.is_settled && p.name) tags.push(p.name.replace(/\s+/g, '')); });
+        (data.savings_goals || []).forEach(g => { if (g && g.tag) tags.push(g.tag); else if (g && g.name) tags.push(g.name.replace(/\s+/g, '')); });
         return [...new Set(tags)];
     });
     
@@ -866,6 +867,14 @@ const app = createApp({
       let extractedTags = [];
       let tagMatches = (newTx.desc || '').match(/#\S+/g);
       if (tagMatches) extractedTags = tagMatches.map(t => t.substring(1));
+
+      // 攔截標籤：若符合儲蓄目標，自動將該筆金額累加至存入進度
+      extractedTags.forEach(tag => {
+          let matchedGoal = (data.savings_goals || []).find(g => g && (g.name === tag || g.tag === tag));
+          if (matchedGoal && newTx.amount > 0) {
+              matchedGoal.saved = (Number(matchedGoal.saved) || 0) + Number(newTx.amount);
+          }
+      });
 
      let finalDesc = (newTx.desc || '').trim();
       if (!finalDesc && newTx.subAccount && !newTx.isReimbursement) {
@@ -1254,8 +1263,9 @@ const app = createApp({
 
     const submitAddGoal = () => {
       if(!initGoal.name || !initGoal.target) return alert("請填寫目標名稱與金額");
-      data.savings_goals.push({ id: 'goal_' + Date.now(), name: initGoal.name, target: initGoal.target, deadline: initGoal.deadline, saved: 0 });
-      showAddGoalModal.value = false; initGoal.name = ''; initGoal.target = null; initGoal.deadline = ''; autoBackup(); alert('✅ 目標建立成功！');
+      let tagClean = initGoal.tag ? initGoal.tag.replace('#', '').trim() : initGoal.name.replace(/\s+/g, '');
+      data.savings_goals.push({ id: 'goal_' + Date.now(), name: initGoal.name, tag: tagClean, target: initGoal.target, deadline: initGoal.deadline, saved: 0 });
+      showAddGoalModal.value = false; initGoal.name = ''; initGoal.tag = ''; initGoal.target = null; initGoal.deadline = ''; autoBackup(); alert('✅ 目標建立成功！');
     };
     const openUpdateGoalModal = (goal) => { activeGoal.value = goal; updateGoalData.amount = null; updateGoalData.type = 'add'; showUpdateGoalModal.value = true; };
     const submitUpdateGoal = () => {
@@ -1418,29 +1428,31 @@ const app = createApp({
             if (!sym) continue;
 
             let price = null;
-            try {
-                let res1 = await fetchWithTimeout(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW`, {}, 3000);
-                if (res1.ok) {
-                    let d1 = await res1.json();
-                    if (d1 && d1.chart && d1.chart.result && d1.chart.result.length > 0) {
-                        let p1 = d1.chart.result[0].meta.regularMarketPrice;
-                        if (p1 > 0 && p1 < 100000) price = p1;
+            const fetchPrice = async (url, extractFn) => {
+                try {
+                    let res = await fetchWithTimeout(url, {}, 3000);
+                    if (res.ok) {
+                        let d = await res.json();
+                        let p = extractFn(d);
+                        if (p > 0 && p < 100000) return p;
                     }
-                }
-            } catch(e) { console.warn(`Route 1 failed for ${sym}`); }
+                } catch(e) {}
+                return null;
+            };
 
-            if (!price) {
-                try { 
-                    let res2 = await fetchWithTimeout(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${sym}.tw`, {}, 3000); 
-                    if (res2.ok) {
-                        let d = await res2.json();
-                        if (d.msgArray && d.msgArray.length > 0) {
-                            let parsedPrice = parseFloat(d.msgArray[0].z !== '-' ? d.msgArray[0].z : d.msgArray[0].y);
-                            if (parsedPrice > 0 && parsedPrice < 100000) price = parsedPrice;
-                        }
-                    }
-                } catch(e) { console.warn(`Route 2 failed for ${sym}`); }
-            }
+            // 備援 1: Yahoo Finance (Corsproxy)
+            price = await fetchPrice(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW`, d => (d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta && d.chart.result[0].meta.regularMarketPrice) || null);
+            
+            // 備援 2: Yahoo Finance (Allorigins 代理)
+            if (!price) price = await fetchPrice(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/' + sym + '.TW')}`, d => {
+                try { let parsed = JSON.parse(d.contents); return (parsed && parsed.chart && parsed.chart.result && parsed.chart.result[0] && parsed.chart.result[0].meta && parsed.chart.result[0].meta.regularMarketPrice) || null; } catch(e) { return null; }
+            });
+
+            // 備援 3: 台灣證交所 API (上市)
+            if (!price) price = await fetchPrice(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${sym}.tw`, d => (d && d.msgArray && d.msgArray[0]) ? parseFloat(d.msgArray[0].z !== '-' ? d.msgArray[0].z : d.msgArray[0].y) : null);
+            
+            // 備援 4: 台灣證交所 API (上櫃)
+            if (!price) price = await fetchPrice(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${sym}.tw`, d => (d && d.msgArray && d.msgArray[0]) ? parseFloat(d.msgArray[0].z !== '-' ? d.msgArray[0].z : d.msgArray[0].y) : null);
 
             if (price) { inv.last_price = price; updatedCount++; }
         }
@@ -1448,7 +1460,7 @@ const app = createApp({
         if (updatedCount > 0 && updatedCount === twdInvestmentsCount) { 
             alert('✅ 股價自動更新完成！'); autoBackup(); updateCharts(); 
         } else { 
-            alert('⚠️ 部分 API 請求超時或遭到限流，已自動開啟手動更新模式。');
+            alert('⚠️ 部分 API 請求遭限流，已切換手動更新模式。');
             showManualStockModal.value = true; 
         }
     };
