@@ -16,8 +16,8 @@ const app = createApp({
     const syncStatus = ref('offline'); 
     const isSyncing = ref(false);
     const showAmounts = ref(false);
-    const expenseMonth = ref(new Date().toISOString().substring(0,7)); 
-    const dashboardMonth = ref(new Date().toISOString().substring(0,7));
+    const expenseMonth = ref(getLocalISODate().substring(0,7)); 
+    const dashboardMonth = ref(getLocalISODate().substring(0,7));
     const fxRate = ref(1);
 
     const isCalcOpen = ref(false);
@@ -857,15 +857,15 @@ const app = createApp({
     watch(reportPeriod, (newVal) => {
        let d = new Date();
        if (newVal === 'this_month') {
-           reportStartDate.value = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-           reportEndDate.value = new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().split('T')[0];
+           reportStartDate.value = getLocalISODate(new Date(d.getFullYear(), d.getMonth(), 1));
+           reportEndDate.value = getLocalISODate(new Date(d.getFullYear(), d.getMonth()+1, 0));
        } else if (newVal === 'this_quarter') {
            let q = Math.floor(d.getMonth() / 3);
-           reportStartDate.value = new Date(d.getFullYear(), q * 3, 1).toISOString().split('T')[0];
-           reportEndDate.value = new Date(d.getFullYear(), q * 3 + 3, 0).toISOString().split('T')[0];
+           reportStartDate.value = getLocalISODate(new Date(d.getFullYear(), q * 3, 1));
+           reportEndDate.value = getLocalISODate(new Date(d.getFullYear(), q * 3 + 3, 0));
        } else if (newVal === 'this_year') {
-           reportStartDate.value = new Date(d.getFullYear(), 0, 1).toISOString().split('T')[0];
-           reportEndDate.value = new Date(d.getFullYear(), 11, 31).toISOString().split('T')[0];
+           reportStartDate.value = getLocalISODate(new Date(d.getFullYear(), 0, 1));
+           reportEndDate.value = getLocalISODate(new Date(d.getFullYear(), 11, 31));
        }
     }, { immediate: true });
 
@@ -916,7 +916,7 @@ const app = createApp({
         if (newTx.isInst && newTx.periods > 1) {
           let perAmt = Math.round(newTx.amount / newTx.periods);
           let firstAmt = newTx.amount - (perAmt * (newTx.periods - 1));
-          let nextM = newTx.date && newTx.date.length >= 7 ? newTx.date.substring(0,7) : new Date().toISOString().substring(0,7);
+          let nextM = newTx.date && newTx.date.length >= 7 ? newTx.date.substring(0,7) : getLocalISODate().substring(0,7);
           let nextD = newTx.date && newTx.date.length >= 10 ? newTx.date.substring(8,10) : '01';
           data.installments.push({ id: 'inst_'+Date.now(), desc: newTx.desc||'無摘要', total_amount: newTx.amount, periods: newTx.periods, amount_per_period: perAmt, first_amount: firstAmt, paid_periods: 0, next_month: nextM, date_day: nextD, debit_acc: debitAcc, credit_acc: newTx.paymentAcc, scope: newTx.scope });
           runAutoTasks(); newTx.amount = null; newTx.desc = ''; newTx.isInst = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 分期建立成功！'); return;
@@ -1187,7 +1187,7 @@ const app = createApp({
         
         // 3. 智慧補全：未填標籤自動用名稱替代；未填日期則給予預設涵蓋極大範圍的日期
         let tagClean = (projectBudgetForm.tag || projectBudgetForm.name).replace('#', '').trim();
-        let sDate = projectBudgetForm.startDate || (typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0]);
+        let sDate = projectBudgetForm.startDate || getLocalISODate();
         let eDate = projectBudgetForm.endDate || '2099-12-31';
 
         if (editingProjectId.value) {
@@ -1353,7 +1353,7 @@ const app = createApp({
     };
 
     const runAutoTasks = () => {
-      let curM = new Date().toISOString().substring(0,7); let today = new Date().getDate();
+      let curM = getLocalISODate().substring(0,7); let today = new Date().getDate();
       (data.fixed_assets || []).forEach(fa => {
         if(!fa || fa.is_disposed) return;
         let ld = fa.last_depreciation_date || fa.purchase_date || '';
