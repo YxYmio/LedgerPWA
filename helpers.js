@@ -1,3 +1,9 @@
+// 取得本地時區的 YYYY-MM-DD，解決 new Date().toISOString() 的時區偏移陷阱
+const getLocalISODate = (d = new Date()) => {
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().split('T')[0];
+};
+
 const formatNumber = (num) => {
     let n = Number(num);
     return isNaN(n) ? '0' : Math.round(n).toLocaleString('en-US');

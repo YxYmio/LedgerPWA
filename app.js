@@ -94,7 +94,7 @@ const app = createApp({
     // 5. 表單綁定狀態 (Forms Data)
     // ------------------------------------------------------------------------
     const newTx = reactive({ 
-      date: new Date().toISOString().split('T')[0], scope: 'personal', desc: '', amount: null, 
+      date: getLocalISODate(), scope: 'personal', desc: '', amount: null, 
       mainCategory: '', subAccount: '', paymentAcc: '', fromAcc: '', toAcc: '', investAction: 'buy', 
       symbol: '', stockName: '', shares: null, price: null, fee: null, tax: null, 
       isInst: false, periods: 3, isFA: false, faName: '', faMonths: 60, loanId: '',
@@ -104,7 +104,7 @@ const app = createApp({
     
     const initStock = reactive({ symbol: '', name: '', shares: null, price: null, cost: null, unitType: 'share' });
     const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD', icon: '', billingDay: 1 });
-    const initFA = reactive({ name: '', date: new Date().toISOString().split('T')[0], cost: null, months: 60, scope: 'personal' });
+    const initFA = reactive({ name: '', date: getLocalISODate(), cost: null, months: 60, scope: 'personal' });
     const disposalAsset = ref(null);
     const disposalForm = reactive({ type: 'scrap', price: null, account: '' });
     const initLoan = reactive({ name: '', principal: null, rate: null, payment: null });
@@ -160,13 +160,16 @@ const app = createApp({
 
     const saveGroupSplitProject = () => {
         if(!groupSplitProjectForm.name) return alert('請填寫專案名稱');
-        let validMembers = groupSplitProjectForm.members.filter(m => m.name.trim() !== '');
-        if(!validMembers.find(m => m.name === '我')) validMembers.unshift({name: '我'});
+        // 強制防呆：確保陣列存在
+        if (!data.split_projects) data.split_projects = [];
         
+        let validMembers = groupSplitProjectForm.members.filter(m => (m.name || '').trim() !== '');
+        if(!validMembers.find(m => m.name === '我')) validMembers.unshift({name: '我'});
+
         data.split_projects.push({
             id: 'gsp_' + Date.now(),
             name: groupSplitProjectForm.name,
-            date: new Date().toISOString().split('T')[0],
+            date: typeof getLocalISODate === 'function' ? getLocalISODate() : getLocalISODate(),
             members: validMembers,
             is_settled: false
         });
@@ -256,7 +259,7 @@ const app = createApp({
         } else {
             // 新增模式
             data.split_records.push({
-                id: 'gsr_' + Date.now(), project_id: activeSplitProjectId.value, date: new Date().toISOString().split('T')[0],
+                id: 'gsr_' + Date.now(), project_id: activeSplitProjectId.value, date: getLocalISODate(),
                 desc: groupSplitRecordForm.desc, expenseAcc: groupSplitRecordForm.expenseAcc, advanceAcc: groupSplitRecordForm.advanceAcc, 
                 payer: groupSplitRecordForm.payer, amount: groupSplitRecordForm.amount,
                 splits: JSON.parse(JSON.stringify(groupSplitRecordForm.splits))
@@ -346,7 +349,7 @@ const app = createApp({
         if (myTotalPaid === 0 && myTotalExpense === 0) return alert('您在此專案中沒有任何花費與代墊，無需寫入帳本。');
 
         let txObj = {
-            id: 'tx_gsp_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal',
+            id: 'tx_gsp_' + Date.now(), date: getLocalISODate(), scope: 'personal',
             desc: `[群組結算] ${activeSplitProject.value.name}`, tags: [activeSplitProject.value.name.replace(/\s+/g, '')],
             debits: [], credits: []
         };
@@ -401,25 +404,36 @@ const app = createApp({
 
     const startVoiceRecognition = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) { alert('您的瀏覽器不支援語音輸入功能。'); return; }
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'zh-TW'; recognition.interimResults = false; recognition.maxAlternatives = 1;
+        if (!SpeechRecognition) { 
+            return alert('⚠️ 您的瀏覽器不支援語音輸入功能，請使用 iOS Safari / Chrome 或手動輸入。'); 
+        }
+        try {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'zh-TW'; recognition.interimResults = false; recognition.maxAlternatives = 1;
 
-        recognition.onstart = () => { isListening.value = true; };
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            let parsed = typeof parseVoiceCommand === 'function' ? parseVoiceCommand(transcript, data.accounts) : {amount: null, desc: transcript, tags: [], paymentAcc: ''};
-            
-            if (parsed.amount) newTx.amount = parsed.amount;
-            if (parsed.paymentAcc) newTx.paymentAcc = parsed.paymentAcc;
-            
-            let finalDesc = parsed.desc;
-            if (parsed.tags && parsed.tags.length > 0) finalDesc += ' ' + parsed.tags.map(t => '#' + t).join(' ');
-            newTx.desc = finalDesc.trim();
-        };
-        recognition.onerror = (event) => { console.warn('Speech error', event.error); alert('語音辨識發生錯誤'); };
-        recognition.onend = () => { isListening.value = false; };
-        recognition.start();
+            recognition.onstart = () => { isListening.value = true; };
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                let parsed = typeof parseVoiceCommand === 'function' ? parseVoiceCommand(transcript, data.accounts) : {amount: null, desc: transcript, tags: [], paymentAcc: ''};
+                
+                if (parsed.amount) newTx.amount = parsed.amount;
+                if (parsed.paymentAcc) newTx.paymentAcc = parsed.paymentAcc;
+                
+                let finalDesc = parsed.desc;
+                if (parsed.tags && parsed.tags.length > 0) finalDesc += ' ' + parsed.tags.map(t => '#' + t).join(' ');
+                newTx.desc = finalDesc.trim();
+            };
+            recognition.onerror = (event) => { 
+                console.warn('Speech error', event.error); 
+                alert('語音辨識失敗：' + (event.error === 'not-allowed' ? '未授權麥克風權限' : event.error)); 
+                isListening.value = false;
+            };
+            recognition.onend = () => { isListening.value = false; };
+            recognition.start();
+        } catch (e) {
+            alert('⚠️ 語音系統啟動失敗，請重新整理頁面。');
+            isListening.value = false;
+        }
     };
 
     // ------------------------------------------------------------------------
@@ -1027,9 +1041,9 @@ const app = createApp({
       
       if(newAssetAcc.initBalance && newAssetAcc.initBalance > 0) {
         if (finalType === 'Asset') {
-            data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初餘額: ${newAssetAcc.name}`, debits: [{ account_id: newId, amount: newAssetAcc.initBalance }], credits: [{ account_id: '3101', amount: newAssetAcc.initBalance }] });
+            data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: getLocalISODate(), scope: 'personal', desc: `期初餘額: ${newAssetAcc.name}`, debits: [{ account_id: newId, amount: newAssetAcc.initBalance }], credits: [{ account_id: '3101', amount: newAssetAcc.initBalance }] });
         } else {
-            data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初欠款: ${newAssetAcc.name}`, debits: [{ account_id: '3101', amount: newAssetAcc.initBalance }], credits: [{ account_id: newId, amount: newAssetAcc.initBalance }] });
+            data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: getLocalISODate(), scope: 'personal', desc: `期初欠款: ${newAssetAcc.name}`, debits: [{ account_id: '3101', amount: newAssetAcc.initBalance }], credits: [{ account_id: newId, amount: newAssetAcc.initBalance }] });
         }
       }
       newAssetAcc.name = ''; newAssetAcc.type = 'Asset'; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
@@ -1072,7 +1086,7 @@ const app = createApp({
       let expAcc = (activeRefundTx.value.debits && activeRefundTx.value.debits[0]) ? activeRefundTx.value.debits[0].account_id : null;
       if(!expAcc) return alert("無法解析原始支出科目");
 
-      let refundTx = { id: 'tx_refund_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: activeRefundTx.value.scope, desc: `[退款沖銷] ${activeRefundTx.value.desc || activeRefundTx.value.description || ''}`, debits: [{ account_id: refundData.account, amount: refundData.amount }], credits: [{ account_id: expAcc, amount: refundData.amount }], is_refund: true, ref_tx_id: activeRefundTx.value.id };
+      let refundTx = { id: 'tx_refund_' + Date.now(), date: getLocalISODate(), scope: activeRefundTx.value.scope, desc: `[退款沖銷] ${activeRefundTx.value.desc || activeRefundTx.value.description || ''}`, debits: [{ account_id: refundData.account, amount: refundData.amount }], credits: [{ account_id: expAcc, amount: refundData.amount }], is_refund: true, ref_tx_id: activeRefundTx.value.id };
       data.transactions.unshift(refundTx);
       activeRefundTx.value.refunded_amount = (Number(activeRefundTx.value.refunded_amount) || 0) + refundData.amount;
       if (activeRefundTx.value.refunded_amount >= getDebitAmount(activeRefundTx.value)) activeRefundTx.value.is_refunded = true;
@@ -1097,7 +1111,7 @@ const app = createApp({
     };
     const reimburseTx = (tx, toAccountId, amount) => {
          if (!tx || !toAccountId || !amount) return;
-         data.transactions.unshift({ id: 'tx_reimb_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: tx.scope, desc: `[代墊報銷] ${(tx.desc || tx.description || '')}`, debits: [{ account_id: toAccountId, amount: amount }], credits: [{ account_id: '1104', amount: amount }], ref_tx_id: tx.id });
+         data.transactions.unshift({ id: 'tx_reimb_' + Date.now(), date: getLocalISODate(), scope: tx.scope, desc: `[代墊報銷] ${(tx.desc || tx.description || '')}`, debits: [{ account_id: toAccountId, amount: amount }], credits: [{ account_id: '1104', amount: amount }], ref_tx_id: tx.id });
          tx.reimbursed_amount = (Number(tx.reimbursed_amount) || 0) + amount;
          if (tx.reimbursed_amount >= getDebitAmount(tx)) { tx.is_reimbursed = true; }
          autoBackup(); updateCharts(); alert('✅ 報銷沖銷成功！');
@@ -1136,6 +1150,9 @@ const app = createApp({
         if (!projectBudgetForm.name || !projectBudgetForm.tag || !projectBudgetForm.limit || !projectBudgetForm.startDate || !projectBudgetForm.endDate) {
             return alert('請填妥所有專案預算欄位');
         }
+        // 強制防呆：確保陣列存在 (避免讀取舊版 JSON 時變為 undefined)
+        if (!data.project_budgets) data.project_budgets = [];
+        
         let tagClean = projectBudgetForm.tag.replace('#', '');
         data.project_budgets.push({
             id: 'proj_' + Date.now(), name: projectBudgetForm.name, tag: tagClean, limit: projectBudgetForm.limit,
@@ -1192,7 +1209,7 @@ const app = createApp({
         } else {
             data.investments.push({ id: 'inv_' + Date.now(), symbol: initStock.symbol, name: initStock.name || initStock.symbol, shares: s, total_cost: c, last_price: p || (c / s), currency: 'TWD' });
         }
-        data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初建倉 ${initStock.name || initStock.symbol} ${s}股`, debits: [{ account_id: '1103', amount: c }], credits: [{ account_id: '3101', amount: c }], invest_action: 'init', invest_symbol: initStock.symbol, invest_shares: s, invest_cost_value: c });
+        data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: getLocalISODate(), scope: 'personal', desc: `期初建倉 ${initStock.name || initStock.symbol} ${s}股`, debits: [{ account_id: '1103', amount: c }], credits: [{ account_id: '3101', amount: c }], invest_action: 'init', invest_symbol: initStock.symbol, invest_shares: s, invest_cost_value: c });
         showInitialStockModal.value = false; initStock.symbol = ''; initStock.name = ''; initStock.shares = null; initStock.price = null; initStock.cost = null; initStock.unitType = 'share';
         autoBackup(); updateCharts();
     };
@@ -1211,7 +1228,7 @@ const app = createApp({
       if (disposalForm.type === 'sell' && (disposalForm.price === null || !disposalForm.account)) return alert("請填寫出售金額與入帳帳戶");
       let fa = disposalAsset.value; if(!fa) return;
       let bookValue = getFABookValue(fa); let accDep = getFAAccDep(fa);
-      let txObj = { id: 'tx_disp_' + Date.now(), date: new Date().toISOString().split('T')[0], scope: 'family', desc: `處分資產: ${fa.name}`, debits: [{ account_id: '1201-DEP', amount: accDep }], credits: [{ account_id: '1201', amount: fa.original_cost }] };
+      let txObj = { id: 'tx_disp_' + Date.now(), date: getLocalISODate(), scope: 'family', desc: `處分資產: ${fa.name}`, debits: [{ account_id: '1201-DEP', amount: accDep }], credits: [{ account_id: '1201', amount: fa.original_cost }] };
       if (disposalForm.type === 'scrap') {
          if(bookValue > 0) txObj.debits.push({ account_id: '4201', amount: bookValue });
          txObj.desc = `報廢資產: ${fa.name}`;
@@ -1229,7 +1246,7 @@ const app = createApp({
       let accId = 'loan_liab_' + Date.now(); let loanId = 'loan_' + Date.now();
       data.accounts.push({ id: accId, name: initLoan.name, type: 'Liability', currency: 'TWD', is_hidden: false });
       data.loans.push({ id: loanId, name: initLoan.name, liability_acc_id: accId, interest_rate: initLoan.rate, monthly_payment: initLoan.payment });
-      data.transactions.unshift({ id: 'tx_loan_init_'+Date.now(), date: new Date().toISOString().split('T')[0], scope: 'personal', desc: `期初貸款本金: ${initLoan.name}`, debits: [{ account_id: '3101', amount: initLoan.principal }], credits: [{ account_id: accId, amount: initLoan.principal }], loan_init_id: loanId, loan_account_id: accId });
+      data.transactions.unshift({ id: 'tx_loan_init_'+Date.now(), date: getLocalISODate(), scope: 'personal', desc: `期初貸款本金: ${initLoan.name}`, debits: [{ account_id: '3101', amount: initLoan.principal }], credits: [{ account_id: accId, amount: initLoan.principal }], loan_init_id: loanId, loan_account_id: accId });
       newTx.loanId = loanId; initLoan.name = ''; initLoan.principal = null; initLoan.rate = null; initLoan.payment = null; showAddLoanModal.value = false; autoBackup(); updateCharts(); alert('✅ 貸款建立成功！');
     };
 
@@ -1281,8 +1298,8 @@ const app = createApp({
         if (ld && ld.length >= 7 && ld.substring(0,7) < curM) {
           let accDep = getFAAccDep(fa);
           if (accDep + fa.monthly_depreciation > fa.original_cost) return; 
-          data.transactions.unshift({ id: 'tx_dep_'+Date.now()+Math.random(), date: new Date().toISOString().split('T')[0], desc: `${fa.name} 自動折舊`, scope: 'family', auto_generated: true, asset_id: fa.id, debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }], credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }] });
-          fa.last_depreciation_date = new Date().toISOString().split('T')[0];
+          data.transactions.unshift({ id: 'tx_dep_'+Date.now()+Math.random(), date: getLocalISODate(), desc: `${fa.name} 自動折舊`, scope: 'family', auto_generated: true, asset_id: fa.id, debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }], credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }] });
+          fa.last_depreciation_date = getLocalISODate();
         }
       });
       (data.installments || []).forEach(inst => {
@@ -1313,7 +1330,13 @@ const app = createApp({
     };
 
     const autoBackup = (syncCloud = true) => { 
-      localStorage.setItem('ledger_backup_' + settings.currentBookId, JSON.stringify(data)); 
+      try {
+          localStorage.setItem('ledger_backup_' + settings.currentBookId, JSON.stringify(data)); 
+      } catch (e) {
+          if (e.name === 'QuotaExceededError') {
+              alert('⚠️ 本機儲存空間已滿 (5MB 限制)！為防止白屏，建議刪除極舊的明細或切換新帳本。');
+          }
+      }
       if(syncCloud && settings.googleToken) syncWithGoogleDrive(false); 
     };
     
@@ -1387,10 +1410,11 @@ const app = createApp({
 
     const updateStockPrices = async () => {
         let updatedCount = 0;
-        let twdInvestmentsCount = data.investments.filter(i => i && i.currency !== 'USD').length;
+        let twdInvestmentsCount = data.investments.filter(i => i && i.currency !== 'USD' && i.shares > 0).length;
+        if (twdInvestmentsCount === 0) return alert('目前無持股需要更新');
 
         for (let inv of data.investments) {
-            if (!inv || inv.currency === 'USD') continue;
+            if (!inv || inv.currency === 'USD' || inv.shares <= 0) continue;
             let sym = (inv.symbol || '').replace('.TW', '');
             if (!sym) continue;
 
@@ -1399,7 +1423,7 @@ const app = createApp({
                 let res1 = await fetchWithTimeout(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW`, {}, 3000);
                 if (res1.ok) {
                     let d1 = await res1.json();
-                    if (d1.chart && d1.chart.result && d1.chart.result.length > 0 && d1.chart.result[0].meta && d1.chart.result[0].meta.regularMarketPrice) {
+                    if (d1 && d1.chart && d1.chart.result && d1.chart.result.length > 0) {
                         let p1 = d1.chart.result[0].meta.regularMarketPrice;
                         if (p1 > 0 && p1 < 100000) price = p1;
                     }
@@ -1407,26 +1431,27 @@ const app = createApp({
             } catch(e) { console.warn(`Route 1 failed for ${sym}`); }
 
             if (!price) {
-                const fetchTwseApi = async (market) => {
-                    let res = await fetchWithTimeout(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${market}_${sym}.tw`, {}, 3000);
-                    if (res.ok) {
-                        let d = await res.json();
+                try { 
+                    let res2 = await fetchWithTimeout(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${sym}.tw`, {}, 3000); 
+                    if (res2.ok) {
+                        let d = await res2.json();
                         if (d.msgArray && d.msgArray.length > 0) {
                             let parsedPrice = parseFloat(d.msgArray[0].z !== '-' ? d.msgArray[0].z : d.msgArray[0].y);
-                            if (parsedPrice > 0 && parsedPrice < 100000) return parsedPrice;
+                            if (parsedPrice > 0 && parsedPrice < 100000) price = parsedPrice;
                         }
                     }
-                    return null;
-                };
-
-                try { price = await fetchTwseApi('tse'); if (!price) price = await fetchTwseApi('otc'); } catch(e) { console.warn(`Route 2 failed for ${sym}`); }
+                } catch(e) { console.warn(`Route 2 failed for ${sym}`); }
             }
 
             if (price) { inv.last_price = price; updatedCount++; }
         }
 
-        if (updatedCount > 0 && updatedCount === twdInvestmentsCount) { alert('股價自動更新完成！'); autoBackup(); updateCharts(); } 
-        else if (twdInvestmentsCount > 0) { showManualStockModal.value = true; }
+        if (updatedCount > 0 && updatedCount === twdInvestmentsCount) { 
+            alert('✅ 股價自動更新完成！'); autoBackup(); updateCharts(); 
+        } else { 
+            alert('⚠️ 部分 API 請求超時或遭到限流，已自動開啟手動更新模式。');
+            showManualStockModal.value = true; 
+        }
     };
 
     const submitManualStockUpdate = () => { showManualStockModal.value = false; autoBackup(); updateCharts(); alert('✅ 手動股價更新完成'); };
@@ -1444,7 +1469,7 @@ const app = createApp({
     
     const unlockApp = () => { if (pinInput.value === settings.pinCode) { isUnlocked.value = true; initData(); } else { pinError.value = "PIN錯誤"; } };
     const saveSettings = (showAlert = true) => { settings.currentBookId = currentBookId.value; localStorage.setItem('ledger_settings', JSON.stringify(settings)); if (showAlert) alert('設定已儲存'); if (settings.googleToken && settings.googleClientId) initGoogleAuth(); };
-    const exportData = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); a.download = `Ledger_${currentBookId.value}_${new Date().toISOString().split('T')[0]}.json`; a.click(); };
+    const exportData = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'})); a.download = `Ledger_${currentBookId.value}_${getLocalISODate()}.json`; a.click(); };
     const importData = (e) => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = (ev) => { try { const p = JSON.parse(ev.target.result); if (p && typeof p === 'object') { resetData(); Object.assign(data, p); if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {}); autoBackup(); updateCharts(); alert("成功覆蓋匯入"); } } catch(err) { alert("檔案錯誤"); } }; r.readAsText(f); };
 
     const updateCharts = () => {
@@ -1532,7 +1557,7 @@ const app = createApp({
       saveGroupSplitProject, deleteGroupSplitProject, initGroupSplitRecordForm, editGroupSplitRecord, calculateGroupSplitRecord,
       saveGroupSplitRecord, deleteGroupSplitRecord, shareGroupSettlement, writeGroupSettlementToLedger,
       
-      activeRefundTx, refundData, activeReimburseTx, reimburseData, hasExpensesThisMonth, settings, currentBookId, newBookName, data, newTx, txError, 
+      activeRefundTx, refundData, activeReimburseTx, reimburseData, settings, currentBookId, newBookName, data, newTx, txError, 
       historyFilter, settingCategoryMode, newPreset, newMainCat, newSubCat, newAssetAcc, initStock, initFA, 
       disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
       editingTx, selectedInstallment, projectBudgetForm,
