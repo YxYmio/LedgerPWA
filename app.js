@@ -120,6 +120,28 @@ const app = createApp({
     const editingTx = reactive({ id: '', date: '', desc: '', amount: 0, scope: 'personal', debitAcc: '', creditAcc: '' });
     const selectedInstallment = ref(null);
     const projectBudgetForm = reactive({ name: '', tag: '', limit: null, startDate: '', endDate: '' });
+    const editingProjectId = ref(null);
+
+    const openEditProjectBudgetModal = (proj) => {
+        if(!proj) return;
+        editingProjectId.value = proj.id;
+        projectBudgetForm.name = proj.name;
+        projectBudgetForm.tag = proj.tag;
+        projectBudgetForm.limit = proj.limit;
+        projectBudgetForm.startDate = proj.startDate;
+        projectBudgetForm.endDate = proj.endDate;
+        showProjectBudgetModal.value = true;
+    };
+
+    const closeProjectBudgetModal = () => {
+        showProjectBudgetModal.value = false;
+        editingProjectId.value = null;
+        projectBudgetForm.name = ''; 
+        projectBudgetForm.tag = ''; 
+        projectBudgetForm.limit = null; 
+        projectBudgetForm.startDate = ''; 
+        projectBudgetForm.endDate = '';
+    };
 
     const txError = ref('');
     const historyFilter = reactive({ keyword: '', scope: 'all', dateFrom: '', dateTo: '' });
@@ -1168,23 +1190,30 @@ const app = createApp({
         let sDate = projectBudgetForm.startDate || (typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0]);
         let eDate = projectBudgetForm.endDate || '2099-12-31';
 
-        // 4. 寫入資料庫
-        data.project_budgets.push({
-            id: 'proj_' + Date.now(), 
-            name: projectBudgetForm.name, 
-            tag: tagClean, 
-            limit: projectBudgetForm.limit,
-            startDate: sDate, 
-            endDate: eDate
-        });
+        if (editingProjectId.value) {
+            // 編輯覆蓋模式
+            let p = data.project_budgets.find(x => x.id === editingProjectId.value);
+            if (p) {
+                p.name = projectBudgetForm.name;
+                p.tag = tagClean;
+                p.limit = projectBudgetForm.limit;
+                p.startDate = sDate;
+                p.endDate = eDate;
+            }
+        } else {
+            // 4. 寫入資料庫 (新增)
+            data.project_budgets.push({
+                id: 'proj_' + Date.now(), 
+                name: projectBudgetForm.name, 
+                tag: tagClean, 
+                limit: projectBudgetForm.limit,
+                startDate: sDate, 
+                endDate: eDate
+            });
+        }
         
         // 5. 關閉彈窗並清空表單
-        showProjectBudgetModal.value = false;
-        projectBudgetForm.name = ''; 
-        projectBudgetForm.tag = ''; 
-        projectBudgetForm.limit = null; 
-        projectBudgetForm.startDate = ''; 
-        projectBudgetForm.endDate = '';
+        closeProjectBudgetModal();
         autoBackup();
     };
 
@@ -1203,18 +1232,25 @@ const app = createApp({
                 if (tx && tx.date >= proj.startDate && tx.date <= proj.endDate && !tx.is_refunded && !tx.is_refund) {
                     let hasTag = (tx.tags && tx.tags.includes(proj.tag)) || (tx.desc && tx.desc.includes('#' + proj.tag));
                     if (hasTag) {
-                        let isExp = false; let amt = 0;
+                        let txNetCost = 0;
+                        // 借方 (費用增加) => 專案開銷增加
                         (tx.debits || []).forEach(d => {
                             let a = (data.accounts || []).find(ac => ac && ac.id === d.account_id);
-                            if (a && a.type === 'Expense') { isExp = true; amt += Number(d.amount)||0; }
+                            if (a && a.type === 'Expense') { txNetCost += Number(d.amount)||0; }
                         });
-                        if (isExp) spent += amt;
+                        // 貸方 (退款費用減少 或 收入增加) => 專案開銷減少 (補血)
+                        (tx.credits || []).forEach(c => {
+                            let a = (data.accounts || []).find(ac => ac && ac.id === c.account_id);
+                            if (a && (a.type === 'Expense' || a.type === 'Income')) { txNetCost -= Number(c.amount)||0; }
+                        });
+                        spent += txNetCost;
                     }
                 }
             });
+            // 確保計算比例與剩餘額度
             return {
                 ...proj, spent, remaining: proj.limit - spent,
-                pct: Math.min(Math.round((spent / proj.limit) * 100), 100)
+                pct: Math.max(0, Math.min(Math.round((spent / proj.limit) * 100), 100))
             };
         }).filter(Boolean);
     });
@@ -1590,6 +1626,7 @@ const app = createApp({
       disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
       editingTx, selectedInstallment, projectBudgetForm,
       calcAppend, calcClear, calcBackspace, calcConfirm, startVoiceRecognition,
+      editingProjectId, openEditProjectBudgetModal, closeProjectBudgetModal,
       submitProjectBudget, deleteProjectBudget, projectBudgetStats, viewProjectDetails,
       changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput, onInvestSelectedSymbolChange, filterByAccount,
       activeBookName, availableBooks, assetAccounts, paymentAccounts, liabilityAccounts, activeInstallments, 
