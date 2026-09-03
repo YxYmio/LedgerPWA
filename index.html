@@ -679,7 +679,10 @@
                  </div>
                  <div class="flex items-center gap-3">
                     <span class="font-black text-indigo-600 dark:text-indigo-400">$ {{ formatNumber(rec && rec.amount ? rec.amount : 0) }}</span>
-                    <button v-if="activeSplitProject && !activeSplitProject.is_settled" @click="deleteGroupSplitRecord(rec && rec.id ? rec.id : '')" class="text-slate-400 hover:text-red-500 bg-slate-50 dark:bg-slate-700 p-1.5 rounded transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    <div v-if="activeSplitProject && !activeSplitProject.is_settled" class="flex gap-1">
+                      <button @click="editGroupSplitRecord(rec)" class="text-blue-400 hover:text-blue-600 bg-slate-50 dark:bg-slate-700 p-1.5 rounded transition shadow-sm border border-slate-200 dark:border-slate-600"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
+                      <button @click="deleteGroupSplitRecord(rec && rec.id ? rec.id : '')" class="text-slate-400 hover:text-red-500 bg-slate-50 dark:bg-slate-700 p-1.5 rounded transition shadow-sm border border-slate-200 dark:border-slate-600"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </div>
                  </div>
                </div>
              </div>
@@ -1750,6 +1753,15 @@
               </div>
             </div>
 
+            <!-- 動態顯示：當是我付款時，立刻指定扣款帳戶 -->
+            <div v-if="groupSplitRecordForm.payer === '我'" class="bg-indigo-50 dark:bg-indigo-900/20 p-2.5 rounded-lg border border-indigo-100 dark:border-indigo-800">
+              <div class="text-xs text-indigo-700 dark:text-indigo-400 mb-1 font-bold">此筆代墊是由我的哪個帳戶扣款的？</div>
+              <select v-model="groupSplitRecordForm.advanceAcc" class="w-full border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white font-bold text-indigo-700">
+                <option value="" disabled>請選擇扣款帳戶 (必填)</option>
+                <option v-for="acc in paymentAccountsWithBalance" :key="acc && acc.id ? acc.id : ''" :value="acc && acc.id ? acc.id : ''">{{ acc && acc.icon ? acc.icon : '🏦' }} {{ acc && acc.name ? acc.name : '' }}</option>
+              </select>
+            </div>
+
             <div class="border-t dark:border-slate-700 pt-3 mt-3">
               <div class="flex justify-between items-center mb-3">
                 <div class="text-sm font-bold text-slate-700 dark:text-slate-300">參與分攤成員</div>
@@ -1805,11 +1817,11 @@
                </div>
             </div>
             
-            <!-- 雙軌帳戶選擇 -->
+           <!-- 雙軌帳戶選擇 -->
             <div>
-              <div class="text-xs text-slate-500 mb-1 font-bold">當初代墊付款的帳戶 (如：信用卡)</div>
-              <select v-model="groupSettleLedgerForm.advanceAcc" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white font-bold">
-                <option value="" disabled>若無代墊請隨意選</option>
+              <div class="text-xs text-slate-500 mb-1 font-bold">本次結算收/付款的實體帳戶 (如：活存)</div>
+              <select v-model="groupSettleLedgerForm.settleAcc" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white font-bold">
+                <option value="" disabled>請選擇</option>
                 <option v-for="acc in paymentAccountsWithBalance" :key="acc && acc.id ? acc.id : ''" :value="acc && acc.id ? acc.id : ''">{{ acc && acc.icon ? acc.icon : '🏦' }} {{ acc && acc.name ? acc.name : '' }}</option>
               </select>
             </div>

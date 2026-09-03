@@ -184,8 +184,22 @@ const app = createApp({
 
     const initGroupSplitRecordForm = () => {
         if(!activeSplitProject.value) return;
-        groupSplitRecordForm.desc = ''; groupSplitRecordForm.expenseAcc = ''; groupSplitRecordForm.payer = '我'; groupSplitRecordForm.amount = null; groupSplitRecordForm.mode = 'even';
+        groupSplitRecordForm.id = ''; // 清空 ID 確保為新增模式
+        groupSplitRecordForm.desc = ''; groupSplitRecordForm.expenseAcc = ''; groupSplitRecordForm.advanceAcc = ''; groupSplitRecordForm.payer = '我'; groupSplitRecordForm.amount = null; groupSplitRecordForm.mode = 'even';
         groupSplitRecordForm.splits = activeSplitProject.value.members.map(m => ({ member: m.name, amount: null, included: true }));
+        showGroupSplitRecordModal.value = true;
+    };
+
+    const editGroupSplitRecord = (rec) => {
+        if(!rec) return;
+        groupSplitRecordForm.id = rec.id;
+        groupSplitRecordForm.desc = rec.desc;
+        groupSplitRecordForm.expenseAcc = rec.expenseAcc || '';
+        groupSplitRecordForm.advanceAcc = rec.advanceAcc || '';
+        groupSplitRecordForm.payer = rec.payer;
+        groupSplitRecordForm.amount = rec.amount;
+        groupSplitRecordForm.mode = 'custom';
+        groupSplitRecordForm.splits = JSON.parse(JSON.stringify(rec.splits));
         showGroupSplitRecordModal.value = true;
     };
 
@@ -193,8 +207,21 @@ const app = createApp({
         if(groupSplitRecordForm.mode === 'even') {
             let includedCount = groupSplitRecordForm.splits.filter(s => s.included).length;
             if(includedCount === 0) return;
-            let perPerson = Math.round((groupSplitRecordForm.amount || 0) / includedCount);
-            groupSplitRecordForm.splits.forEach(s => { s.amount = s.included ? perPerson : 0; });
+            
+            // 餘數分配演算法 (解決除不盡的 1 元誤差)
+            let total = Number(groupSplitRecordForm.amount) || 0;
+            let perPerson = Math.floor(total / includedCount);
+            let remainder = total - (perPerson * includedCount); // 取得餘數
+            let distributed = 0;
+            
+            groupSplitRecordForm.splits.forEach(s => {
+                if (s.included) {
+                    s.amount = perPerson + (distributed < remainder ? 1 : 0);
+                    distributed++;
+                } else {
+                    s.amount = 0;
+                }
+            });
         }
     };
     
@@ -210,14 +237,31 @@ const app = createApp({
 
     const saveGroupSplitRecord = () => {
         if(!groupSplitRecordForm.desc || !groupSplitRecordForm.amount || !groupSplitRecordForm.expenseAcc) return alert('請填寫完整項目、金額與支出科目');
+        if(groupSplitRecordForm.payer === '我' && !groupSplitRecordForm.advanceAcc) return alert('請選擇您先代墊付款的實體帳戶/信用卡');
+        
         let totalSplit = groupSplitRecordForm.splits.reduce((sum, s) => sum + (Number(s.amount)||0), 0);
-        if(Math.abs(totalSplit - groupSplitRecordForm.amount) > 10) return alert('成員分攤總額與該筆總金額不符');
+        if(Math.abs(totalSplit - groupSplitRecordForm.amount) > 0) return alert('成員分攤總額與該筆總金額不符，請檢查分配金額。');
 
-        data.split_records.push({
-            id: 'gsr_' + Date.now(), project_id: activeSplitProjectId.value, date: new Date().toISOString().split('T')[0],
-            desc: groupSplitRecordForm.desc, expenseAcc: groupSplitRecordForm.expenseAcc, payer: groupSplitRecordForm.payer, amount: groupSplitRecordForm.amount,
-            splits: JSON.parse(JSON.stringify(groupSplitRecordForm.splits))
-        });
+        if (groupSplitRecordForm.id) {
+            // 編輯模式
+            let rec = data.split_records.find(r => r.id === groupSplitRecordForm.id);
+            if (rec) {
+                rec.desc = groupSplitRecordForm.desc;
+                rec.expenseAcc = groupSplitRecordForm.expenseAcc;
+                rec.advanceAcc = groupSplitRecordForm.advanceAcc;
+                rec.payer = groupSplitRecordForm.payer;
+                rec.amount = groupSplitRecordForm.amount;
+                rec.splits = JSON.parse(JSON.stringify(groupSplitRecordForm.splits));
+            }
+        } else {
+            // 新增模式
+            data.split_records.push({
+                id: 'gsr_' + Date.now(), project_id: activeSplitProjectId.value, date: new Date().toISOString().split('T')[0],
+                desc: groupSplitRecordForm.desc, expenseAcc: groupSplitRecordForm.expenseAcc, advanceAcc: groupSplitRecordForm.advanceAcc, 
+                payer: groupSplitRecordForm.payer, amount: groupSplitRecordForm.amount,
+                splits: JSON.parse(JSON.stringify(groupSplitRecordForm.splits))
+            });
+        }
         showGroupSplitRecordModal.value = false; autoBackup();
     };
 
@@ -276,15 +320,20 @@ const app = createApp({
 
    const writeGroupSettlementToLedger = () => {
         if(!activeSplitProject.value) return;
-        if(!groupSettleLedgerForm.advanceAcc || !groupSettleLedgerForm.settleAcc) return alert('請完整選擇代墊與結算用實體帳戶');
+        if(!groupSettleLedgerForm.settleAcc) return alert('請選擇結算轉帳收付款用的實體帳戶');
 
         let myBalance = activeSplitBalances.value['我'] || 0;
         let myTotalPaid = 0;
         let myExpensesByCategory = {}; 
         let myTotalExpense = 0;
+        let advanceCreditsMap = {}; // 精準記錄各代墊帳戶的扣款總額
 
         activeSplitRecords.value.forEach(r => {
-            if(r.payer === '我') myTotalPaid += Number(r.amount);
+            if(r.payer === '我') {
+                myTotalPaid += Number(r.amount);
+                let advAcc = r.advanceAcc || groupSettleLedgerForm.advanceAcc || '1101'; // 防呆預設為現金
+                advanceCreditsMap[advAcc] = (advanceCreditsMap[advAcc] || 0) + Number(r.amount);
+            }
             let mySplit = r.splits.find(s => s.member === '我');
             if(mySplit && Number(mySplit.amount) > 0) {
                 let amt = Number(mySplit.amount);
@@ -307,31 +356,25 @@ const app = createApp({
             txObj.debits.push({ account_id: accId, amount: myExpensesByCategory[accId] });
         }
 
-        // 2. 結算淨結餘與代墊款 (雙軌帳戶處理)
+        // 2. 結算淨結餘 (雙軌帳戶處理)
         if (myBalance > 0) {
             // 別人欠我錢：增加應收款 (借方)
             txObj.debits.push({ account_id: '1104', amount: myBalance });
-            // 當初我付的錢：從代墊帳戶真實扣款 (貸方)
-            txObj.credits.push({ account_id: groupSettleLedgerForm.advanceAcc, amount: myTotalPaid });
         } else if (myBalance < 0) {
             // 我欠別人錢：直接從結算實體帳戶掏錢轉帳還款 (貸方)
             txObj.credits.push({ account_id: groupSettleLedgerForm.settleAcc, amount: Math.abs(myBalance) });
-            // 如果當初我有墊小額款項，也要從代墊帳戶真實扣款 (貸方)
-            if (myTotalPaid > 0) {
-                txObj.credits.push({ account_id: groupSettleLedgerForm.advanceAcc, amount: myTotalPaid });
-            }
-        } else {
-            // 完美相抵互不相欠
-            if (myTotalPaid > 0) {
-                txObj.credits.push({ account_id: groupSettleLedgerForm.advanceAcc, amount: myTotalPaid });
-            }
+        }
+
+        // 3. 從當初代墊的各帳戶真實扣款 (貸方)
+        for (let adv in advanceCreditsMap) {
+            txObj.credits.push({ account_id: adv, amount: advanceCreditsMap[adv] });
         }
 
         // 陣列整合壓平防呆
         const consolidate = (entries) => {
             let map = {};
             entries.forEach(e => { map[e.account_id] = (map[e.account_id] || 0) + e.amount; });
-            return Object.keys(map).map(k => ({ account_id: k, amount: map[k] }));
+            return Object.keys(map).map(k => ({ account_id: k, amount: map[k] })).filter(e => e.amount > 0);
         };
         txObj.debits = consolidate(txObj.debits);
         txObj.credits = consolidate(txObj.credits);
@@ -1486,7 +1529,7 @@ const app = createApp({
       activeSplitProjectId, groupSplitProjectForm, groupSplitRecordForm, groupSettleLedgerForm,
       activeSplitProject, activeSplitRecords, activeSplitBalances, activeSplitSettlements,
       openGroupSplitCenter, viewGroupSplitProject, backToSplitProjects, addSplitMemberField, removeSplitMemberField,
-      saveGroupSplitProject, deleteGroupSplitProject, initGroupSplitRecordForm, calculateGroupSplitRecord,
+      saveGroupSplitProject, deleteGroupSplitProject, initGroupSplitRecordForm, editGroupSplitRecord, calculateGroupSplitRecord,
       saveGroupSplitRecord, deleteGroupSplitRecord, shareGroupSettlement, writeGroupSettlementToLedger,
       
       activeRefundTx, refundData, activeReimburseTx, reimburseData, hasExpensesThisMonth, settings, currentBookId, newBookName, data, newTx, txError, 
