@@ -1155,19 +1155,36 @@ const app = createApp({
     };
 
     const submitProjectBudget = () => {
-        if (!projectBudgetForm.name || !projectBudgetForm.tag || !projectBudgetForm.limit || !projectBudgetForm.startDate || !projectBudgetForm.endDate) {
-            return alert('請填妥所有專案預算欄位');
+        // 1. 寬鬆驗證：只強制要求名稱與金額上限
+        if (!projectBudgetForm.name || !projectBudgetForm.limit) {
+            return alert('請填妥專案名稱與預算總額上限！');
         }
-        // 強制防呆：確保陣列存在 (避免讀取舊版 JSON 時變為 undefined)
+        
+        // 2. 絕對防呆：確保陣列結構存在
         if (!data.project_budgets) data.project_budgets = [];
         
-        let tagClean = projectBudgetForm.tag.replace('#', '');
+        // 3. 智慧補全：未填標籤自動用名稱替代；未填日期則給予預設涵蓋極大範圍的日期
+        let tagClean = (projectBudgetForm.tag || projectBudgetForm.name).replace('#', '').trim();
+        let sDate = projectBudgetForm.startDate || getLocalISODate();
+        let eDate = projectBudgetForm.endDate || '2099-12-31';
+
+        // 4. 寫入資料庫
         data.project_budgets.push({
-            id: 'proj_' + Date.now(), name: projectBudgetForm.name, tag: tagClean, limit: projectBudgetForm.limit,
-            startDate: projectBudgetForm.startDate, endDate: projectBudgetForm.endDate
+            id: 'proj_' + Date.now(), 
+            name: projectBudgetForm.name, 
+            tag: tagClean, 
+            limit: projectBudgetForm.limit,
+            startDate: sDate, 
+            endDate: eDate
         });
+        
+        // 5. 關閉彈窗並清空表單
         showProjectBudgetModal.value = false;
-        projectBudgetForm.name = ''; projectBudgetForm.tag = ''; projectBudgetForm.limit = null; projectBudgetForm.startDate = ''; projectBudgetForm.endDate = '';
+        projectBudgetForm.name = ''; 
+        projectBudgetForm.tag = ''; 
+        projectBudgetForm.limit = null; 
+        projectBudgetForm.startDate = ''; 
+        projectBudgetForm.endDate = '';
         autoBackup();
     };
 
