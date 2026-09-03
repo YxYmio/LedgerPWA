@@ -1165,7 +1165,7 @@ const app = createApp({
         
         // 3. 智慧補全：未填標籤自動用名稱替代；未填日期則給予預設涵蓋極大範圍的日期
         let tagClean = (projectBudgetForm.tag || projectBudgetForm.name).replace('#', '').trim();
-        let sDate = projectBudgetForm.startDate || getLocalISODate();
+        let sDate = projectBudgetForm.startDate || (typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0]);
         let eDate = projectBudgetForm.endDate || '2099-12-31';
 
         // 4. 寫入資料庫
