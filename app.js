@@ -35,7 +35,6 @@ const app = createApp({
     const expenseChartInstance = shallowRef(null);
     const assetChartInstance = shallowRef(null);
     const netWorthChartInstance = shallowRef(null);
-    const hasExpensesThisMonth = ref(false);
 
     // ------------------------------------------------------------------------
     // 3. 彈窗控制狀態 (Modals)
@@ -136,7 +135,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     const activeSplitProjectId = ref('');
     const groupSplitProjectForm = reactive({ id: '', name: '', members: [{name: '我'}, {name: ''}] });
-    const groupSplitRecordForm = reactive({ id: '', desc: '', expenseAcc: '', payer: '我', amount: null, mode: 'even', splits: [] });
+    const groupSplitRecordForm = reactive({ id: '', desc: '', expenseAcc: '', advanceAcc: '', payer: '我', amount: null, mode: 'even', splits: [] });
     const groupSettleLedgerForm = reactive({ advanceAcc: '', settleAcc: '' });
 
     const activeSplitProject = computed(() => (data.split_projects || []).find(p => p.id === activeSplitProjectId.value));
