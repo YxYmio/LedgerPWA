@@ -710,7 +710,21 @@
     </div>
   </div>
 
-  <!-- 預算設定區塊 -->
+  <!-- 各類別預算進度條 (移至上方) -->
+  <div class="space-y-3 mt-4">
+     <div v-if="!dashboardBudgets || Object.keys(dashboardBudgets).length === 0" class="text-center text-slate-400 text-xs py-4 border border-dashed rounded-lg dark:border-slate-700">請設定下方各分類預算</div>
+     <div v-for="(b, cat) in dashboardBudgets" :key="cat" class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm">
+        <div class="flex justify-between items-center mb-2">
+          <span class="font-bold text-sm text-slate-800 dark:text-white">{{ cat }}</span>
+          <span class="text-xs font-mono" :class="(b && b.spent > b.limit) ? 'text-red-500' : 'text-slate-500'">${{ formatNumber(b && b.spent ? b.spent : 0) }} / ${{ formatNumber(b && b.limit ? b.limit : 0) }}</span>
+        </div>
+        <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+          <div class="h-full rounded-full transition-all" :class="(b && b.spent > b.limit) ? 'bg-red-500' : 'bg-blue-500'" :style="{ width: Math.min((b && b.pct ? b.pct : 0), 100) + '%' }"></div>
+        </div>
+     </div>
+  </div>
+
+  <!-- 預算設定區塊 (移至最下方) -->
   <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700 mt-4">
     <h3 class="text-md font-bold mb-3 flex items-center gap-2 text-green-600 dark:text-green-400">
       <i data-lucide="settings" class="w-4 h-4"></i> 各分類預算設定
@@ -722,20 +736,6 @@
         <input type="number" v-model.number="data.budgets[cat]" @change="autoBackup" placeholder="預算金額" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white font-mono text-right text-green-600 font-bold">
       </div>
     </div>
-  </div>
-
-  <!-- 各類別預算進度條 -->
-  <div class="space-y-3 mt-4">
-     <div v-if="!dashboardBudgets || Object.keys(dashboardBudgets).length === 0" class="text-center text-slate-400 text-xs py-4 border border-dashed rounded-lg dark:border-slate-700">請設定上方各分類預算</div>
-     <div v-for="(b, cat) in dashboardBudgets" :key="cat" class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm">
-        <div class="flex justify-between items-center mb-2">
-          <span class="font-bold text-sm text-slate-800 dark:text-white">{{ cat }}</span>
-          <span class="text-xs font-mono" :class="(b && b.spent > b.limit) ? 'text-red-500' : 'text-slate-500'">${{ formatNumber(b && b.spent ? b.spent : 0) }} / ${{ formatNumber(b && b.limit ? b.limit : 0) }}</span>
-        </div>
-        <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
-          <div class="h-full rounded-full transition-all" :class="(b && b.spent > b.limit) ? 'bg-red-500' : 'bg-blue-500'" :style="{ width: Math.min((b && b.pct ? b.pct : 0), 100) + '%' }"></div>
-        </div>
-     </div>
   </div>
 </div>
 <!-- ================= 4-5. 儲蓄目標 Tab (Savings) ================= -->
