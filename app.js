@@ -7,7 +7,6 @@ const app = createApp({
     // ------------------------------------------------------------------------
     const isAppReady = ref(false);
     const activeTab = ref('dashboard');
-    const settingsTab = ref('basic');
     const isDrawerOpen = ref(false); 
     const resetPin = () => {
         if (confirm('⚠️ 忘記密碼？\n為保護隱私，重置將會「清空本機所有資料與設定」！\n若您有綁定 Google Drive，重啟後可重新授權並一鍵還原。\n\n確定要強制重置嗎？')) {
@@ -29,7 +28,6 @@ const app = createApp({
     const syncStatus = ref('offline'); 
     const isSyncing = ref(false);
     const showAmounts = ref(false);
-    const expenseMonth = ref(getLocalISODate().substring(0,7)); 
     const dashboardMonth = ref(getLocalISODate().substring(0,7));
     const fxRate = ref(1);
 
@@ -577,14 +575,9 @@ const app = createApp({
        if (!data.split_projects) data.split_projects = [];
        if (!data.split_records) data.split_records = [];
        if (settings.billingStartDay === undefined) settings.billingStartDay = 1;
-
-       (data.accounts || []).forEach(acc => {
-           if (acc && !acc.icon) {
-               let matchedBrand = Object.keys(typeof BANK_BRAND_COLORS !== 'undefined' ? BANK_BRAND_COLORS : {}).find(brand => acc.name.includes(brand));
-               if (matchedBrand) acc.icon = BANK_BRAND_COLORS[matchedBrand].icon || '🏦';
-               else acc.icon = typeof EMOJI_DICTIONARY !== 'undefined' ? (EMOJI_DICTIONARY[acc.name] || EMOJI_DICTIONARY[acc.category] || '🏷️') : '🏷️';
-           }
-       });
+       if (typeof patchAccountIcons === 'function') {
+           patchAccountIcons(data.accounts);
+       }
     };
 
     const activeBookName = computed(() => { let b = settings.booksIndex.find(x => x && x.id === currentBookId.value); return b ? b.name : 'Kadu｜卡度記帳'; });
@@ -1729,7 +1722,8 @@ const app = createApp({
       });
     };
 
-    const refreshIcons = () => { nextTick(() => { try { if (window.lucide) lucide.createIcons(); } catch(e){} }); };
+    const refreshIcons = () => { // 已全面改用原生 SVG，無須再依賴 Lucide CDN 實例化
+    };
     watch(activeTab, () => { if(['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts(); refreshIcons(); });
     watch(dashboardScope, () => updateCharts());
     watch(() => settings.billingStartDay, () => { autoBackup(false); updateCharts(); });
@@ -1755,8 +1749,8 @@ const app = createApp({
 
     // --- 嚴格確保所有新增狀態與方法 100% 匯出 ---
     return { 
-      isAppReady, activeTab, settingsTab, isDrawerOpen, entryMode, dashboardScope, isUnlocked, pinInput, pinError, resetPin,
-      syncStatus, isSyncing, showAmounts, expenseMonth, dashboardMonth, fxRate,
+      isAppReady, activeTab,  isDrawerOpen, entryMode, dashboardScope, isUnlocked, pinInput, pinError, resetPin,
+      syncStatus, isSyncing, showAmounts, dashboardMonth, fxRate,
       isCalcOpen, calcExpression, isListening,
       reportView, reportPeriod, reportStartDate, reportEndDate,
       showAddAccountModal, showInitialStockModal, showAddFixedAssetModal, showDisposalModal, showAddLoanModal, showRateModal, 

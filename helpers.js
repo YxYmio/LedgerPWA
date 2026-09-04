@@ -187,6 +187,22 @@ const parseVoiceCommand = (text, accounts = []) => {
     return result;
 };
 
+// 共用邏輯：圖示修補與回溯相容
+const patchAccountIcons = (accountsList) => {
+    for (let i = 0; i < (accountsList || []).length; i++) {
+        let acc = accountsList[i];
+        if (!acc) continue;
+        if (!acc.icon) {
+            let matchedBrand = Object.keys(typeof BANK_BRAND_COLORS !== 'undefined' ? BANK_BRAND_COLORS : {}).find(brand => acc.name.includes(brand));
+            if (matchedBrand) {
+                acc.icon = BANK_BRAND_COLORS[matchedBrand].icon || '🏦';
+            } else {
+                acc.icon = typeof EMOJI_DICTIONARY !== 'undefined' ? (EMOJI_DICTIONARY[acc.name] || EMOJI_DICTIONARY[acc.category] || '🏷️') : '🏷️';
+            }
+        }
+    }
+};
+
 const setupDefaultData = (data, defaultCategories) => {
     if(!data.transactions) data.transactions = [];
     if(!data.investments) data.investments = [];
@@ -254,15 +270,8 @@ const setupDefaultData = (data, defaultCategories) => {
             if (acc.type === 'Expense') { acc.category = ['三餐', '餐飲'].includes(acc.name) ? '飲食' : (['交通', '高鐵'].includes(acc.name) ? '交通' : '個人/其他'); } 
             else { acc.category = ['薪水', '獎金'].includes(acc.name) ? '薪資' : '其他入帳'; }
         }
-
-        // 自動補齊舊資料的 Emoji 屬性
-        if (!acc.icon) {
-            let matchedBrand = Object.keys(typeof BANK_BRAND_COLORS !== 'undefined' ? BANK_BRAND_COLORS : {}).find(brand => acc.name.includes(brand));
-            if (matchedBrand) {
-                acc.icon = BANK_BRAND_COLORS[matchedBrand].icon || '🏦';
-            } else {
-                acc.icon = typeof EMOJI_DICTIONARY !== 'undefined' ? (EMOJI_DICTIONARY[acc.name] || EMOJI_DICTIONARY[acc.category] || '🏷️') : '🏷️';
-            }
-        }
     }
+
+    // 統一呼叫共用圖示修補邏輯
+    patchAccountIcons(accountsList);
 };

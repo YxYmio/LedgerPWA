@@ -10,23 +10,8 @@
   <link rel="icon" type="image/png" href="./logo.jpg">
   <link rel="apple-touch-icon" href="./logo.jpg">
 
-  <!-- 替換 2：PWA Manifest 動態生成 -->
-  <script>
-    const manifestData = {
-      "name": "Kadu｜卡度記帳",
-      "short_name": "Kadu記帳",
-      "start_url": "./index.html",
-      "display": "standalone",
-      "background_color": "#F8FAFC",
-      "theme_color": "#1E293B",
-      // 將原本抓取 link href 的寫法，直接替換為指向你的 logo 檔案
-      "icons": [{ "src": "./logo.jpg", "sizes": "512x512", "type": "image/png" }] 
-    };
-    const blob = new Blob([JSON.stringify(manifestData)], {type: 'application/json'});
-    const manifestTag = document.createElement('link');
-    manifestTag.rel = 'manifest'; manifestTag.href = URL.createObjectURL(blob);
-    document.head.appendChild(manifestTag);
-  </script>
+  <!-- 替換 2：PWA Manifest 實體綁定 -->
+  <link rel="manifest" href="./manifest.json">
 
   <!-- 外部樣式表 -->
   <link rel="stylesheet" href="./styles.css">
@@ -48,7 +33,6 @@
   <script src="https://apis.google.com/js/api.js" async defer></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
   
   <script>
