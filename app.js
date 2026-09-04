@@ -7,7 +7,20 @@ const app = createApp({
     // ------------------------------------------------------------------------
     const isAppReady = ref(false);
     const activeTab = ref('dashboard');
+    const settingsTab = ref('basic');
     const isDrawerOpen = ref(false); 
+    const resetPin = () => {
+        if (confirm('⚠️ 忘記密碼？\n為保護隱私，重置將會「清空本機所有資料與設定」！\n若您有綁定 Google Drive，重啟後可重新授權並一鍵還原。\n\n確定要強制重置嗎？')) {
+            let check = prompt('請輸入大寫「RESET」以確認執行：');
+            if (check === 'RESET') {
+                localStorage.clear();
+                sessionStorage.clear();
+                window.location.reload(true);
+            } else {
+                alert('輸入錯誤，重置取消。');
+            }
+        }
+    };
     const entryMode = ref('expense'); 
     const dashboardScope = ref('all');
     const isUnlocked = ref(false);
@@ -1508,7 +1521,18 @@ const app = createApp({
         let twdInvestmentsCount = data.investments.filter(i => i && i.currency !== 'USD' && i.shares > 0).length;
         if (twdInvestmentsCount === 0) return alert('目前無持股需要更新');
 
-        // 啟動 UI 載入提示防呆，避免 API Timeout 期間畫面像死機
+        // --- 4 小時 API 限流保護機制 ---
+        const lastUpdate = localStorage.getItem('ledger_stock_last_update');
+        if (lastUpdate && Date.now() - Number(lastUpdate) < 4 * 60 * 60 * 1000) {
+            let hours = (4 - (Date.now() - Number(lastUpdate)) / 3600000).toFixed(1);
+            if (!confirm(`⏱️ 為防 API 遭阻擋，系統已啟動 4 小時快取保護。\n距離下次開放自動更新還需約 ${hours} 小時。\n\n要跳過自動連線，直接進入「手動更新模式」嗎？`)) {
+                return; // 使用者選擇維持目前快取
+            } else {
+                showManualStockModal.value = true;
+                return;
+            }
+        }
+
         const loadingScreen = document.getElementById('native-loading');
         if (loadingScreen) {
             loadingScreen.style.display = 'flex';
@@ -1525,36 +1549,28 @@ const app = createApp({
                 let price = null;
                 const fetchPrice = async (url, extractFn) => {
                     try {
-                        let res = await fetchWithTimeout(url, {}, 3500); // 放寬 Timeout，給予代理伺服器餘裕
+                        let res = await fetchWithTimeout(url, {}, 3500); 
                         if (res.ok) {
                             let d = await res.json();
                             let p = extractFn(d);
                             if (p > 0 && p < 100000) return p;
                         }
-                    } catch(e) {
-                        // 攔截 timeout 或限流錯誤，靜默交給下一個備援節點
-                    }
+                    } catch(e) {}
                     return null;
                 };
 
-                // 備援 1: Yahoo Finance (Corsproxy)
                 price = await fetchPrice(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW`, d => (d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta && d.chart.result[0].meta.regularMarketPrice) || null);
-                
-                // 備援 2: Yahoo Finance (Allorigins 代理)
                 if (!price) price = await fetchPrice(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/' + sym + '.TW')}`, d => {
                     try { let parsed = JSON.parse(d.contents); return (parsed && parsed.chart && parsed.chart.result && parsed.chart.result[0] && parsed.chart.result[0].meta && parsed.chart.result[0].meta.regularMarketPrice) || null; } catch(e) { return null; }
                 });
-
-                // 備援 3: 台灣證交所 API (上市)
                 if (!price) price = await fetchPrice(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${sym}.tw`, d => (d && d.msgArray && d.msgArray[0]) ? parseFloat(d.msgArray[0].z !== '-' ? d.msgArray[0].z : d.msgArray[0].y) : null);
-                
-                // 備援 4: 台灣證交所 API (上櫃)
                 if (!price) price = await fetchPrice(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${sym}.tw`, d => (d && d.msgArray && d.msgArray[0]) ? parseFloat(d.msgArray[0].z !== '-' ? d.msgArray[0].z : d.msgArray[0].y) : null);
 
                 if (price) { inv.last_price = price; updatedCount++; }
             }
 
             if (updatedCount > 0 && updatedCount === twdInvestmentsCount) { 
+                localStorage.setItem('ledger_stock_last_update', Date.now().toString()); // 更新成功，寫入時間戳
                 alert('✅ 股價自動更新完成！'); autoBackup(); updateCharts(); 
             } else { 
                 alert('⚠️ 外部 API 遇上 429 限流或連線逾時，已為您無縫降級至「手動更新模式」。\n(已自動更新 ' + updatedCount + '/' + twdInvestmentsCount + ' 檔)');
@@ -1564,7 +1580,7 @@ const app = createApp({
             if (loadingScreen) {
                 loadingScreen.style.display = 'none';
                 const title = loadingScreen.querySelector('h2');
-                if (title) title.innerText = '系統啟動中'; // 復原預設文字
+                if (title) title.innerText = '系統啟動中'; 
             }
         }
     };
@@ -1656,7 +1672,7 @@ const app = createApp({
 
     // --- 嚴格確保所有新增狀態與方法 100% 匯出 ---
     return { 
-      isAppReady, activeTab, isDrawerOpen, entryMode, dashboardScope, isUnlocked, pinInput, pinError, 
+      isAppReady, activeTab, settingsTab, isDrawerOpen, entryMode, dashboardScope, isUnlocked, pinInput, pinError, resetPin,
       syncStatus, isSyncing, showAmounts, expenseMonth, dashboardMonth, fxRate,
       isCalcOpen, calcExpression, isListening,
       reportView, reportPeriod, reportStartDate, reportEndDate,
