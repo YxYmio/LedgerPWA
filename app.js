@@ -1812,4 +1812,23 @@ app.config.errorHandler = function(err, vm, info) {
   if(errorMsg) errorMsg.innerText = err.message + '\n(' + info + ')';
 };
 
+// --- 註冊模組化子元件 ---
+const modalMixin = {
+  emits: ['close', 'confirm', 'update:modelValue'],
+  updated() { if (this.show && window.lucide) lucide.createIcons(); } // 確保 v-if 顯示時能正確渲染圖示
+};
+
+app.component('modal-new-book', {
+  template: '#tpl-modal-new-book',
+  props: ['show', 'modelValue'],
+  mixins: [modalMixin]
+});
+
+app.component('modal-reset', {
+  template: '#tpl-modal-reset',
+  props: ['show', 'bookName'],
+  mixins: [modalMixin]
+});
+
+
 app.mount('#app');

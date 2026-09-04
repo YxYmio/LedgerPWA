@@ -167,18 +167,23 @@
       </header>
 
 <!-- ================= 底部輕量導覽列 ================= -->     
+      <!-- ================= 底部輕量導覽列 (原生 SVG 內聯) ================= -->     
       <nav class="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-2 py-2 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-[calc(env(safe-area-inset-bottom)+8px)] rounded-t-2xl">   
-         <button @click="changeTab('dashboard')" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
-          <i data-lucide="layout-dashboard" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">總覽</span>
+        <button @click="changeTab('dashboard')" :class="activeTab==='dashboard' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+          <span class="text-[10px] font-bold">總覽</span>
         </button>
         <button @click="changeTab('entry')" :class="activeTab==='entry' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
-          <i data-lucide="edit-3" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">記帳</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          <span class="text-[10px] font-bold">記帳</span>
         </button>
         <button @click="changeTab('history')" :class="activeTab==='history' ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
-          <i data-lucide="list" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">明細</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg>
+          <span class="text-[10px] font-bold">明細</span>
         </button>
         <button @click="changeTab('budget')" :class="activeTab==='budget' ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-slate-700' : 'text-slate-400 dark:text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700'" class="flex-1 flex flex-col items-center p-1.5 rounded-xl transition-all duration-200">
-          <i data-lucide="target" class="w-5 h-5 mb-1"></i><span class="text-[10px] font-bold">預算</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mb-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+          <span class="text-[10px] font-bold">預算</span>
         </button>
       </nav>
 
@@ -1748,7 +1753,7 @@
         </div>
       </div>
       
-      <!-- [全新] 群組結算專案建立彈窗 -->
+
 
       <!-- [全新] 群組結算專案建立彈窗 -->
       <div v-if="showGroupSplitProjectModal" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
@@ -1995,6 +2000,42 @@
       
     </div>
   </div>
+<!-- ================= Vue 3 子元件模板區塊 ================= -->
+  
+  <!-- 模組化：建立新帳本彈窗 -->
+  <template id="tpl-modal-new-book">
+    <div v-if="show" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+        <h3 class="text-xl font-bold mb-4 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-indigo-600 dark:text-indigo-400"><i data-lucide="book-plus" class="w-5 h-5"></i> 建立新帳本</h3>
+        <div class="space-y-4">
+          <div>
+            <div class="text-xs text-slate-500 mb-1 font-bold">帳本名稱</div>
+            <input type="text" :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" placeholder="如: 公司帳本、旅遊基金" class="w-full border p-3 rounded-xl dark:bg-slate-700 dark:border-slate-600 outline-none text-base font-bold bg-slate-50 dark:text-white">
+          </div>
+          <div class="flex gap-3 mt-6">
+            <button @click="$emit('close')" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold transition">取消</button>
+            <button @click="$emit('confirm')" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl font-bold transition shadow-lg">確認建立</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <!-- 模組化：重置防呆彈窗 -->
+  <template id="tpl-modal-reset">
+    <div v-if="show" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
+      <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl border-2 border-red-500">
+        <h3 class="text-xl font-bold mb-3 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-red-600"><i data-lucide="alert-triangle" class="w-6 h-6"></i> 嚴重警告</h3>
+        <p class="text-sm text-slate-600 dark:text-slate-300 mt-2 mb-6 leading-relaxed">
+          此操作將<strong class="text-red-500">永久清空</strong>本機與雲端上<strong class="text-slate-800 dark:text-white bg-slate-100 dark:bg-slate-700 px-1 rounded">[{{ bookName }}]</strong> 的所有資料，且<strong class="text-red-500">無法復原</strong>。<br><br>確定繼續？
+        </p>
+        <div class="flex gap-3 mt-4">
+          <button @click="$emit('close')" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold transition">取消</button>
+          <button @click="$emit('confirm')" class="flex-1 bg-red-600 hover:bg-red-700 text-white p-3 rounded-xl font-bold shadow-lg transition">確定清空</button>
+        </div>
+      </div>
+    </div>
+  </template>
 
   <!-- 引入外部邏輯 JS -->
   <script src="./constants.js"></script>
