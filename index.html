@@ -87,6 +87,7 @@
         <input type="password" v-model="pinInput" maxlength="4" pattern="[0-9]*" inputmode="numeric" class="text-center text-3xl tracking-[1em] w-48 p-2 rounded-lg text-black mb-4 outline-none" placeholder="••••">
         <button @click="unlockApp" class="bg-blue-600 px-6 py-2 rounded-full font-bold w-48 shadow-lg">解鎖</button>
         <p v-if="pinError" class="text-red-400 mt-4 font-bold">{{ pinError }}</p>
+        <button @click="resetPin" class="mt-8 text-sm text-slate-400 hover:text-white transition underline">忘記密碼？強制重置</button>
       </div>
 
       <!-- 左側滑出式漢堡選單 (Drawer) -->
@@ -130,6 +131,19 @@
             <i data-lucide="briefcase" class="w-5 h-5 text-indigo-500"></i> 專案與分帳中心
           </button>
 
+          <!-- 獨立：週期排程 -->
+          <button @click="changeTab('recurring')" :class="activeTab==='recurring'?'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
+            <i data-lucide="repeat" class="w-5 h-5"></i> 週期排程
+          </button>
+
+          <!-- 獨立：分類與標籤 -->
+          <button @click="changeTab('categories')" :class="activeTab==='categories'?'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
+            <i data-lucide="tags" class="w-5 h-5"></i> 分類與標籤
+          </button>
+
+          <hr class="my-2 border-slate-200 dark:border-slate-700">
+          
+          <!-- 系統設定 -->
           <button @click="changeTab('settings')" :class="activeTab==='settings'?'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
             <i data-lucide="settings" class="w-5 h-5"></i> 系統設定
           </button>
@@ -1047,199 +1061,177 @@
           </div>
         </div>
 
+<!-- ================= 全新獨立：週期性收支排程 Tab ================= -->
+        <div v-show="activeTab === 'recurring'" class="space-y-4">
+          <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2 mb-4">
+            <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white"><i data-lucide="repeat" class="w-5 h-5 text-emerald-500"></i> 週期性收支排程</h2>
+          </div>
+          <div class="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800 space-y-3 shadow-inner">
+            <div class="flex gap-2">
+              <select v-model="newRecurring.type" class="border p-2 rounded-lg w-1/3 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white font-bold text-emerald-700">
+                <option value="expense">支出</option><option value="income">收入</option>
+              </select>
+              <input type="text" v-model="newRecurring.desc" placeholder="排程名稱 (如: 房租、Netflix)" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white">
+            </div>
+            <div class="flex gap-2">
+              <input type="number" v-model.number="newRecurring.amount" placeholder="金額" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white">
+              <input type="number" v-model.number="newRecurring.day" placeholder="每月扣款日(1-31)" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white">
+            </div>
+            <select v-model="newRecurring.account" class="w-full border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white">
+              <option value="" disabled>請選擇扣款/入帳帳戶</option>
+              <option v-for="acc in assetAccountsWithBalance" :key="acc && acc.id ? acc.id : ''" :value="acc && acc.id ? acc.id : ''">{{ acc && acc.icon ? acc.icon : '🏦' }} {{ acc && acc.name ? acc.name : '' }}</option>
+            </select>
+            <button @click="addRecurring" class="w-full bg-emerald-600 hover:bg-emerald-700 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-md mt-2 flex justify-center items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> 建立排程</button>
+          </div>
+          <div class="mt-3 border rounded-xl p-2 dark:border-slate-700 bg-white dark:bg-slate-800 custom-scrollbar shadow-sm">
+            <div v-if="safeRecurring && safeRecurring.length === 0" class="text-center text-slate-400 text-xs py-4">目前無週期排程</div>
+            <div v-for="rec in safeRecurring" :key="rec && rec.id ? rec.id : ''" class="flex justify-between items-center text-sm py-2 px-2 border-b dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded transition">
+              <div>
+                <div class="font-bold flex items-center gap-1 text-slate-700 dark:text-slate-200">
+                  <span :class="(rec && rec.type==='expense') ? 'text-red-500' : 'text-green-500'">[{{ (rec && rec.type==='expense') ? '支出' : '收入' }}]</span> {{ rec && rec.desc ? rec.desc : '' }}
+                </div>
+                <div class="text-[10px] text-slate-500 mt-0.5">每月 {{ rec && rec.day ? rec.day : 1 }} 日執行 | ${{ formatNumber(rec && rec.amount ? rec.amount : 0) }}</div>
+              </div>
+              <button @click="deleteRecurring(rec && rec.id ? rec.id : '')" class="text-slate-400 hover:text-red-500 bg-slate-100 dark:bg-slate-900 p-1.5 rounded transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            </div>
+          </div>
+        </div>
 
-          <!-- ================= 7. 設定 Tab (Settings) ================= -->
-        <div v-show="activeTab === 'settings'" class="space-y-5">
+        <!-- ================= 全新獨立：分類與標籤 Tab ================= -->
+        <div v-show="activeTab === 'categories'" class="space-y-4">
+          <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2 mb-4">
+            <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white"><i data-lucide="tags" class="w-5 h-5 text-blue-500"></i> 科目與標籤管理</h2>
+            <select v-model="settingCategoryMode" class="text-sm font-normal border rounded-lg p-1.5 dark:bg-slate-700 outline-none bg-slate-100 dark:text-white">
+              <option value="Expense">支出類</option><option value="Income">收入類</option>
+            </select>
+          </div>
+          <div class="space-y-4">
+            <div class="flex gap-2">
+              <input type="text" v-model="newMainCat" placeholder="新增主類別" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 outline-none text-sm bg-white dark:text-white">
+              <button @click="addMainCategory" class="bg-slate-200 dark:bg-slate-600 px-4 rounded-lg font-bold text-sm shadow-sm hover:bg-slate-300 transition">新增</button>
+            </div>
+            <div class="flex gap-2 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border dark:border-slate-700 shadow-inner">
+              <select v-model="newSubCat.main" class="border p-2 rounded-lg w-1/3 dark:bg-slate-900 outline-none text-sm bg-white dark:text-white">
+                <option value="" disabled>選主類</option>
+                <option v-for="cat in currentSettingCategories" :key="cat" :value="cat">{{ cat }}</option>
+              </select>
+              <input type="text" v-model="newSubCat.name" placeholder="新增子類別 (可含Emoji)" class="border p-2 rounded-lg flex-1 dark:bg-slate-900 outline-none text-sm bg-white dark:text-white">
+              <button @click="addSubCategory" class="bg-blue-600 hover:bg-blue-700 transition text-white px-3.5 rounded-lg font-bold text-sm shadow-sm">+</button>
+            </div>
+            <div class="border rounded-xl p-2 dark:border-slate-700 bg-white dark:bg-slate-800 custom-scrollbar shadow-sm">
+              <div v-for="cat in currentSettingCategories" :key="cat" class="mb-3 last:mb-0">
+                <div class="font-bold text-sm bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg flex justify-between items-center shadow-sm">
+                  {{ cat }} <button @click="deleteMainCategory(settingCategoryMode, cat)" class="text-slate-400 hover:text-red-500 bg-white dark:bg-slate-800 p-1 rounded transition"><i data-lucide="x" class="w-3 h-3"></i></button>
+                </div>
+                <div class="pl-3 mt-1.5 space-y-1">
+                  <div v-for="acc in getSubAccounts(settingCategoryMode, cat, true)" :key="acc && acc.id ? acc.id : ''" class="flex justify-between items-center text-sm py-1.5 border-b dark:border-slate-700 last:border-0" :class="{'opacity-50': acc && acc.is_hidden}">
+                    <span class="text-slate-700 dark:text-slate-300">{{ acc && acc.icon ? acc.icon : '🏷️' }} {{ acc && acc.name ? acc.name : '' }} <span v-if="acc && acc.is_hidden" class="text-[10px] text-red-400 border border-red-400 px-1 rounded ml-1">停用</span></span>
+                    <div class="flex gap-2">
+                      <button @click="toggleAccountVisibility(acc && acc.id ? acc.id : '')" class="text-slate-400 hover:text-blue-500 bg-slate-50 dark:bg-slate-900 p-1.5 rounded transition"><i :data-lucide="(acc && acc.is_hidden) ? 'eye-off' : 'eye'" class="w-3 h-3"></i></button>
+                      <button @click="deleteAccount(acc && acc.id ? acc.id : '')" class="text-slate-400 hover:text-red-500 bg-slate-50 dark:bg-slate-900 p-1.5 rounded transition"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="pt-3 border-t dark:border-slate-700">
+              <h3 class="text-sm font-bold text-blue-600 dark:text-blue-400 mb-2">常用快捷標籤管理</h3>
+              <div class="flex gap-2 mb-3">
+                <input type="text" v-model="newPreset" placeholder="標籤名稱 (無須加#)" class="border p-2.5 rounded-lg flex-1 dark:bg-slate-700 outline-none text-sm bg-white dark:text-white">
+                <button @click="addPreset" class="bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 transition px-4 rounded-lg font-bold text-sm shadow-sm">新增</button>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <span v-for="(p, idx) in safeQuickTags" :key="idx" class="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-full text-sm flex items-center gap-1 shadow-sm font-bold">
+                  #{{ p }} <button @click="removePreset(idx)" class="hover:text-red-600 font-bold ml-1 rounded-full bg-white dark:bg-slate-800 p-0.5 transition"><i data-lucide="x" class="w-3 h-3"></i></button>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= 7. 設定 Tab (Settings) ================= -->
+        <div v-show="activeTab === 'settings'" class="space-y-6 pb-4">
+          <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2 mb-4">
+            <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white"><i data-lucide="settings" class="w-5 h-5 text-blue-500"></i> 系統設定</h2>
+          </div>
           
-          <!-- 設定頁面專屬 Sub-tabs導航 -->
-          <div class="flex bg-slate-200 dark:bg-slate-700 rounded-xl p-1 mb-4 shadow-inner">
-            <button @click="settingsTab = 'basic'" :class="settingsTab==='basic' ? 'bg-white dark:bg-slate-800 shadow text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-300'" class="flex-1 py-2 rounded-lg text-sm transition">基礎設定</button>
-            <button @click="settingsTab = 'category'" :class="settingsTab==='category' ? 'bg-white dark:bg-slate-800 shadow text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-300'" class="flex-1 py-2 rounded-lg text-sm transition">分類與排程</button>
-            <button @click="settingsTab = 'data'" :class="settingsTab==='data' ? 'bg-white dark:bg-slate-800 shadow text-blue-600 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-300'" class="flex-1 py-2 rounded-lg text-sm transition">資料與雲端</button>
-          </div>
-
-          <!-- 分頁 1：基礎設定 (多帳本、結算日、資產登錄、匯率) -->
-          <div v-show="settingsTab === 'basic'" class="space-y-6 pb-4">
-            
-            <section>
-              <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-indigo-600 dark:text-indigo-400 flex items-center gap-2"><i data-lucide="book-copy" class="w-5 h-5"></i> 多帳本與帳務基礎</h2>
-              <div class="space-y-3">
-                <!-- 多帳本切換 -->
-                <div class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm flex items-center gap-2">
-                  <select v-model="currentBookId" @change="switchBook($event)" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm font-bold bg-slate-50 dark:text-white">
-                    <option v-for="book in availableBooks" :key="book && book.id ? book.id : ''" :value="book && book.id ? book.id : ''">{{ book && book.name ? book.name : '' }}</option>
-                  </select>
-                  <button @click="showNewBookModal = true" class="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800 border border-indigo-200 px-3 py-2 rounded-lg font-bold text-sm shadow-sm transition whitespace-nowrap">+ 建立</button>
-                  <button @click="deleteBook(currentBookId)" class="bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 border border-red-200 px-3 py-2 rounded-lg font-bold text-sm shadow-sm transition whitespace-nowrap">刪除</button>
-                </div>
-                
-                <!-- 結算起算日 -->
-                <div class="flex items-center justify-between bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm gap-3">
-                  <div class="flex flex-col">
-                      <span class="text-sm font-bold text-slate-700 dark:text-slate-300">結算起算日 (非自然月)</span>
-                      <span class="text-[10px] text-slate-400">每月帳單、預算的統計起始日</span>
-                  </div>
-                  <select v-model.number="settings.billingStartDay" @change="saveSettings" class="border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm font-bold bg-slate-50 dark:text-white w-24 text-center">
-                    <option v-for="d in 28" :key="d" :value="d">{{ d }} 號</option>
-                  </select>
-                </div>
-              </div>
-            </section>
-
-            <!-- 固定資產登錄 (移至此處) -->
-            <section>
-              <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-teal-600 dark:text-teal-400 flex items-center gap-2"><i data-lucide="monitor" class="w-5 h-5"></i> 固定資產登錄</h2>
-              <button @click="showAddFixedAssetModal = true" class="w-full bg-teal-50 hover:bg-teal-100 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400 border border-dashed border-teal-300 dark:border-teal-700 p-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition shadow-sm">
-                <i data-lucide="plus-square" class="w-5 h-5"></i> + 登錄新固定資產
-              </button>
-            </section>
-
-            <section>
-              <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-orange-600 dark:text-orange-400 flex items-center gap-2"><i data-lucide="globe" class="w-5 h-5"></i> 外幣參考匯率</h2>
-              <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm flex flex-col gap-3">
-                <div class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                  <span class="w-10">USD</span>
-                  <input type="number" step="0.01" v-model.number="data.currencyRates.USD" @change="autoBackup" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white" />
-                </div>
-                <div class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                  <span class="w-10">JPY</span>
-                  <input type="number" step="0.01" v-model.number="data.currencyRates.JPY" @change="autoBackup" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white" />
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <!-- 分頁 2：分類與排程 (僅保留分類與週期排程) -->
-          <div v-show="settingsTab === 'category'" class="space-y-6 pb-4">
-            <section>
-              <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-blue-600 dark:text-blue-400 flex justify-between items-center">
-                <span><i data-lucide="tags" class="w-5 h-5 inline mr-1"></i> 科目與標籤管理</span>
-                <select v-model="settingCategoryMode" class="text-sm font-normal border rounded-lg p-1 dark:bg-slate-700 outline-none bg-slate-100">
-                  <option value="Expense">支出類</option><option value="Income">收入類</option>
+          <section>
+            <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-indigo-600 dark:text-indigo-400 flex items-center gap-2"><i data-lucide="book-copy" class="w-5 h-5"></i> 多帳本與帳務基礎</h2>
+            <div class="space-y-3">
+              <div class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm flex items-center gap-2">
+                <select v-model="currentBookId" @change="switchBook($event)" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm font-bold bg-slate-50 dark:text-white">
+                  <option v-for="book in availableBooks" :key="book && book.id ? book.id : ''" :value="book && book.id ? book.id : ''">{{ book && book.name ? book.name : '' }}</option>
                 </select>
-              </h2>
-              <div class="space-y-4">
-                <div class="flex gap-2">
-                  <input type="text" v-model="newMainCat" placeholder="新增主類別" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 outline-none text-sm bg-white dark:text-white">
-                  <button @click="addMainCategory" class="bg-slate-200 dark:bg-slate-600 px-4 rounded-lg font-bold text-sm shadow-sm hover:bg-slate-300 transition">新增</button>
-                </div>
-                <div class="flex gap-2 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-xl border dark:border-slate-700 shadow-inner">
-                  <select v-model="newSubCat.main" class="border p-2 rounded-lg w-1/3 dark:bg-slate-900 outline-none text-sm bg-white dark:text-white">
-                    <option value="" disabled>選主類</option>
-                    <option v-for="cat in currentSettingCategories" :key="cat" :value="cat">{{ cat }}</option>
-                  </select>
-                  <input type="text" v-model="newSubCat.name" placeholder="新增子類別 (可含Emoji)" class="border p-2 rounded-lg flex-1 dark:bg-slate-900 outline-none text-sm bg-white dark:text-white">
-                  <button @click="addSubCategory" class="bg-blue-600 hover:bg-blue-700 transition text-white px-3.5 rounded-lg font-bold text-sm shadow-sm">+</button>
-                </div>
-                <div class="border rounded-xl p-2 dark:border-slate-700 bg-white dark:bg-slate-800 custom-scrollbar shadow-sm">
-                  <div v-for="cat in currentSettingCategories" :key="cat" class="mb-3 last:mb-0">
-                    <div class="font-bold text-sm bg-slate-100 dark:bg-slate-700 px-3 py-2 rounded-lg flex justify-between items-center shadow-sm">
-                      {{ cat }} <button @click="deleteMainCategory(settingCategoryMode, cat)" class="text-slate-400 hover:text-red-500 bg-white dark:bg-slate-800 p-1 rounded transition"><i data-lucide="x" class="w-3 h-3"></i></button>
-                    </div>
-                    <div class="pl-3 mt-1.5 space-y-1">
-                      <div v-for="acc in getSubAccounts(settingCategoryMode, cat, true)" :key="acc && acc.id ? acc.id : ''" class="flex justify-between items-center text-sm py-1.5 border-b dark:border-slate-700 last:border-0" :class="{'opacity-50': acc && acc.is_hidden}">
-                        <span class="text-slate-700 dark:text-slate-300">{{ acc && acc.icon ? acc.icon : '🏷️' }} {{ acc && acc.name ? acc.name : '' }} <span v-if="acc && acc.is_hidden" class="text-[10px] text-red-400 border border-red-400 px-1 rounded ml-1">停用</span></span>
-                        <div class="flex gap-2">
-                          <button @click="toggleAccountVisibility(acc && acc.id ? acc.id : '')" class="text-slate-400 hover:text-blue-500 bg-slate-50 dark:bg-slate-900 p-1.5 rounded transition"><i :data-lucide="(acc && acc.is_hidden) ? 'eye-off' : 'eye'" class="w-3 h-3"></i></button>
-                          <button @click="deleteAccount(acc && acc.id ? acc.id : '')" class="text-slate-400 hover:text-red-500 bg-slate-50 dark:bg-slate-900 p-1.5 rounded transition"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="pt-3 border-t dark:border-slate-700">
-                  <h3 class="text-sm font-bold text-blue-600 dark:text-blue-400 mb-2">常用快捷標籤管理</h3>
-                  <div class="flex gap-2 mb-3">
-                    <input type="text" v-model="newPreset" placeholder="標籤名稱 (無須加#)" class="border p-2.5 rounded-lg flex-1 dark:bg-slate-700 outline-none text-sm bg-white dark:text-white">
-                    <button @click="addPreset" class="bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 transition px-4 rounded-lg font-bold text-sm shadow-sm">新增</button>
-                  </div>
-                  <div class="flex flex-wrap gap-2">
-                    <span v-for="(p, idx) in safeQuickTags" :key="idx" class="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-full text-sm flex items-center gap-1 shadow-sm font-bold">
-                      #{{ p }} <button @click="removePreset(idx)" class="hover:text-red-600 font-bold ml-1 rounded-full bg-white dark:bg-slate-800 p-0.5 transition"><i data-lucide="x" class="w-3 h-3"></i></button>
-                    </span>
-                  </div>
-                </div>
+                <button @click="showNewBookModal = true" class="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800 border border-indigo-200 px-3 py-2 rounded-lg font-bold text-sm shadow-sm transition whitespace-nowrap">+ 建立</button>
+                <button @click="deleteBook(currentBookId)" class="bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 border border-red-200 px-3 py-2 rounded-lg font-bold text-sm shadow-sm transition whitespace-nowrap">刪除</button>
               </div>
-            </section>
-
-            <section>
-              <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-emerald-600 dark:text-emerald-400 flex items-center gap-2"><i data-lucide="repeat" class="w-5 h-5"></i> 週期性收支排程</h2>
-              <div class="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800 space-y-3 shadow-inner">
-                <div class="flex gap-2">
-                  <select v-model="newRecurring.type" class="border p-2 rounded-lg w-1/3 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white font-bold text-emerald-700">
-                    <option value="expense">支出</option><option value="income">收入</option>
-                  </select>
-                  <input type="text" v-model="newRecurring.desc" placeholder="排程名稱 (如: 房租、Netflix)" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white">
+              <div class="flex items-center justify-between bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm gap-3">
+                <div class="flex flex-col">
+                    <span class="text-sm font-bold text-slate-700 dark:text-slate-300">結算起算日 (非自然月)</span>
+                    <span class="text-[10px] text-slate-400">每月帳單、預算的統計起始日</span>
                 </div>
-                <div class="flex gap-2">
-                  <input type="number" v-model.number="newRecurring.amount" placeholder="金額" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white">
-                  <input type="number" v-model.number="newRecurring.day" placeholder="每月扣款日(1-31)" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white">
-                </div>
-                <select v-model="newRecurring.account" class="w-full border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white">
-                  <option value="" disabled>請選擇扣款/入帳帳戶</option>
-                  <option v-for="acc in assetAccountsWithBalance" :key="acc && acc.id ? acc.id : ''" :value="acc && acc.id ? acc.id : ''">{{ acc && acc.icon ? acc.icon : '🏦' }} {{ acc && acc.name ? acc.name : '' }}</option>
+                <select v-model.number="settings.billingStartDay" @change="saveSettings" class="border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm font-bold bg-slate-50 dark:text-white w-24 text-center">
+                  <option v-for="d in 28" :key="d" :value="d">{{ d }} 號</option>
                 </select>
-                <button @click="addRecurring" class="w-full bg-emerald-600 hover:bg-emerald-700 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-md mt-2 flex justify-center items-center gap-1"><i data-lucide="plus" class="w-4 h-4"></i> 建立排程</button>
               </div>
-              <div class="mt-3 border rounded-xl p-2 dark:border-slate-700 bg-white dark:bg-slate-800 custom-scrollbar shadow-sm">
-                <div v-if="safeRecurring && safeRecurring.length === 0" class="text-center text-slate-400 text-xs py-4">目前無週期排程</div>
-                <div v-for="rec in safeRecurring" :key="rec && rec.id ? rec.id : ''" class="flex justify-between items-center text-sm py-2 px-2 border-b dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded transition">
-                  <div>
-                    <div class="font-bold flex items-center gap-1 text-slate-700 dark:text-slate-200">
-                      <span :class="(rec && rec.type==='expense') ? 'text-red-500' : 'text-green-500'">[{{ (rec && rec.type==='expense') ? '支出' : '收入' }}]</span> {{ rec && rec.desc ? rec.desc : '' }}
-                    </div>
-                    <div class="text-[10px] text-slate-500 mt-0.5">每月 {{ rec && rec.day ? rec.day : 1 }} 日執行 | ${{ formatNumber(rec && rec.amount ? rec.amount : 0) }}</div>
-                  </div>
-                  <button @click="deleteRecurring(rec && rec.id ? rec.id : '')" class="text-slate-400 hover:text-red-500 bg-slate-100 dark:bg-slate-900 p-1.5 rounded transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                </div>
-              </div>
-            </section>
-          </div>
+            </div>
+          </section>
 
-          <!-- 分頁 3：資料與雲端 -->
-          <div v-show="settingsTab === 'data'" class="space-y-6 pb-4">
-            <section>
-              <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2"><i data-lucide="cloud" class="w-5 h-5"></i> Google Drive 雲端同步</h2>
-              <div class="space-y-3 bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm">
-                <div class="text-xs text-slate-500 leading-relaxed">輸入 Google Client ID 以開啟自動備份。<br>目前帳本檔名：<span class="font-mono text-blue-500 bg-slate-100 dark:bg-slate-900 px-1 rounded">ledger_data_{{ currentBookId }}.json</span></div>
-                <input type="text" v-model="settings.googleClientId" @change="saveSettings" placeholder="Client ID (xxx.apps.googleusercontent.com)" class="w-full border p-2.5 rounded-lg dark:bg-slate-900 dark:border-slate-600 outline-none text-[11px] font-mono bg-slate-50">
-                
-                <div class="flex items-center gap-2 mt-4 pt-4 border-t dark:border-slate-700">
-                  <div class="flex-1">
-                    <div class="text-sm font-bold flex items-center gap-1" :class="settings.googleToken ? 'text-green-600 dark:text-green-400' : 'text-slate-500'">
-                      <i :data-lucide="settings.googleToken ? 'check-circle' : 'x-circle'" class="w-4 h-4"></i> 
-                      {{ settings.googleToken ? '授權已連線' : '尚未授權' }}
-                    </div>
-                  </div>
-                  <button v-if="!settings.googleToken" @click="handleGoogleAuth" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition">使用 Google 登入</button>
-                  <button v-if="settings.googleToken" @click="handleGoogleSignout" class="bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg font-bold text-sm transition">登出</button>
-                </div>
-                <button v-if="settings.googleToken" @click="syncWithGoogleDrive(true)" class="w-full bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-lg font-bold flex justify-center items-center gap-2 shadow mt-2 transition"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 立即強制同步至雲端</button>
+          <section>
+            <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-orange-600 dark:text-orange-400 flex items-center gap-2"><i data-lucide="globe" class="w-5 h-5"></i> 外幣參考匯率</h2>
+            <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm flex flex-col gap-3">
+              <div class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                <span class="w-10">USD</span>
+                <input type="number" step="0.01" v-model.number="data.currencyRates.USD" @change="autoBackup" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white" />
               </div>
-            </section>
-            
-            <section>
-              <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2"><i data-lucide="database" class="w-5 h-5"></i> 資料管理 & 安全防護</h2>
-              <div class="flex items-center justify-between border p-3.5 rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 mb-4 shadow-sm">
-                <span class="font-bold text-sm text-slate-700 dark:text-slate-300">App PIN 碼防窺鎖開關</span>
-                <input type="checkbox" v-model="settings.pinEnabled" @change="saveSettings" class="w-5 h-5 accent-blue-600 cursor-pointer">
+              <div class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                <span class="w-10">JPY</span>
+                <input type="number" step="0.01" v-model.number="data.currencyRates.JPY" @change="autoBackup" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white" />
               </div>
-              <div v-if="settings.pinEnabled" class="mb-4">
-                <input type="password" v-model="settings.pinCode" placeholder="4位數新 PIN 碼" maxlength="4" class="w-full border p-3 rounded-xl dark:bg-slate-700 text-center tracking-[1em] text-xl font-bold shadow-inner outline-none focus:border-blue-500 bg-slate-50 dark:text-white">
-              </div>
-              <div class="flex gap-2 mb-4">
-                <button @click="exportData" class="flex-1 bg-slate-700 hover:bg-slate-800 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm shadow transition"><i data-lucide="download" class="w-4 h-4"></i> 匯出 JSON</button>
-                <label class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer text-sm shadow transition border dark:border-slate-600">
-                  <i data-lucide="upload" class="w-4 h-4"></i> 匯入覆蓋
-                  <input type="file" @change="importData" class="hidden" accept=".json">
-                </label>
-              </div>
+            </div>
+          </section>
 
-              <button @click="showResetModal = true" class="w-full bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400 p-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition border border-red-200 dark:border-red-800 shadow-sm mt-6">
-                <i data-lucide="trash-2" class="w-5 h-5"></i> 清空所有帳本資料 (重置)
-              </button>
-            </section>
-          </div>
+          <section>
+            <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-blue-600 dark:text-blue-400 flex items-center gap-2"><i data-lucide="cloud" class="w-5 h-5"></i> Google Drive 雲端同步</h2>
+            <div class="space-y-3 bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm">
+              <div class="text-xs text-slate-500 leading-relaxed">輸入 Google Client ID 以開啟自動備份。<br>目前帳本檔名：<span class="font-mono text-blue-500 bg-slate-100 dark:bg-slate-900 px-1 rounded">ledger_data_{{ currentBookId }}.json</span></div>
+              <input type="text" v-model="settings.googleClientId" @change="saveSettings" placeholder="Client ID (xxx.apps.googleusercontent.com)" class="w-full border p-2.5 rounded-lg dark:bg-slate-900 dark:border-slate-600 outline-none text-[11px] font-mono bg-slate-50">
+              
+              <div class="flex items-center gap-2 mt-4 pt-4 border-t dark:border-slate-700">
+                <div class="flex-1">
+                  <div class="text-sm font-bold flex items-center gap-1" :class="settings.googleToken ? 'text-green-600 dark:text-green-400' : 'text-slate-500'">
+                    <i :data-lucide="settings.googleToken ? 'check-circle' : 'x-circle'" class="w-4 h-4"></i> 
+                    {{ settings.googleToken ? '授權已連線' : '尚未授權' }}
+                  </div>
+                </div>
+                <button v-if="!settings.googleToken" @click="handleGoogleAuth" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow transition">使用 Google 登入</button>
+                <button v-if="settings.googleToken" @click="handleGoogleSignout" class="bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 px-4 py-2 rounded-lg font-bold text-sm transition">登出</button>
+              </div>
+              <button v-if="settings.googleToken" @click="syncWithGoogleDrive(true)" class="w-full bg-slate-800 hover:bg-slate-900 text-white p-3 rounded-lg font-bold flex justify-center items-center gap-2 shadow mt-2 transition"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 立即強制同步至雲端</button>
+            </div>
+          </section>
+          
+          <section>
+            <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2"><i data-lucide="database" class="w-5 h-5"></i> 資料管理 & 安全防護</h2>
+            <div class="flex items-center justify-between border p-3.5 rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 mb-4 shadow-sm">
+              <span class="font-bold text-sm text-slate-700 dark:text-slate-300">App PIN 碼防窺鎖開關</span>
+              <input type="checkbox" v-model="settings.pinEnabled" @change="saveSettings" class="w-5 h-5 accent-blue-600 cursor-pointer">
+            </div>
+            <div v-if="settings.pinEnabled" class="mb-4">
+              <input type="password" v-model="settings.pinCode" placeholder="4位數新 PIN 碼" maxlength="4" class="w-full border p-3 rounded-xl dark:bg-slate-700 text-center tracking-[1em] text-xl font-bold shadow-inner outline-none focus:border-blue-500 bg-slate-50 dark:text-white">
+            </div>
+            <div class="flex gap-2 mb-4">
+              <button @click="exportData" class="flex-1 bg-slate-700 hover:bg-slate-800 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm shadow transition"><i data-lucide="download" class="w-4 h-4"></i> 匯出 JSON</button>
+              <label class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer text-sm shadow transition border dark:border-slate-600">
+                <i data-lucide="upload" class="w-4 h-4"></i> 匯入覆蓋
+                <input type="file" @change="importData" class="hidden" accept=".json">
+              </label>
+            </div>
+
+            <button @click="showResetModal = true" class="w-full bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400 p-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition border border-red-200 dark:border-red-800 shadow-sm mt-6">
+              <i data-lucide="trash-2" class="w-5 h-5"></i> 清空所有帳本資料 (重置)
+            </button>
+          </section>
         </div>
 
       </main>
