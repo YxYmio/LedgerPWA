@@ -88,48 +88,44 @@
         </div>
         <nav class="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar text-sm font-medium">
           <button @click="changeTab('dashboard')" :class="activeTab==='dashboard'?'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="layout-dashboard" class="w-5 h-5"></i> 總覽儀表板
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> 總覽儀表板
           </button>
           <button @click="changeTab('entry')" :class="activeTab==='entry'?'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="edit-3" class="w-5 h-5"></i> 記帳專區
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> 記帳專區
           </button>
           <button @click="changeTab('history')" :class="activeTab==='history'?'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="list" class="w-5 h-5"></i> 交易明細
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></svg> 交易明細
           </button>
           <button @click="changeTab('budget')" :class="activeTab==='budget'?'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="pie-chart" class="w-5 h-5"></i> 預算管理
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg> 預算管理
           </button>
           <button @click="changeTab('savings')" :class="activeTab==='savings'?'bg-pink-100 dark:bg-pink-900/40 text-pink-700 dark:text-pink-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="crosshair" class="w-5 h-5"></i> 儲蓄目標計畫
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg> 儲蓄目標計畫
           </button>
           <button @click="changeTab('assets')" :class="activeTab==='assets'?'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="wallet" class="w-5 h-5"></i> 資產與貸款
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg> 資產與貸款
           </button>
           <button @click="changeTab('reports')" :class="activeTab==='reports'?'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="file-text" class="w-5 h-5"></i> 財務三大報表
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg> 財務三大報表
           </button>
           <hr class="my-2 border-slate-200 dark:border-slate-700">
           
-          <!-- 全新：專案與分帳中心大一統入口 -->
           <button @click="openGroupSplitCenter" :class="activeTab==='group_split'?'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="briefcase" class="w-5 h-5 text-indigo-500"></i> 專案與分帳中心
+            <svg class="w-5 h-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> 專案與分帳中心
           </button>
 
-          <!-- 獨立：週期排程 -->
           <button @click="changeTab('recurring')" :class="activeTab==='recurring'?'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="repeat" class="w-5 h-5"></i> 週期排程
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg> 週期排程
           </button>
 
-          <!-- 獨立：分類與標籤 -->
           <button @click="changeTab('categories')" :class="activeTab==='categories'?'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="tags" class="w-5 h-5"></i> 分類與標籤
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H2v7l6.29 6.29c.94.94 2.48.94 3.42 0l3.58-3.58c.94-.94.94-2.48 0-3.42L9 5Z"/><path d="M6 9.01V9"/><path d="m15 5 6.3 6.3a2.4 2.4 0 0 1 0 3.4L17 19"/></svg> 分類與標籤
           </button>
 
           <hr class="my-2 border-slate-200 dark:border-slate-700">
           
-          <!-- 系統設定 -->
           <button @click="changeTab('settings')" :class="activeTab==='settings'?'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold':'text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition">
-            <i data-lucide="settings" class="w-5 h-5"></i> 系統設定
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg> 系統設定
           </button>
         </nav>
       </div>
@@ -137,14 +133,16 @@
       <!-- 頂部導航 -->
       <header class="p-4 bg-blue-700 dark:bg-blue-900 text-white flex justify-between items-center sticky top-0 z-40 shadow-md">
         <div class="flex items-center gap-3">
-          <button @click="isDrawerOpen = true" class="p-1.5 hover:bg-white/20 rounded-lg transition"><i data-lucide="menu" class="w-6 h-6"></i></button>
+          <button @click="isDrawerOpen = true" class="p-1.5 hover:bg-white/20 rounded-lg transition">
+            <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg>
+          </button>
           <select v-model="currentBookId" @change="switchBook($event)" class="bg-transparent text-xl font-bold outline-none cursor-pointer text-white appearance-none pr-4">
             <option v-for="book in availableBooks" :key="book && book.id ? book.id : ''" :value="book && book.id ? book.id : ''" class="text-black">{{ book && book.name ? book.name : '' }}</option>
           </select>
         </div>
         <div class="flex gap-4 flex-shrink-0 items-center">
           <button @click="syncWithGoogleDrive(true)" title="強制同步" class="relative bg-blue-800 p-2 rounded-full hover:bg-blue-600 transition">
-            <i data-lucide="refresh-cw" class="w-5 h-5" :class="{'animate-spin': isSyncing}"></i>
+            <svg class="w-5 h-5" :class="{'animate-spin': isSyncing}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
             <span class="absolute top-0 right-0 w-3 h-3 rounded-full border-2 border-blue-700" :class="syncStatus === 'ok' ? 'bg-green-400' : (syncStatus === 'offline' ? 'bg-yellow-400' : 'bg-red-500')"></span>
           </button>
         </div>
