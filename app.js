@@ -5,6 +5,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     // 1. 全域 UI 狀態
     // ------------------------------------------------------------------------
+    let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
     const activeTab = ref('dashboard');
     const isDrawerOpen = ref(false); 
@@ -1506,6 +1507,21 @@ const app = createApp({
               if (value === null) return undefined;
               return value;
           });
+
+          // --- 新增：容量提前預警機制 (閾值設為約 4.2MB，即 4,200,000 字元) ---
+          const SAFE_LIMIT = 4200000; 
+          if (serializedData.length > SAFE_LIMIT && !hasShownStorageWarning) {
+              hasShownStorageWarning = true; // 鎖定警告，避免每次操作不斷彈出
+              
+              // 使用 setTimeout 確保本次存檔 UI 不會被 alert 阻塞
+              setTimeout(() => { 
+                  if (confirm('⚠️ 系統偵測到您的帳本資料量已達本機儲存上限 85%！\n若持續增加可能導致存檔失敗或觸發強制瘦身機制。\n\n強烈建議您立即執行「會計結轉與瘦身精靈」將舊帳合併，釋放空間。\n\n是否立即前往清理？')) {
+                      activeTab.value = 'settings'; // 切換至設定分頁
+                      openRolloverModal();          // 直接開啟結轉精靈
+                  }
+              }, 150);
+          }
+
           localStorage.setItem('ledger_backup_' + settings.currentBookId, serializedData); 
       } catch (e) {
           if (e.name === 'QuotaExceededError') {
@@ -1519,6 +1535,7 @@ const app = createApp({
               
               data.transactions = data.transactions.filter(tx => tx && tx.date >= cutoffDate);
               localStorage.setItem('ledger_backup_' + settings.currentBookId, JSON.stringify(data));
+              hasShownStorageWarning = false; // 容量釋放後，重置警告狀態
           }
       }
       if(syncCloud && settings.googleToken) syncWithGoogleDrive(false); 
