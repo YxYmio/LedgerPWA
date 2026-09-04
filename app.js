@@ -424,15 +424,20 @@ const app = createApp({
     };
 
     const startVoiceRecognition = () => {
+        // 嚴格檢查 Web Speech API 支援度 (攔截舊版 iOS Safari)
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) { 
-            return alert('⚠️ 您的瀏覽器不支援語音輸入功能，請使用 iOS Safari / Chrome 或手動輸入。'); 
+            return alert('⚠️ 您的瀏覽器不支援語音輸入功能。\n建議您改用 Chrome，或於 iOS 設定中開啟 Safari 相關權限。'); 
         }
+
         try {
             const recognition = new SpeechRecognition();
-            recognition.lang = 'zh-TW'; recognition.interimResults = false; recognition.maxAlternatives = 1;
+            recognition.lang = 'zh-TW'; 
+            recognition.interimResults = false; 
+            recognition.maxAlternatives = 1;
 
             recognition.onstart = () => { isListening.value = true; };
+            
             recognition.onresult = (event) => {
                 const transcript = event.results[0][0].transcript;
                 let parsed = typeof parseVoiceCommand === 'function' ? parseVoiceCommand(transcript, data.accounts) : {amount: null, desc: transcript, tags: [], paymentAcc: ''};
@@ -444,15 +449,29 @@ const app = createApp({
                 if (parsed.tags && parsed.tags.length > 0) finalDesc += ' ' + parsed.tags.map(t => '#' + t).join(' ');
                 newTx.desc = finalDesc.trim();
             };
+            
             recognition.onerror = (event) => { 
-                console.warn('Speech error', event.error); 
-                alert('語音辨識失敗：' + (event.error === 'not-allowed' ? '未授權麥克風權限' : event.error)); 
+                console.warn('Speech error:', event.error);
+                let errorMsg = '語音辨識發生未知錯誤。';
+                
+                // 針對 iOS 與未授權環境給予精準反饋
+                if (event.error === 'not-allowed') {
+                    errorMsg = '麥克風未授權 🎤\n請至瀏覽器設定中「允許」網站存取麥克風。';
+                } else if (event.error === 'network') {
+                    errorMsg = '網路連線異常，無法解析語音。';
+                } else if (event.error === 'no-speech') {
+                    errorMsg = '未偵測到聲音，請再按一次麥克風。';
+                }
+                alert('⚠️ ' + errorMsg);
                 isListening.value = false;
             };
+            
             recognition.onend = () => { isListening.value = false; };
+            
             recognition.start();
         } catch (e) {
-            alert('⚠️ 語音系統啟動失敗，請重新整理頁面。');
+            console.error('Speech Init Error:', e);
+            alert('⚠️ 語音系統初始化失敗，請確認設備權限或重新整理頁面。');
             isListening.value = false;
         }
     };
@@ -1393,10 +1412,24 @@ const app = createApp({
 
     const autoBackup = (syncCloud = true) => { 
       try {
-          localStorage.setItem('ledger_backup_' + settings.currentBookId, JSON.stringify(data)); 
+          // 輕量級字串壓縮：序列化時動態移除值為 null 的冗餘屬性，減少 JSON 體積
+          const serializedData = JSON.stringify(data, (key, value) => {
+              if (value === null) return undefined;
+              return value;
+          });
+          localStorage.setItem('ledger_backup_' + settings.currentBookId, serializedData); 
       } catch (e) {
           if (e.name === 'QuotaExceededError') {
-              alert('⚠️ 本機儲存空間已滿 (5MB 限制)！為防止白屏，建議刪除極舊的明細或切換新帳本。');
+              alert('⚠️ 本機儲存空間已滿 (5MB 限制)！為防止系統白屏，已自動啟動歷史紀錄降載機制 (僅保留近 2 年明細)。建議您盡速匯出完整備份檔。');
+              
+              // 歷史紀錄降載/分頁概念：自動清除超過兩年的舊交易，強制釋放空間
+              const d = new Date();
+              d.setFullYear(d.getFullYear() - 2);
+              const offset = d.getTimezoneOffset() * 60000;
+              const cutoffDate = new Date(d.getTime() - offset).toISOString().split('T')[0];
+              
+              data.transactions = data.transactions.filter(tx => tx && tx.date >= cutoffDate);
+              localStorage.setItem('ledger_backup_' + settings.currentBookId, JSON.stringify(data));
           }
       }
       if(syncCloud && settings.googleToken) syncWithGoogleDrive(false); 
@@ -1475,46 +1508,64 @@ const app = createApp({
         let twdInvestmentsCount = data.investments.filter(i => i && i.currency !== 'USD' && i.shares > 0).length;
         if (twdInvestmentsCount === 0) return alert('目前無持股需要更新');
 
-        for (let inv of data.investments) {
-            if (!inv || inv.currency === 'USD' || inv.shares <= 0) continue;
-            let sym = (inv.symbol || '').replace('.TW', '');
-            if (!sym) continue;
-
-            let price = null;
-            const fetchPrice = async (url, extractFn) => {
-                try {
-                    let res = await fetchWithTimeout(url, {}, 3000);
-                    if (res.ok) {
-                        let d = await res.json();
-                        let p = extractFn(d);
-                        if (p > 0 && p < 100000) return p;
-                    }
-                } catch(e) {}
-                return null;
-            };
-
-            // 備援 1: Yahoo Finance (Corsproxy)
-            price = await fetchPrice(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW`, d => (d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta && d.chart.result[0].meta.regularMarketPrice) || null);
-            
-            // 備援 2: Yahoo Finance (Allorigins 代理)
-            if (!price) price = await fetchPrice(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/' + sym + '.TW')}`, d => {
-                try { let parsed = JSON.parse(d.contents); return (parsed && parsed.chart && parsed.chart.result && parsed.chart.result[0] && parsed.chart.result[0].meta && parsed.chart.result[0].meta.regularMarketPrice) || null; } catch(e) { return null; }
-            });
-
-            // 備援 3: 台灣證交所 API (上市)
-            if (!price) price = await fetchPrice(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${sym}.tw`, d => (d && d.msgArray && d.msgArray[0]) ? parseFloat(d.msgArray[0].z !== '-' ? d.msgArray[0].z : d.msgArray[0].y) : null);
-            
-            // 備援 4: 台灣證交所 API (上櫃)
-            if (!price) price = await fetchPrice(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${sym}.tw`, d => (d && d.msgArray && d.msgArray[0]) ? parseFloat(d.msgArray[0].z !== '-' ? d.msgArray[0].z : d.msgArray[0].y) : null);
-
-            if (price) { inv.last_price = price; updatedCount++; }
+        // 啟動 UI 載入提示防呆，避免 API Timeout 期間畫面像死機
+        const loadingScreen = document.getElementById('native-loading');
+        if (loadingScreen) {
+            loadingScreen.style.display = 'flex';
+            const title = loadingScreen.querySelector('h2');
+            if (title) title.innerText = '股價更新中...';
         }
 
-        if (updatedCount > 0 && updatedCount === twdInvestmentsCount) { 
-            alert('✅ 股價自動更新完成！'); autoBackup(); updateCharts(); 
-        } else { 
-            alert('⚠️ 部分 API 請求遭限流，已切換手動更新模式。');
-            showManualStockModal.value = true; 
+        try {
+            for (let inv of data.investments) {
+                if (!inv || inv.currency === 'USD' || inv.shares <= 0) continue;
+                let sym = (inv.symbol || '').replace('.TW', '');
+                if (!sym) continue;
+
+                let price = null;
+                const fetchPrice = async (url, extractFn) => {
+                    try {
+                        let res = await fetchWithTimeout(url, {}, 3500); // 放寬 Timeout，給予代理伺服器餘裕
+                        if (res.ok) {
+                            let d = await res.json();
+                            let p = extractFn(d);
+                            if (p > 0 && p < 100000) return p;
+                        }
+                    } catch(e) {
+                        // 攔截 timeout 或限流錯誤，靜默交給下一個備援節點
+                    }
+                    return null;
+                };
+
+                // 備援 1: Yahoo Finance (Corsproxy)
+                price = await fetchPrice(`https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW`, d => (d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta && d.chart.result[0].meta.regularMarketPrice) || null);
+                
+                // 備援 2: Yahoo Finance (Allorigins 代理)
+                if (!price) price = await fetchPrice(`https://api.allorigins.win/get?url=${encodeURIComponent('https://query1.finance.yahoo.com/v8/finance/chart/' + sym + '.TW')}`, d => {
+                    try { let parsed = JSON.parse(d.contents); return (parsed && parsed.chart && parsed.chart.result && parsed.chart.result[0] && parsed.chart.result[0].meta && parsed.chart.result[0].meta.regularMarketPrice) || null; } catch(e) { return null; }
+                });
+
+                // 備援 3: 台灣證交所 API (上市)
+                if (!price) price = await fetchPrice(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${sym}.tw`, d => (d && d.msgArray && d.msgArray[0]) ? parseFloat(d.msgArray[0].z !== '-' ? d.msgArray[0].z : d.msgArray[0].y) : null);
+                
+                // 備援 4: 台灣證交所 API (上櫃)
+                if (!price) price = await fetchPrice(`https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${sym}.tw`, d => (d && d.msgArray && d.msgArray[0]) ? parseFloat(d.msgArray[0].z !== '-' ? d.msgArray[0].z : d.msgArray[0].y) : null);
+
+                if (price) { inv.last_price = price; updatedCount++; }
+            }
+
+            if (updatedCount > 0 && updatedCount === twdInvestmentsCount) { 
+                alert('✅ 股價自動更新完成！'); autoBackup(); updateCharts(); 
+            } else { 
+                alert('⚠️ 外部 API 遇上 429 限流或連線逾時，已為您無縫降級至「手動更新模式」。\n(已自動更新 ' + updatedCount + '/' + twdInvestmentsCount + ' 檔)');
+                showManualStockModal.value = true; 
+            }
+        } finally {
+            if (loadingScreen) {
+                loadingScreen.style.display = 'none';
+                const title = loadingScreen.querySelector('h2');
+                if (title) title.innerText = '系統啟動中'; // 復原預設文字
+            }
         }
     };
 
