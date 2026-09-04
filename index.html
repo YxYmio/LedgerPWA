@@ -1213,13 +1213,21 @@
           
           <section>
             <h2 class="text-lg font-bold border-b dark:border-slate-700 pb-2 mb-3 text-slate-700 dark:text-slate-300 flex items-center gap-2"><i data-lucide="database" class="w-5 h-5"></i> 資料管理 & 安全防護</h2>
-            <div class="flex items-center justify-between border p-3.5 rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 mb-4 shadow-sm">
-              <span class="font-bold text-sm text-slate-700 dark:text-slate-300">App PIN 碼防窺鎖開關</span>
-              <input type="checkbox" v-model="settings.pinEnabled" @change="saveSettings" class="w-5 h-5 accent-blue-600 cursor-pointer">
+            
+            <!-- PIN 碼設定與開關 (已修復體驗與防呆) -->
+            <div v-if="settings.pinEnabled" class="mb-3">
+              <div class="text-xs text-slate-500 mb-1 font-bold pl-1">請先設定 4 位數 PIN 碼 (輸入後自動儲存)</div>
+              <input type="password" v-model="settings.pinCode" @blur="saveSettings(false)" @keyup.enter="saveSettings(false)" placeholder="輸入 4 位數字" maxlength="4" pattern="\d{4}" class="w-full border p-3 rounded-xl dark:bg-slate-700 text-center tracking-[1em] text-xl font-bold shadow-inner outline-none focus:border-blue-500 bg-slate-50 dark:text-white mb-2">
             </div>
-            <div v-if="settings.pinEnabled" class="mb-4">
-              <input type="password" v-model="settings.pinCode" placeholder="4位數新 PIN 碼" maxlength="4" class="w-full border p-3 rounded-xl dark:bg-slate-700 text-center tracking-[1em] text-xl font-bold shadow-inner outline-none focus:border-blue-500 bg-slate-50 dark:text-white">
+
+            <div class="flex items-center justify-between border p-3.5 rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 mb-4 shadow-sm" :class="settings.pinEnabled ? 'border-blue-300' : ''">
+              <div class="flex flex-col">
+                <span class="font-bold text-sm text-slate-700 dark:text-slate-300">App PIN 碼防窺鎖</span>
+                <span v-if="settings.pinEnabled" class="text-[10px] text-blue-500 font-bold mt-0.5">鎖定功能已啟動</span>
+              </div>
+              <input type="checkbox" v-model="settings.pinEnabled" @change="() => { if(settings.pinEnabled && settings.pinCode.length !== 4) { alert('請先輸入 4 位數字 PIN 碼！'); settings.pinEnabled = false; } else { saveSettings(false); } }" class="w-5 h-5 accent-blue-600 cursor-pointer">
             </div>
+
             <div class="flex gap-2 mb-4">
               <button @click="exportData" class="flex-1 bg-slate-700 hover:bg-slate-800 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm shadow transition"><i data-lucide="download" class="w-4 h-4"></i> 匯出 JSON</button>
               <label class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer text-sm shadow transition border dark:border-slate-600">
@@ -1227,14 +1235,14 @@
                 <input type="file" @change="importData" class="hidden" accept=".json">
               </label>
             </div>
-              <button @click="openRolloverModal" class="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400 p-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition border border-indigo-200 dark:border-indigo-800 shadow-sm mt-6 mb-3">
-                <i data-lucide="scissors" class="w-5 h-5"></i> 啟動會計結轉與瘦身精靈
-              </button>
-              <button @click="showResetModal = true" class="w-full bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400 p-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition border border-red-200 dark:border-red-800 shadow-sm mt-2">
-                <i data-lucide="trash-2" class="w-5 h-5"></i> 清空所有帳本資料 (重置)
-              </button>
-            </section>
-            <button @click="showResetModal = true" class="w-full bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400 p-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition border border-red-200 dark:border-red-800 shadow-sm mt-6">
+
+            <!-- 結轉與瘦身精靈按鈕 (整合包 B) -->
+            <button @click="openRolloverModal" class="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400 p-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition border border-indigo-200 dark:border-indigo-800 shadow-sm mt-6 mb-3">
+              <i data-lucide="scissors" class="w-5 h-5"></i> 啟動會計結轉與瘦身精靈
+            </button>
+
+            <!-- 清空帳本 -->
+            <button @click="showResetModal = true" class="w-full bg-red-50 hover:bg-red-100 text-red-600 dark:bg-red-900/20 dark:text-red-400 p-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition border border-red-200 dark:border-red-800 shadow-sm mt-2">
               <i data-lucide="trash-2" class="w-5 h-5"></i> 清空所有帳本資料 (重置)
             </button>
           </section>
