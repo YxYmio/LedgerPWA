@@ -81,7 +81,7 @@ const app = createApp({
     // 4. 設定與全域資料模型 (Data Models)
     // ------------------------------------------------------------------------
     const settings = reactive({ 
-        appName: '智慧帳本', 
+        appName: 'Kadu｜卡度記帳', 
         googleClientId: '', googleToken: '', fileId: '', 
         pinEnabled: false, pinCode: '0000', 
         currentBookId: 'default', booksIndex: [{id: 'default', name: '日常帳本'}],
@@ -331,7 +331,7 @@ const app = createApp({
         if (magicLink) {
              text += `\n🔗 點擊查看動態結算報告：\n${magicLink}\n`;
         }
-        text += `\n(Powered by 智慧帳本 Lightsplit)`;
+        text += `\n(Powered by Kadu｜卡度記帳)`;
 
         if(navigator.share) { try { await navigator.share({ title: activeSplitProject.value.name, text: text }); } catch(e) {} } 
         else { navigator.clipboard.writeText(text); alert('✅ 已複製至剪貼簿，可直接貼到 LINE 等通訊軟體！'); }
@@ -583,7 +583,7 @@ const app = createApp({
        });
     };
 
-    const activeBookName = computed(() => { let b = settings.booksIndex.find(x => x && x.id === currentBookId.value); return b ? b.name : '智慧帳本'; });
+    const activeBookName = computed(() => { let b = settings.booksIndex.find(x => x && x.id === currentBookId.value); return b ? b.name : 'Kadu｜卡度記帳'; });
     const availableBooks = computed(() => settings.booksIndex || []);
 
     const assetAccounts = computed(() => { return (data.accounts || []).filter(a => a && a.type === 'Asset' && !a.is_contra && a.id !== '1103' && a.id !== '1201' && !a.is_hidden); });
@@ -1591,7 +1591,7 @@ const app = createApp({
     
     const loadSettings = () => { 
       try { const s = JSON.parse(localStorage.getItem('ledger_settings') || '{}'); if(s && typeof s === 'object') Object.assign(settings, s); } catch(e) {} 
-      if(!settings.appName) settings.appName = '智慧帳本'; 
+      if(!settings.appName) settings.appName = 'Kadu｜卡度記帳'; 
       if(!settings.booksIndex || settings.booksIndex.length === 0) settings.booksIndex = [{id: 'default', name: '日常帳本'}];
       if(settings.billingStartDay === undefined) settings.billingStartDay = 1;
       currentBookId.value = settings.currentBookId || 'default';
