@@ -73,6 +73,10 @@ const app = createApp({
     const showGroupSplitRecordModal = ref(false);
     const showGroupSettleLedgerModal = ref(false);
     
+    const showRolloverModal = ref(false);
+    const rolloverDate = ref('');
+    const hasDownloadedBackup = ref(false);
+    
     // --- Phase 4: 分享結算報告彈窗 ---
     const showSharedSettlementModal = ref(false);
     const sharedData = ref(null);
@@ -1089,7 +1093,86 @@ const app = createApp({
         }
         alert('✅ 帳本刪除成功');
     };
+    const openRolloverModal = () => {
+        let d = new Date();
+        d.setMonth(d.getMonth() - 3);
+        let lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+        rolloverDate.value = typeof getLocalISODate === 'function' ? getLocalISODate(lastDay) : lastDay.toISOString().split('T')[0];
+        hasDownloadedBackup.value = false;
+        showRolloverModal.value = true;
+    };
 
+    const downloadBackupForRollover = () => {
+        exportData();
+        hasDownloadedBackup.value = true;
+    };
+
+    const executeRollover = () => {
+        if (!hasDownloadedBackup.value) return alert("請先下載備份檔！");
+        if (!rolloverDate.value) return alert("請選擇切帳基準日！");
+        
+        const cutoffDate = rolloverDate.value;
+        const oldTxs = data.transactions.filter(tx => tx && tx.date <= cutoffDate);
+        const newTxs = data.transactions.filter(tx => tx && tx.date > cutoffDate);
+
+        if (oldTxs.length === 0) {
+            alert("該日期前沒有任何明細可結轉！");
+            return;
+        }
+
+        let rolloverDebits = [];
+        let rolloverCredits = [];
+        let rawBalances = {};
+
+        oldTxs.forEach(tx => {
+            (tx.debits || []).forEach(d => { rawBalances[d.account_id] = (rawBalances[d.account_id] || 0) + Number(d.amount); });
+            (tx.credits || []).forEach(c => { rawBalances[c.account_id] = (rawBalances[c.account_id] || 0) - Number(c.amount); });
+        });
+
+        let targetEquity = 0;
+
+        (data.accounts || []).forEach(acc => {
+            if (acc && (acc.type === 'Asset' || acc.type === 'Liability')) {
+                let bal = rawBalances[acc.id] || 0;
+                if (bal > 0) rolloverDebits.push({ account_id: acc.id, amount: bal });
+                if (bal < 0) rolloverCredits.push({ account_id: acc.id, amount: Math.abs(bal) });
+                targetEquity -= bal;
+            }
+        });
+
+        if (targetEquity > 0) rolloverCredits.push({ account_id: '3101', amount: targetEquity });
+        if (targetEquity < 0) rolloverDebits.push({ account_id: '3101', amount: Math.abs(targetEquity) });
+
+        let [y, m, d_str] = cutoffDate.split('-');
+        let nd = new Date(Number(y), Number(m) - 1, Number(d_str));
+        nd.setDate(nd.getDate() + 1);
+        let nextDayStr = typeof getLocalISODate === 'function' ? getLocalISODate(nd) : `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}-${String(nd.getDate()).padStart(2,'0')}`;
+
+        let rolloverTx = {
+            id: 'tx_rollover_' + Date.now(),
+            date: nextDayStr,
+            scope: 'personal',
+            desc: `[系統結轉] ${cutoffDate} 前歷史資料合併`,
+            tags: ['系統結轉'],
+            debits: rolloverDebits,
+            credits: rolloverCredits,
+            auto_generated: true
+        };
+
+        data.transactions = newTxs;
+        data.transactions.unshift(rolloverTx);
+        data.transactions.sort((a, b) => {
+            let d1 = (a && a.date) ? a.date : ''; let d2 = (b && b.date) ? b.date : '';
+            if (d1 !== d2) return d1 < d2 ? 1 : -1;
+            let id1 = (a && a.id) ? a.id : ''; let id2 = (b && b.id) ? b.id : '';
+            return id2.localeCompare(id1);
+        });
+
+        showRolloverModal.value = false;
+        autoBackup();
+        updateCharts();
+        alert(`✅ 結轉成功！已安全釋放空間，並清除 ${cutoffDate} (含) 之前的歷史明細。`);
+    };
    const submitNewAssetAccount = () => {
       if(!newAssetAcc.name) return;
       let finalType = newAssetAcc.name.includes('信用卡') || newAssetAcc.name.includes('欠款') || newAssetAcc.name.includes('貸款') ? 'Liability' : (newAssetAcc.type || 'Asset');
@@ -1681,6 +1764,7 @@ const app = createApp({
       editTxModal, showInstallmentModal, showProjectBudgetModal,
       
       showGroupSplitProjectModal, showGroupSplitRecordModal, showGroupSettleLedgerModal,
+      showRolloverModal, rolloverDate, hasDownloadedBackup, openRolloverModal, downloadBackupForRollover, executeRollover,
       showSharedSettlementModal, sharedData,
       activeSplitProjectId, groupSplitProjectForm, groupSplitRecordForm, groupSettleLedgerForm,
       activeSplitProject, activeSplitRecords, activeSplitBalances, activeSplitSettlements,
