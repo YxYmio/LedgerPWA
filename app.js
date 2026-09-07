@@ -211,7 +211,7 @@ const app = createApp({
             is_settled: false
         });
         groupSplitProjectForm.name = ''; groupSplitProjectForm.members = [{name: '我'}, {name: ''}];
-        showGroupSplitProjectModal.value = false; autoBackup();
+        showGroupSplitProjectModal.value = false; autoBackup(true, true);
     };
 
     const deleteGroupSplitProject = (id) => {
@@ -219,7 +219,7 @@ const app = createApp({
         data.split_projects = data.split_projects.filter(p => p.id !== id);
         data.split_records = data.split_records.filter(r => r.project_id !== id);
         if(activeSplitProjectId.value === id) activeSplitProjectId.value = '';
-        autoBackup();
+        autoBackup(true, true);
     };
 
     const initGroupSplitRecordForm = () => {
@@ -302,11 +302,11 @@ const app = createApp({
                 splits: JSON.parse(JSON.stringify(groupSplitRecordForm.splits))
             });
         }
-        showGroupSplitRecordModal.value = false; autoBackup();
+        showGroupSplitRecordModal.value = false; autoBackup(true, true);
     };
 
     const deleteGroupSplitRecord = (id) => {
-        if(confirm('確定刪除此筆代墊紀錄？')) { data.split_records = data.split_records.filter(r => r.id !== id); autoBackup(); }
+        if(confirm('確定刪除此筆代墊紀錄？')) { data.split_records = data.split_records.filter(r => r.id !== id); autoBackup(true, true); }
     };
 
     // Phase 4: Magic Link 產生器
@@ -422,7 +422,7 @@ const app = createApp({
         data.transactions.unshift(txObj);
         activeSplitProject.value.is_settled = true;
         showGroupSettleLedgerModal.value = false;
-        autoBackup(); updateCharts(); refreshIcons();
+        autoBackup(true, true); updateCharts(); refreshIcons();
         alert('✅ 群組結算已成功完美認列至複式帳本！');
     };
 
@@ -798,6 +798,23 @@ const app = createApp({
       });
     });
 
+// --- 新增：明細分頁與限制渲染 ---
+    const historyDisplayLimit = ref(50);
+    
+    // 將原本綁定畫面的 filteredTransactions 再包一層切片
+    const paginatedTransactions = computed(() => {
+      return filteredTransactions.value.slice(0, historyDisplayLimit.value);
+    });
+
+    const loadMoreHistory = () => {
+      historyDisplayLimit.value += 50;
+    };
+
+    // 當搜尋條件改變時，重置顯示筆數
+    watch(historyFilter, () => { 
+      historyDisplayLimit.value = 50; 
+    }, { deep: true });
+
     const ytdDividend = computed(() => {
       let sum = 0; let y = new Date().getFullYear().toString();
       (data.transactions || []).forEach(tx => {
@@ -949,7 +966,7 @@ const app = createApp({
           let nextM = newTx.date && newTx.date.length >= 7 ? newTx.date.substring(0,7) : getLocalISODate().substring(0,7);
           let nextD = newTx.date && newTx.date.length >= 10 ? newTx.date.substring(8,10) : '01';
           data.installments.push({ id: 'inst_'+Date.now(), desc: newTx.desc||'無摘要', total_amount: newTx.amount, periods: newTx.periods, amount_per_period: perAmt, first_amount: firstAmt, paid_periods: 0, next_month: nextM, date_day: nextD, debit_acc: debitAcc, credit_acc: newTx.paymentAcc, scope: newTx.scope });
-          runAutoTasks(); newTx.amount = null; newTx.desc = ''; newTx.isInst = false; autoBackup(); updateCharts(); refreshIcons(); alert('✅ 分期建立成功！'); return;
+          runAutoTasks(); newTx.amount = null; newTx.desc = ''; newTx.isInst = false; autoBackup(true, true);; updateCharts(); refreshIcons(); alert('✅ 分期建立成功！'); return;
         } else {
           txObj.debits.push({ account_id: debitAcc, amount: newTx.amount });
           txObj.credits.push({ account_id: newTx.paymentAcc, amount: newTx.amount });
@@ -1019,7 +1036,7 @@ const app = createApp({
 
       data.transactions.unshift(txObj);
       newTx.amount = null; newTx.desc = ''; newTx.shares = null; newTx.price = null; newTx.fee = null; newTx.tax = null; newTx.loanId = ''; newTx.manualSymbol = ''; newTx.manualName = '';
-      autoBackup(); updateCharts(); refreshIcons();
+      autoBackup(true, true); updateCharts(); refreshIcons();
       alert('✅ 記帳成功！'); 
     };
 
@@ -1163,7 +1180,7 @@ const app = createApp({
         });
 
         showRolloverModal.value = false;
-        autoBackup();
+        autoBackup(true, true);
         updateCharts();
         alert(`✅ 結轉成功！已安全釋放空間，並清除 ${cutoffDate} (含) 之前的歷史明細。`);
     };
@@ -1186,7 +1203,7 @@ const app = createApp({
         }
       }
       newAssetAcc.name = ''; newAssetAcc.type = 'Asset'; newAssetAcc.initBalance = null; newAssetAcc.currency = 'TWD';
-      showAddAccountModal.value = false; autoBackup(); updateCharts(); refreshIcons(); 
+      showAddAccountModal.value = false; autoBackup(true, true); updateCharts(); refreshIcons(); 
       alert('✅ 帳戶建立成功！');
       newAssetAcc.icon = ''; newAssetAcc.billingDay = 1;
     };
@@ -1203,7 +1220,7 @@ const app = createApp({
         tx.date = editingTx.date; tx.desc = editingTx.desc; tx.scope = editingTx.scope;
         if(tx.debits && tx.debits.length === 1 && editingTx.debitAcc) { tx.debits[0].amount = editingTx.amount; tx.debits[0].account_id = editingTx.debitAcc; }
         if(tx.credits && tx.credits.length === 1 && editingTx.creditAcc) { tx.credits[0].amount = editingTx.amount; tx.credits[0].account_id = editingTx.creditAcc; }
-        editTxModal.value = false; autoBackup(); updateCharts(); alert('✅ 明細修改成功');
+        editTxModal.value = false; autoBackup(true, true); updateCharts(); alert('✅ 明細修改成功');
     };
 
     const viewInstallmentDetails = (tx) => { if(tx && tx.inst_id) { let inst = data.installments.find(i => i && i.id === tx.inst_id); if(inst) { selectedInstallment.value = inst; showInstallmentModal.value = true; } } };
@@ -1229,7 +1246,7 @@ const app = createApp({
       data.transactions.unshift(refundTx);
       activeRefundTx.value.refunded_amount = (Number(activeRefundTx.value.refunded_amount) || 0) + refundData.amount;
       if (activeRefundTx.value.refunded_amount >= getDebitAmount(activeRefundTx.value)) activeRefundTx.value.is_refunded = true;
-      closeRefundModal(); autoBackup(); updateCharts(); alert('✅ 退款沖銷成功！');
+      closeRefundModal(); autoBackup(true, true); updateCharts(); alert('✅ 退款沖銷成功！');
     };
 
     const openReimburseModal = (tx) => { 
@@ -1253,7 +1270,7 @@ const app = createApp({
          data.transactions.unshift({ id: 'tx_reimb_' + Date.now(), date: getLocalISODate(), scope: tx.scope, desc: `[代墊報銷] ${(tx.desc || tx.description || '')}`, debits: [{ account_id: toAccountId, amount: amount }], credits: [{ account_id: '1104', amount: amount }], ref_tx_id: tx.id });
          tx.reimbursed_amount = (Number(tx.reimbursed_amount) || 0) + amount;
          if (tx.reimbursed_amount >= getDebitAmount(tx)) { tx.is_reimbursed = true; }
-         autoBackup(); updateCharts(); alert('✅ 報銷沖銷成功！');
+         autoBackup(true, true); updateCharts(); alert('✅ 報銷沖銷成功！');
     };
 
     const deleteTransaction = (id) => {
@@ -1282,7 +1299,7 @@ const app = createApp({
           if (proj) proj.is_settled = false;
       }
       
-      data.transactions.splice(idx, 1); autoBackup(); updateCharts();
+      data.transactions.splice(idx, 1); autoBackup(true, true); updateCharts();
     };
 
     const submitProjectBudget = () => {
@@ -1323,13 +1340,13 @@ const app = createApp({
         
         // 5. 關閉彈窗並清空表單
         closeProjectBudgetModal();
-        autoBackup();
+        autoBackup(true, true);
     };
 
     const deleteProjectBudget = (id) => {
         if (confirm('確定刪除此專案預算？')) {
             data.project_budgets = data.project_budgets.filter(p => p && p.id !== id);
-            autoBackup();
+            autoBackup(true, true);
         }
     };
 
@@ -1381,7 +1398,7 @@ const app = createApp({
         }
         data.transactions.unshift({ id: 'tx_init_' + Date.now(), date: getLocalISODate(), scope: 'personal', desc: `期初建倉 ${initStock.name || initStock.symbol} ${s}股`, debits: [{ account_id: '1103', amount: c }], credits: [{ account_id: '3101', amount: c }], invest_action: 'init', invest_symbol: initStock.symbol, invest_shares: s, invest_cost_value: c });
         showInitialStockModal.value = false; initStock.symbol = ''; initStock.name = ''; initStock.shares = null; initStock.price = null; initStock.cost = null; initStock.unitType = 'share';
-        autoBackup(); updateCharts();
+        autoBackup(true, true); updateCharts();
     };
 
     const submitFixedAsset = () => {
@@ -1390,7 +1407,7 @@ const app = createApp({
       let newFaId = 'fa_'+Date.now();
       data.fixed_assets.push({ id: newFaId, name: initFA.name, purchase_date: initFA.date, original_cost: initFA.cost, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: null, is_disposed: false });
       data.transactions.unshift({ id: 'tx_fa_'+Date.now(), date: initFA.date, scope: initFA.scope, desc: `購入固定資產 ${initFA.name}`, debits: [{ account_id: '1201', amount: initFA.cost }], credits: [{ account_id: '3101', amount: initFA.cost }], fa_init_id: newFaId });
-      showAddFixedAssetModal.value = false; initFA.name = ''; initFA.cost = null; initFA.months = 60; initFA.scope = 'personal'; autoBackup(); updateCharts(); alert('✅ 固定資產登錄成功！');
+      showAddFixedAssetModal.value = false; initFA.name = ''; initFA.cost = null; initFA.months = 60; initFA.scope = 'personal'; autoBackup(true, true); updateCharts(); alert('✅ 固定資產登錄成功！');
     };
 
     const openDisposalModal = (fa) => { disposalAsset.value = fa; disposalForm.type = 'scrap'; disposalForm.price = null; disposalForm.account = ''; showDisposalModal.value = true; };
@@ -1408,7 +1425,7 @@ const app = createApp({
          if(gain > 0) txObj.credits.push({ account_id: '4201', amount: gain });
          else if (gain < 0) txObj.debits.push({ account_id: '4201', amount: Math.abs(gain) });
       }
-      data.transactions.unshift(txObj); fa.is_disposed = true; showDisposalModal.value = false; autoBackup(); updateCharts(); alert('✅ 處分完成！');
+      data.transactions.unshift(txObj); fa.is_disposed = true; showDisposalModal.value = false; autoBackup(true, true); updateCharts(); alert('✅ 處分完成！');
     };
 
     const submitAddLoan = () => {
@@ -1417,39 +1434,39 @@ const app = createApp({
       data.accounts.push({ id: accId, name: initLoan.name, type: 'Liability', currency: 'TWD', is_hidden: false });
       data.loans.push({ id: loanId, name: initLoan.name, liability_acc_id: accId, interest_rate: initLoan.rate, monthly_payment: initLoan.payment });
       data.transactions.unshift({ id: 'tx_loan_init_'+Date.now(), date: getLocalISODate(), scope: 'personal', desc: `期初貸款本金: ${initLoan.name}`, debits: [{ account_id: '3101', amount: initLoan.principal }], credits: [{ account_id: accId, amount: initLoan.principal }], loan_init_id: loanId, loan_account_id: accId });
-      newTx.loanId = loanId; initLoan.name = ''; initLoan.principal = null; initLoan.rate = null; initLoan.payment = null; showAddLoanModal.value = false; autoBackup(); updateCharts(); alert('✅ 貸款建立成功！');
+      newTx.loanId = loanId; initLoan.name = ''; initLoan.principal = null; initLoan.rate = null; initLoan.payment = null; showAddLoanModal.value = false; autoBackup(true, true); updateCharts(); alert('✅ 貸款建立成功！');
     };
 
     const openRateModal = (loan) => { activeLoan.value = loan; rateData.rate = loan.interest_rate; showRateModal.value = true; };
-    const submitRateAdjust = () => { if(!rateData.rate) return alert("請輸入利率"); activeLoan.value.interest_rate = rateData.rate; showRateModal.value = false; autoBackup(); alert('✅ 利率修改成功！'); };
+    const submitRateAdjust = () => { if(!rateData.rate) return alert("請輸入利率"); activeLoan.value.interest_rate = rateData.rate; showRateModal.value = false; autoBackup(true, true); alert('✅ 利率修改成功！'); };
 
     const submitAddGoal = () => {
       if(!initGoal.name || !initGoal.target) return alert("請填寫目標名稱與金額");
       let tagClean = initGoal.tag ? initGoal.tag.replace('#', '').trim() : initGoal.name.replace(/\s+/g, '');
       data.savings_goals.push({ id: 'goal_' + Date.now(), name: initGoal.name, tag: tagClean, target: initGoal.target, deadline: initGoal.deadline, saved: 0 });
-      showAddGoalModal.value = false; initGoal.name = ''; initGoal.tag = ''; initGoal.target = null; initGoal.deadline = ''; autoBackup(); alert('✅ 目標建立成功！');
+      showAddGoalModal.value = false; initGoal.name = ''; initGoal.tag = ''; initGoal.target = null; initGoal.deadline = ''; autoBackup(true, true); alert('✅ 目標建立成功！');
     };
     const openUpdateGoalModal = (goal) => { activeGoal.value = goal; updateGoalData.amount = null; updateGoalData.type = 'add'; showUpdateGoalModal.value = true; };
     const submitUpdateGoal = () => {
       if(!activeGoal.value || !updateGoalData.amount) return;
       if(updateGoalData.type === 'add') { activeGoal.value.saved += updateGoalData.amount; } else { activeGoal.value.saved = updateGoalData.amount; }
       if(activeGoal.value.saved < 0) activeGoal.value.saved = 0;
-      showUpdateGoalModal.value = false; autoBackup(); alert('✅ 進度已更新！');
+      showUpdateGoalModal.value = false; autoBackup(true, true); alert('✅ 進度已更新！');
     };
-    const deleteGoal = (id) => { if(!confirm("確定刪除此儲蓄目標？")) return; data.savings_goals = data.savings_goals.filter(g => g && g.id !== id); autoBackup(); };
+    const deleteGoal = (id) => { if(!confirm("確定刪除此儲蓄目標？")) return; data.savings_goals = data.savings_goals.filter(g => g && g.id !== id); autoBackup(true, true); };
 
     const addRecurring = () => {
       if(!newRecurring.desc || !newRecurring.amount || !newRecurring.account) return alert("請填妥排程資訊");
       data.recurring.push({ id: 'rec_'+Date.now(), type: newRecurring.type, desc: newRecurring.desc, amount: newRecurring.amount, day: newRecurring.day, account: newRecurring.account });
-      newRecurring.desc = ''; newRecurring.amount = null; newRecurring.day = 1; autoBackup(); alert('✅ 排程建立成功！');
+      newRecurring.desc = ''; newRecurring.amount = null; newRecurring.day = 1; autoBackup(true, true); alert('✅ 排程建立成功！');
     };
-    const deleteRecurring = (id) => { data.recurring = data.recurring.filter(r => r && r.id !== id); autoBackup(); };
+    const deleteRecurring = (id) => { data.recurring = data.recurring.filter(r => r && r.id !== id); autoBackup(true, true); };
 
-    const addMainCategory = () => { let list = data.main_categories[settingCategoryMode.value] || []; if (newMainCat.value && !list.includes(newMainCat.value)) { data.main_categories[settingCategoryMode.value].push(newMainCat.value); newMainCat.value = ''; autoBackup(); } };
-    const deleteMainCategory = (type, name) => { if(getSubAccounts(type, name, true).length > 0) return alert("請先清空子類別"); data.main_categories[type] = (data.main_categories[type] || []).filter(c => c !== name); autoBackup(); };
+    const addMainCategory = () => { let list = data.main_categories[settingCategoryMode.value] || []; if (newMainCat.value && !list.includes(newMainCat.value)) { data.main_categories[settingCategoryMode.value].push(newMainCat.value); newMainCat.value = ''; autoBackup(true, true); } };
+    const deleteMainCategory = (type, name) => { if(getSubAccounts(type, name, true).length > 0) return alert("請先清空子類別"); data.main_categories[type] = (data.main_categories[type] || []).filter(c => c !== name); autoBackup(true, true); };
     const addSubCategory = () => { if (newSubCat.name && newSubCat.main) { data.accounts.push({ id: 'acc_'+Date.now(), name: newSubCat.name, type: settingCategoryMode.value, category: newSubCat.main, currency: 'TWD', is_hidden: false }); newSubCat.name = ''; autoBackup(); refreshIcons(); } };
-    const addPreset = () => { let list = data.quick_tags || []; if (newPreset.value && !list.includes(newPreset.value)) { data.quick_tags.push(newPreset.value); newPreset.value = ''; autoBackup(); } };
-    const removePreset = (idx) => { data.quick_tags.splice(idx, 1); autoBackup(); };
+    const addPreset = () => { let list = data.quick_tags || []; if (newPreset.value && !list.includes(newPreset.value)) { data.quick_tags.push(newPreset.value); newPreset.value = ''; autoBackup(true, true); } };
+    const removePreset = (idx) => { data.quick_tags.splice(idx, 1); autoBackup(true, true); };
     const toggleAccountVisibility = (id) => { let a = data.accounts.find(a => a && a.id === id); if (a) { a.is_hidden = !a.is_hidden; autoBackup(); refreshIcons(); } };
     const deleteAccount = (id) => {
       let isUsed = false;
@@ -1458,7 +1475,7 @@ const app = createApp({
         if(tx.credits) tx.credits.forEach(c => { if(c.account_id === id) isUsed = true; });
       });
       if (isUsed) return alert("已有紀錄，請改用隱藏");
-      if (confirm("確定刪除?")) { data.accounts = data.accounts.filter(a => a && a.id !== id); autoBackup(); }
+      if (confirm("確定刪除?")) { data.accounts = data.accounts.filter(a => a && a.id !== id); autoBackup(true, true); }
     };
 
     const runAutoTasks = () => {
@@ -1500,45 +1517,45 @@ const app = createApp({
       });
     };
 
-    const autoBackup = (syncCloud = true) => { 
-      try {
-          // 輕量級字串壓縮：序列化時動態移除值為 null 的冗餘屬性，減少 JSON 體積
-          const serializedData = JSON.stringify(data, (key, value) => {
-              if (value === null) return undefined;
-              return value;
-          });
+    let backupTimeout = null; // 防抖計時器
 
-          // --- 新增：容量提前預警機制 (閾值設為約 4.2MB，即 4,200,000 字元) ---
-          const SAFE_LIMIT = 4200000; 
-          if (serializedData.length > SAFE_LIMIT && !hasShownStorageWarning) {
-              hasShownStorageWarning = true; // 鎖定警告，避免每次操作不斷彈出
-              
-              // 使用 setTimeout 確保本次存檔 UI 不會被 alert 阻塞
-              setTimeout(() => { 
-                  if (confirm('⚠️ 系統偵測到您的帳本資料量已達本機儲存上限 85%！\n若持續增加可能導致存檔失敗或觸發強制瘦身機制。\n\n強烈建議您立即執行「會計結轉與瘦身精靈」將舊帳合併，釋放空間。\n\n是否立即前往清理？')) {
-                      activeTab.value = 'settings'; // 切換至設定分頁
-                      openRolloverModal();          // 直接開啟結轉精靈
-                  }
-              }, 150);
+    // immediate 參數：若為 true 則無底延遲立即存檔 (例如新增一筆交易時)
+    const autoBackup = (syncCloud = true, immediate = false) => {
+      const coreTask = () => {
+          data.last_modified = Date.now(); // 寫入最新時間戳記，供防覆蓋比對用
+          try {
+              const serializedData = JSON.stringify(data, (key, value) => value === null ? undefined : value);
+              const SAFE_LIMIT = 4200000; 
+              if (serializedData.length > SAFE_LIMIT && !hasShownStorageWarning) {
+                  hasShownStorageWarning = true;
+                  setTimeout(() => { 
+                      if (confirm('⚠️ 系統偵測到您的帳本資料量已達本機儲存上限 85%！\n建議您執行「會計結轉與瘦身精靈」，是否立即前往清理？')) {
+                          activeTab.value = 'settings';
+                          openRolloverModal();
+                      }
+                  }, 150);
+              }
+              localStorage.setItem('ledger_backup_' + settings.currentBookId, serializedData); 
+          } catch (e) {
+              if (e.name === 'QuotaExceededError') {
+                  alert('⚠️ 本機空間已滿！系統已自動觸發歷史紀錄降載 (僅保留近 2 年)。');
+                  const d = new Date(); d.setFullYear(d.getFullYear() - 2);
+                  const cutoffDate = new Date(d.getTime() - (d.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                  data.transactions = data.transactions.filter(tx => tx && tx.date >= cutoffDate);
+                  localStorage.setItem('ledger_backup_' + settings.currentBookId, JSON.stringify(data));
+                  hasShownStorageWarning = false;
+              }
           }
+          if(syncCloud && settings.googleToken) syncWithGoogleDrive(false); 
+      };
 
-          localStorage.setItem('ledger_backup_' + settings.currentBookId, serializedData); 
-      } catch (e) {
-          if (e.name === 'QuotaExceededError') {
-              alert('⚠️ 本機儲存空間已滿 (5MB 限制)！為防止系統白屏，已自動啟動歷史紀錄降載機制 (僅保留近 2 年明細)。建議您盡速匯出完整備份檔。');
-              
-              // 歷史紀錄降載/分頁概念：自動清除超過兩年的舊交易，強制釋放空間
-              const d = new Date();
-              d.setFullYear(d.getFullYear() - 2);
-              const offset = d.getTimezoneOffset() * 60000;
-              const cutoffDate = new Date(d.getTime() - offset).toISOString().split('T')[0];
-              
-              data.transactions = data.transactions.filter(tx => tx && tx.date >= cutoffDate);
-              localStorage.setItem('ledger_backup_' + settings.currentBookId, JSON.stringify(data));
-              hasShownStorageWarning = false; // 容量釋放後，重置警告狀態
-          }
+      if (immediate) {
+          clearTimeout(backupTimeout);
+          coreTask();
+      } else {
+          clearTimeout(backupTimeout);
+          backupTimeout = setTimeout(coreTask, 800); // 延遲 800ms，減少連續打字時的卡頓
       }
-      if(syncCloud && settings.googleToken) syncWithGoogleDrive(false); 
     };
     
     const initGoogleAuth = () => {
@@ -1573,15 +1590,35 @@ const app = createApp({
               let fileRes = await gapi.client.request({ path: `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, method: 'GET' });
               let cloudData = fileRes.result;
               if(typeof cloudData === 'string') { try { cloudData = JSON.parse(cloudData); } catch(e) { cloudData = null; } }
+              
               if(cloudData && typeof cloudData === 'object' && (cloudData.accounts || cloudData.transactions)) { 
+                // --- 雲端防覆蓋比對機制 ---
+                let localTime = data.last_modified || 0;
+                let cloudTime = cloudData.last_modified || 0;
+                
+                if (cloudTime > localTime) {
+                    if (!confirm('⚠️ 偵測到雲端有較新版本的帳本！\n(可能來自您的其他裝置)\n\n是否要【下載覆蓋】本機資料？\n(若選取消，將強制以本機資料覆蓋雲端)')) {
+                        // 使用者選擇以本機為準，直接上傳
+                        await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${settings.googleToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                        alert('☁️ 已強制以本機資料覆蓋雲端。');
+                        syncStatus.value = 'ok';
+                        isSyncing.value = false;
+                        return;
+                    }
+                }
+
+                // 執行下載還原
                 resetData(); Object.assign(data, cloudData);
                 if (typeof setupDefaultData === 'function') setupDefaultData(data, typeof DEFAULT_CATEGORIES !== 'undefined' ? DEFAULT_CATEGORIES : {});
                 runAutoTasks(); localStorage.setItem('ledger_backup_' + currentBookId.value, JSON.stringify(data));
                 if (expenseChartInstance.value) { expenseChartInstance.value.destroy(); expenseChartInstance.value = null; }
                 if (assetChartInstance.value) { assetChartInstance.value.destroy(); assetChartInstance.value = null; }
                 if (netWorthChartInstance.value) { netWorthChartInstance.value.destroy(); netWorthChartInstance.value = null; }
-                updateCharts(); alert('雲端資料已同步還原'); 
-              } else { alert('⚠️ 雲端資料無效或為空，已保留本地資料防止覆蓋！'); }
+                updateCharts(); 
+                alert('✅ 雲端資料已成功下載並同步！'); 
+              } else { 
+                alert('⚠️ 雲端資料無效，已保留本機資料防止覆蓋！'); 
+              }
            } else { 
               await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, { method: 'PATCH', headers: { 'Authorization': `Bearer ${settings.googleToken}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
            }
@@ -1678,7 +1715,7 @@ const app = createApp({
         }
     };
 
-    const submitManualStockUpdate = () => { showManualStockModal.value = false; autoBackup(); updateCharts(); alert('✅ 手動股價更新完成'); };
+    const submitManualStockUpdate = () => { showManualStockModal.value = false; autoBackup(true, true);; updateCharts(); alert('✅ 手動股價更新完成'); };
     const setHistoryToCurrentMonth = () => { const now = new Date(); const y = now.getFullYear(); const mStr = String(now.getMonth() + 1).padStart(2, '0'); historyFilter.dateFrom = `${y}-${mStr}-01`; historyFilter.dateTo = `${y}-${mStr}-${new Date(y, now.getMonth() + 1, 0).getDate()}`; };
     const fetchExchangeRate = async () => { try { const res = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/USD', {}, 3000); const fx = await res.json(); if(fx && fx.rates && fx.rates.TWD) fxRate.value = fx.rates.TWD; } catch(e) {} };
     
@@ -1797,7 +1834,7 @@ const app = createApp({
       paymentAccountsWithBalance, assetAccountsWithBalance, liquidAccountsWithBalance, liabilityAccountsWithBalance, 
       totalLiquidAssets, upcomingBillsTotal, cashflowWarning, totalAssets, totalLiabilities, netWorth,
       activeBillingPeriod, currentMonthIncome, currentMonthExpense,
-      sortedTransactions, filteredTransactions, ytdDividend, dashboardBudgets, budgetStats, getAccName, formatNumber: safeFormatNumber,
+      sortedTransactions, filteredTransactions, historyDisplayLimit, paginatedTransactions, loadMoreHistory, ytdDividend, dashboardBudgets, budgetStats, getAccName, formatNumber: safeFormatNumber,
       getTxDesc, getDebitAccName, getCreditAccName, getDebitAmount, getDebitAccType, getInvestTotalAmount, 
       getInvCurrentValue, getUnrealizedGain, getFAAccDep, getFABookValue, getAccumulatedInterest, loanRepayPreview, 
       getTxColorBand, getTxAmountColor, applyQuickTag, onDividendSymbolChange,activeProjectTags, combinedQuickTags, recentExpenses, applyRecentTx, bsData, isData, cfData,
