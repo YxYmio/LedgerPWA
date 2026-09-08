@@ -583,7 +583,6 @@
                 <span v-if="tx && tx.scope === 'family'" class="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded align-top flex-shrink-0">家庭</span>
               </div>
               
-              <!-- 顯示明細中的 #標籤 -->
               <div v-if="tx && tx.tags && tx.tags.length > 0" class="flex flex-wrap gap-1 mt-1">
                 <span v-for="tag in tx.tags" :key="tag" @click="historyFilter.keyword = '#' + tag" class="text-[10px] font-bold bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded-md cursor-pointer hover:bg-blue-100 transition shadow-sm">
                   #{{ tag }}
@@ -596,7 +595,28 @@
               </div>
               <div class="text-[11px] text-slate-600 dark:text-slate-400 mt-1.5 bg-slate-100 dark:bg-slate-900 inline-block px-1.5 py-0.5 rounded border dark:border-slate-700">借: {{ getDebitAccName(tx) }} / 貸: {{ getCreditAccName(tx) }}</div>
             </div>
-<!-- 載入更多按鈕 -->
+
+            <div class="flex flex-col items-end">
+              <div class="font-black text-lg" :class="getTxAmountColor(tx)">${{ formatNumber(getDebitAmount(tx)) }}</div>
+              <div class="flex gap-2 mt-1">
+                <!-- 複製按鈕 -->
+                <button v-if="tx && !tx.is_refunded && !tx.is_refund && !tx.auto_generated" @click="duplicateTransaction(tx)" class="text-[10px] text-emerald-600 bg-emerald-50 dark:bg-slate-700 px-2 py-1 rounded hover:bg-emerald-100 transition shadow-sm border border-emerald-200 dark:border-slate-600" title="再記一筆">
+                  <svg class="w-3 h-3 inline" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                </button>
+                <button v-if="tx && tx.inst_id" @click="viewInstallmentDetails(tx)" class="text-[10px] font-bold text-indigo-600 bg-indigo-50 dark:bg-slate-700 px-2 py-1 rounded hover:bg-indigo-100 transition shadow-sm border border-indigo-200 dark:border-slate-600">分期進度</button>
+                <button v-if="tx && !tx.is_refunded && !tx.is_refund && !tx.auto_generated && getDebitAccType(tx) === 'Expense' && !(tx.debits && tx.debits[0] && tx.debits[0].account_id === '1104')" @click="openRefundModal(tx)" class="text-[10px] font-bold text-orange-500 bg-orange-50 dark:bg-slate-700 px-2 py-1 rounded hover:bg-orange-100 transition shadow-sm border border-orange-200 dark:border-slate-600">退款</button>
+                <button v-if="tx && !tx.is_reimbursed && !tx.is_refund && tx.debits && tx.debits.length > 0 && tx.debits[0].account_id === '1104'" @click="openReimburseModal(tx)" class="text-[10px] font-bold text-teal-600 bg-teal-50 dark:bg-slate-700 px-2 py-1 rounded hover:bg-teal-100 transition shadow-sm border border-teal-200 dark:border-slate-600">報銷</button>
+                <button v-if="tx && !tx.is_refunded && !tx.is_refund && !tx.is_reimbursed && !tx.auto_generated" @click="openEditModal(tx)" class="text-[10px] text-blue-500 bg-blue-50 dark:bg-slate-700 px-2 py-1 rounded hover:bg-blue-100 transition shadow-sm border border-blue-200 dark:border-slate-600">
+                  <svg class="w-3 h-3 inline" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                </button>
+                <button @click="deleteTransaction(tx && tx.id ? tx.id : '')" class="text-[10px] text-red-500 bg-red-50 dark:bg-slate-700 px-2 py-1 rounded hover:bg-red-100 transition shadow-sm border border-red-200 dark:border-slate-600">
+                  <svg class="w-3 h-3 inline" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 載入更多按鈕 (獨立於迴圈外) -->
           <div v-if="filteredTransactions.length > paginatedTransactions.length" class="text-center pt-2 pb-6">
             <button @click="loadMoreHistory" class="bg-blue-50 text-blue-600 dark:bg-slate-800 dark:text-blue-400 font-bold px-6 py-2.5 rounded-full shadow-sm border border-blue-100 dark:border-slate-700 hover:bg-blue-100 transition text-sm">
               載入更多明細 (還有 {{ filteredTransactions.length - paginatedTransactions.length }} 筆)

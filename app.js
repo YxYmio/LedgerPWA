@@ -1323,15 +1323,14 @@ const duplicateTransaction = (tx) => {
         if (!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed || tx.auto_generated) {
             return alert("特殊狀態或系統自動生成的明細，不支援直接複製。");
         }
-        newTx.currency = 'TWD';
-        // 帶入基礎資訊
+        
+        newTx.currency = 'TWD'; 
         entryMode.value = getDebitAccType(tx) === 'Expense' ? 'expense' : (getDebitAccType(tx) === 'Asset' ? 'transfer' : 'income');
-        newTx.date = getLocalISODate(); // 預設帶入今天日期
+        newTx.date = typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0];
         newTx.scope = tx.scope || 'personal';
-        newTx.desc = getTxDesc(tx).replace(/#\S+/g, '').trim(); // 帶入摘要並過濾掉舊標籤
+        newTx.desc = getTxDesc(tx).replace(/#\S+/g, '').trim(); 
         newTx.amount = getDebitAmount(tx);
 
-        // 帶入帳戶資訊
         if (tx.debits && tx.debits[0]) {
             let dAcc = data.accounts.find(a => a && a.id === tx.debits[0].account_id);
             if (dAcc && dAcc.type === 'Expense') {
@@ -1354,15 +1353,15 @@ const duplicateTransaction = (tx) => {
             }
         }
 
-        // 帶入標籤
         if (tx.tags && tx.tags.length > 0) {
             newTx.desc += (newTx.desc ? ' ' : '') + tx.tags.map(t => '#' + t).join(' ');
         }
 
-        // 切換到記帳分頁，讓使用者確認並送出
         activeTab.value = 'entry';
         setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
     };
+
+    
 
     const submitProjectBudget = () => {
         // 1. 寬鬆驗證：只強制要求名稱與金額上限
