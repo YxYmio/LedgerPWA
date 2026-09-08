@@ -6,7 +6,10 @@ const getLocalISODate = (d = new Date()) => {
 
 const formatNumber = (num) => {
     let n = Number(num);
-    return isNaN(n) ? '0' : Math.round(n).toLocaleString('en-US');
+    return isNaN(n) ? '0' : n.toLocaleString('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2
+    });
 };
 
 const b64EncodeUnicode = (str) => {
@@ -146,11 +149,14 @@ const optimizeSettlements = (balances) => {
 // 安全的計算機數學表達式解析器
 const evaluateCalc = (expression) => {
     try {
-        // 僅允許數字、小數點與基本運算符號，防止 XSS/Injection
         let sanitized = expression.replace(/[^-()\d/*+.]/g, '');
         if (!sanitized) return null;
         let result = new Function('return ' + sanitized)();
-        return (typeof result === 'number' && isFinite(result)) ? Math.round(result) : null;
+        // 移除 Math.round，保留小數精確度，並避免浮點數溢位 (如 0.1+0.2=0.300000004)
+        if (typeof result === 'number' && isFinite(result)) {
+            return Number(result.toFixed(2));
+        }
+        return null;
     } catch (e) {
         return null;
     }
