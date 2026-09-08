@@ -253,16 +253,19 @@
 
         <!-- ================= 2. 記帳 Tab (Entry) ================= -->
         <div v-show="activeTab === 'entry'" class="space-y-4">
-          <div class="flex overflow-x-auto bg-white dark:bg-slate-800 rounded-xl p-1.5 gap-1 custom-scrollbar shadow-sm border dark:border-slate-700">
-            <button @click="entryMode = 'expense'" :class="entryMode==='expense' ? 'bg-blue-50 dark:bg-slate-700 text-blue-600 dark:text-blue-400 font-bold shadow-sm border border-blue-100 dark:border-slate-600' : 'text-slate-500'" class="flex-1 py-2 px-3 rounded-lg text-sm transition whitespace-nowrap">支出</button>
-            <button @click="entryMode = 'income'" :class="entryMode==='income' ? 'bg-green-50 dark:bg-slate-700 text-green-600 dark:text-green-400 font-bold shadow-sm border border-green-100 dark:border-slate-600' : 'text-slate-500'" class="flex-1 py-2 px-3 rounded-lg text-sm transition whitespace-nowrap">收入</button>
-            <button @click="entryMode = 'transfer'" :class="entryMode==='transfer' ? 'bg-purple-50 dark:bg-slate-700 text-purple-600 dark:text-purple-400 font-bold shadow-sm border border-purple-100 dark:border-slate-600' : 'text-slate-500'" class="flex-1 py-2 px-3 rounded-lg text-sm transition whitespace-nowrap">轉帳</button>
-            <button @click="entryMode = 'loan_repay'" :class="entryMode==='loan_repay' ? 'bg-rose-50 dark:bg-slate-700 text-rose-600 dark:text-rose-400 font-bold shadow-sm border border-rose-100 dark:border-slate-600' : 'text-slate-500'" class="flex-1 py-2 px-3 rounded-lg text-sm transition whitespace-nowrap">貸款</button>
-            <button @click="entryMode = 'invest'" :class="entryMode==='invest' ? 'bg-orange-50 dark:bg-slate-700 text-orange-600 dark:text-orange-400 font-bold shadow-sm border border-orange-100 dark:border-slate-600' : 'text-slate-500'" class="flex-1 py-2 px-3 rounded-lg text-sm transition whitespace-nowrap">投資</button>
-          </div>
+         <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700 space-y-4">
+            
+            <!-- 置頂輔助列：快填與掃描 (僅於支出與收入模式顯示) -->
+            <div v-if="entryMode === 'expense' || entryMode === 'income'" class="flex justify-end gap-2 -mb-2">
+              <button @click="smartPredictEntry" class="bg-indigo-50 text-indigo-600 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800 rounded-lg px-3 py-1.5 font-bold text-xs shadow-sm hover:bg-indigo-100 transition flex items-center gap-1" title="快填">
+                <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg> 快填
+              </button>
+              <button v-if="entryMode === 'expense'" @click="startScanner" class="bg-teal-50 text-teal-600 border border-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-800 rounded-lg px-3 py-1.5 font-bold text-xs shadow-sm hover:bg-teal-100 transition flex items-center gap-1" title="掃描發票">
+                <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect width="7" height="7" x="7" y="7" rx="1"/></svg> 掃描
+              </button>
+            </div>
 
-          <div class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700 space-y-4">
-            <!-- 1. 第一行：日期與帳務歸屬 (還原佔滿寬度) -->
+            <!-- 第一行：日期與帳務歸屬 -->
             <div class="flex gap-2">
               <input type="date" v-model="newTx.date" class="border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none w-1/2 text-sm font-mono bg-slate-50 dark:text-white">
               <select v-model="newTx.scope" class="border p-2.5 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white font-bold">
@@ -280,24 +283,8 @@
                   <span class="truncate font-bold">{{ getTxDesc(rtx) }}</span>
                 </button>
               </div>
-              
-              <!-- 2. 第二行：公款代墊、快填與掃描整合列 (已移除暗色底框) -->
-              <div class="flex items-center justify-between mb-2">
-                <div class="flex items-center gap-2 overflow-hidden mr-2">
-                  <input type="checkbox" v-model="newTx.isReimbursement" id="isReimb" class="w-4 h-4 accent-blue-600 cursor-pointer flex-shrink-0">
-                  <label for="isReimb" class="text-sm font-bold cursor-pointer text-slate-700 dark:text-slate-300 truncate">公款代墊</label>
-                </div>
-                <div class="flex items-center gap-1.5 flex-shrink-0">
-                  <!-- 已更改名稱為「快填」 -->
-                  <button @click="smartPredictEntry" class="bg-indigo-50 text-indigo-600 border border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800 rounded-lg px-2.5 py-1.5 font-bold text-xs shadow-sm hover:bg-indigo-100 transition flex items-center gap-1" title="時間自動填寫">
-                    <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72Z"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></svg> 快填
-                  </button>
-                  <button @click="startScanner" class="bg-teal-50 text-teal-600 border border-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-800 rounded-lg px-2.5 py-1.5 font-bold text-xs shadow-sm hover:bg-teal-100 transition flex items-center gap-1" title="掃描發票">
-                    <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect width="7" height="7" x="7" y="7" rx="1"/></svg> 掃描
-                  </button>
-                </div>
-              </div>
 
+              <!-- 分類選擇 -->
               <div v-if="!newTx.isReimbursement" class="flex gap-2">
                 <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2.5 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white">
                   <option value="">全部顯示</option>
@@ -310,6 +297,7 @@
                   </optgroup>
                 </select>
               </div>
+              <!-- 公款代墊遮罩 -->
               <div v-else class="text-sm font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/30 p-2.5 rounded-lg border border-blue-100 dark:border-blue-800 text-center">
                 將入帳至：應收款項 (資產增加)
               </div>
@@ -319,7 +307,12 @@
                 <option v-for="acc in paymentAccountsWithBalance" :key="acc && acc.id ? acc.id : ''" :value="acc && acc.id ? acc.id : ''">{{ acc && acc.icon ? acc.icon : '🏦' }} {{ acc && acc.name ? acc.name : '' }} (餘額: ${{ formatNumber(acc && acc.balance ? acc.balance : 0) }})</option>
               </select>
               
+              <!-- 進階設定區 (公款代墊、分期、動產) -->
               <div class="space-y-3 pt-3 border-t dark:border-slate-700 mt-2">
+                <div class="flex items-center gap-2">
+                  <input type="checkbox" v-model="newTx.isReimbursement" id="isReimb" class="w-4 h-4 accent-blue-600 cursor-pointer">
+                  <label for="isReimb" class="text-sm font-bold cursor-pointer text-slate-700 dark:text-slate-300 flex-1">公款代墊 (掛帳至應收款項)</label>
+                </div>
                 <div class="flex items-center gap-2">
                   <input type="checkbox" v-model="newTx.isInst" id="isInst" class="w-4 h-4 accent-blue-600 cursor-pointer">
                   <label for="isInst" class="text-sm font-bold select-none cursor-pointer text-slate-700 dark:text-slate-300">啟用分期排程</label>
@@ -346,7 +339,7 @@
               </div>
             </template>
 
-            <!-- 收入模式 (已移除發薪預測按鈕) -->
+            <!-- 收入模式 -->
             <template v-if="entryMode === 'income'">
               <div class="flex flex-wrap items-center gap-2">
                 <select v-model="newTx.mainCategory" @change="newTx.subAccount = ''" class="border p-2.5 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white">
