@@ -1302,6 +1302,51 @@ const app = createApp({
       data.transactions.splice(idx, 1); autoBackup(true, true); updateCharts();
     };
 
+const duplicateTransaction = (tx) => {
+        if (!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed || tx.auto_generated) {
+            return alert("特殊狀態或系統自動生成的明細，不支援直接複製。");
+        }
+        
+        // 帶入基礎資訊
+        entryMode.value = getDebitAccType(tx) === 'Expense' ? 'expense' : (getDebitAccType(tx) === 'Asset' ? 'transfer' : 'income');
+        newTx.date = getLocalISODate(); // 預設帶入今天日期
+        newTx.scope = tx.scope || 'personal';
+        newTx.desc = getTxDesc(tx).replace(/#\S+/g, '').trim(); // 帶入摘要並過濾掉舊標籤
+        newTx.amount = getDebitAmount(tx);
+
+        // 帶入帳戶資訊
+        if (tx.debits && tx.debits[0]) {
+            let dAcc = data.accounts.find(a => a && a.id === tx.debits[0].account_id);
+            if (dAcc && dAcc.type === 'Expense') {
+                newTx.mainCategory = dAcc.category || '';
+                newTx.subAccount = dAcc.id || '';
+            } else if (entryMode.value === 'transfer') {
+                newTx.toAcc = dAcc ? dAcc.id : '';
+            }
+        }
+        if (tx.credits && tx.credits[0]) {
+            let cAcc = data.accounts.find(a => a && a.id === tx.credits[0].account_id);
+            if (cAcc && cAcc.type === 'Income') {
+                newTx.mainCategory = cAcc.category || '';
+                newTx.subAccount = cAcc.id || '';
+            } else {
+                newTx.paymentAcc = cAcc ? cAcc.id : '';
+                if (entryMode.value === 'transfer') {
+                    newTx.fromAcc = cAcc ? cAcc.id : '';
+                }
+            }
+        }
+
+        // 帶入標籤
+        if (tx.tags && tx.tags.length > 0) {
+            newTx.desc += (newTx.desc ? ' ' : '') + tx.tags.map(t => '#' + t).join(' ');
+        }
+
+        // 切換到記帳分頁，讓使用者確認並送出
+        activeTab.value = 'entry';
+        setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
+    };
+
     const submitProjectBudget = () => {
         // 1. 寬鬆驗證：只強制要求名稱與金額上限
         if (!projectBudgetForm.name || !projectBudgetForm.limit) {
@@ -1840,7 +1885,7 @@ const app = createApp({
       getTxColorBand, getTxAmountColor, applyQuickTag, onDividendSymbolChange,activeProjectTags, combinedQuickTags, recentExpenses, applyRecentTx, bsData, isData, cfData,
       switchBook, createNewBook, submitNewBook, deleteBook, submitNewAssetAccount, submitTransaction, openRefundModal, closeRefundModal, submitRefund,
       openReimburseModal, closeReimburseModal, submitReimburse, reimburseTx, openEditModal, saveEditTx, viewInstallmentDetails,
-      deleteTransaction, submitInitialStock, calculateInitStockCost, submitFixedAsset, openDisposalModal, submitDisposal, submitAddLoan, 
+      deleteTransaction, duplicateTransaction, submitInitialStock, calculateInitStockCost, submitFixedAsset, openDisposalModal, submitDisposal, submitAddLoan, 
       openRateModal, submitRateAdjust, submitAddGoal, openUpdateGoalModal, submitUpdateGoal, deleteGoal, addRecurring, 
       deleteRecurring, addMainCategory, deleteMainCategory, addSubCategory, addPreset, removePreset, toggleAccountVisibility, 
       deleteAccount, runAutoTasks, autoBackup, initGoogleAuth, handleGoogleAuth, handleGoogleSignout, syncWithGoogleDrive, 
