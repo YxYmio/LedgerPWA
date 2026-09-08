@@ -1260,23 +1260,30 @@
               <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg> 多帳本與帳務基礎
             </h2>
             <div class="space-y-3">
+              <!-- 多帳本管理區塊 -->
               <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm flex flex-col gap-3">
-              <div class="flex justify-between items-center mb-1">
-                <span class="text-xs text-slate-500 font-bold">自訂匯率 (1外幣 = X台幣)</span>
-                <button @click="updateFxRates" class="text-[10px] bg-orange-100 text-orange-700 hover:bg-orange-200 px-2.5 py-1.5 rounded-lg font-bold shadow-sm border border-orange-200 transition flex items-center gap-1">
-                  <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> 雲端自動更新
-                </button>
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-xs text-slate-500 font-bold">帳本管理與切換</span>
+                  <button @click="showNewBookModal = true" class="text-[10px] bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-2.5 py-1.5 rounded-lg font-bold shadow-sm border border-indigo-200 transition flex items-center gap-1">
+                    + 建立新帳本
+                  </button>
+                </div>
+                <div class="space-y-2 mt-2">
+                  <div v-for="book in availableBooks" :key="book && book.id ? book.id : ''" class="flex justify-between items-center bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border dark:border-slate-700 shadow-sm transition hover:border-indigo-300">
+                     <div class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-2">
+                        <span v-if="book && book.id === currentBookId" class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.8)]"></span>
+                        <span v-else class="w-2 h-2 rounded-full bg-slate-300 dark:bg-slate-600"></span>
+                        {{ book && book.name ? book.name : '未命名帳本' }}
+                     </div>
+                     <div class="flex items-center gap-2">
+                        <button v-if="book && book.id !== currentBookId" @click="switchBook(book.id)" class="text-[10px] text-blue-600 bg-blue-50 border border-blue-200 px-2 py-1 rounded shadow-sm font-bold dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-400 transition hover:bg-blue-100">切換</button>
+                        <button @click="deleteBook(book && book.id ? book.id : '')" class="text-[10px] text-red-500 bg-red-50 border border-red-200 px-2 py-1 rounded shadow-sm font-bold dark:bg-red-900/30 dark:border-red-800 dark:text-red-400 transition hover:bg-red-100">刪除</button>
+                     </div>
+                  </div>
+                </div>
               </div>
-              <div v-for="(rate, cur) in data.currencyRates" :key="cur" v-show="cur !== 'TWD'" class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                <span class="w-10">{{ cur }}</span>
-                <input type="number" inputmode="decimal" step="0.0001" v-model.number="data.currencyRates[cur]" @change="autoBackup" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white" />
-                <button v-if="cur !== 'USD' && cur !== 'JPY'" @click="deleteCustomCurrency(cur)" class="p-2 text-slate-400 hover:text-red-500 bg-slate-50 dark:bg-slate-900 rounded-lg transition"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></button>
-              </div>
-              <div class="flex gap-2 pt-3 border-t dark:border-slate-700 mt-1">
-                <input type="text" v-model="newCurrencyCode" placeholder="新增幣別(如 EUR)" maxlength="3" class="border p-2 rounded-lg w-1/2 dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white uppercase font-mono">
-                <button @click="addCustomCurrency" class="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-sm font-bold shadow-sm transition">新增幣別</button>
-              </div>
-            </div>
+
+              <!-- 結算起算日區塊 -->
               <div class="flex items-center justify-between bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm gap-3">
                 <div class="flex flex-col">
                     <span class="text-sm font-bold text-slate-700 dark:text-slate-300">結算起算日 (非自然月)</span>
@@ -1294,13 +1301,20 @@
               <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg> 外幣參考匯率
             </h2>
             <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm flex flex-col gap-3">
-              <div class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                <span class="w-10">USD</span>
-                <input type="number" inputmode="decimal" step="0.01" v-model.number="data.currencyRates.USD" @change="autoBackup" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white" />
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-xs text-slate-500 font-bold">自訂匯率 (1外幣 = X台幣)</span>
+                <button @click="updateFxRates" class="text-[10px] bg-orange-100 text-orange-700 hover:bg-orange-200 px-2.5 py-1.5 rounded-lg font-bold shadow-sm border border-orange-200 transition flex items-center gap-1">
+                  <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> 雲端自動更新
+                </button>
               </div>
-              <div class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
-                <span class="w-10">JPY</span>
-                <input type="number" inputmode="decimal" step="0.01" v-model.number="data.currencyRates.JPY" @change="autoBackup" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white" />
+              <div v-for="(rate, cur) in data.currencyRates" :key="cur" v-show="cur !== 'TWD'" class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                <span class="w-10">{{ cur }}</span>
+                <input type="number" inputmode="decimal" step="0.0001" v-model.number="data.currencyRates[cur]" @change="autoBackup" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white" />
+                <button v-if="cur !== 'USD' && cur !== 'JPY'" @click="deleteCustomCurrency(cur)" class="p-2 text-slate-400 hover:text-red-500 bg-slate-50 dark:bg-slate-900 rounded-lg transition"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></button>
+              </div>
+              <div class="flex gap-2 pt-3 border-t dark:border-slate-700 mt-1">
+                <input type="text" v-model="newCurrencyCode" placeholder="新增幣別(如 EUR)" maxlength="3" class="border p-2 rounded-lg w-1/2 dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white uppercase font-mono">
+                <button @click="addCustomCurrency" class="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-sm font-bold shadow-sm transition">新增幣別</button>
               </div>
             </div>
           </section>
