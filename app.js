@@ -122,7 +122,7 @@ const app = createApp({
     const initFA = reactive({ name: '', date: getLocalISODate(), cost: null, months: 60, scope: 'personal' });
     const disposalAsset = ref(null);
     const disposalForm = reactive({ type: 'scrap', price: null, account: '' });
-    const initLoan = reactive({ name: '', principal: null, rate: null, payment: null });
+    const initLoan = reactive({ name: '', principal: null, rate: null, payment: null, autoDeduct: false, deductDay: 1, deductAccountId: '' });
     const activeLoan = ref(null);
     const rateData = reactive({ rate: null });
     const newRecurring = reactive({ type: 'expense', desc: '', amount: null, day: 1, account: '' });
@@ -1613,11 +1613,21 @@ const app = createApp({
 
     const submitAddLoan = () => {
       if(!initLoan.name || !initLoan.principal || !initLoan.rate || !initLoan.payment) return alert("請填妥所有貸款欄位");
+      if(initLoan.autoDeduct && (!initLoan.deductDay || !initLoan.deductAccountId)) return alert("請填寫自動扣款日與扣繳帳戶");
+      
       let accId = 'loan_liab_' + Date.now(); let loanId = 'loan_' + Date.now();
       data.accounts.push({ id: accId, name: initLoan.name, type: 'Liability', currency: 'TWD', is_hidden: false });
-      data.loans.push({ id: loanId, name: initLoan.name, liability_acc_id: accId, interest_rate: initLoan.rate, monthly_payment: initLoan.payment });
+      
+      data.loans.push({ 
+          id: loanId, name: initLoan.name, liability_acc_id: accId, interest_rate: initLoan.rate, monthly_payment: initLoan.payment,
+          auto_deduct: initLoan.autoDeduct, deduct_day: initLoan.deductDay, deduct_account_id: initLoan.deductAccountId, last_exec_month: ''
+      });
+      
       data.transactions.unshift({ id: 'tx_loan_init_'+Date.now(), date: getLocalISODate(), scope: 'personal', desc: `期初貸款本金: ${initLoan.name}`, debits: [{ account_id: '3101', amount: initLoan.principal }], credits: [{ account_id: accId, amount: initLoan.principal }], loan_init_id: loanId, loan_account_id: accId });
-      newTx.loanId = loanId; initLoan.name = ''; initLoan.principal = null; initLoan.rate = null; initLoan.payment = null; showAddLoanModal.value = false; autoBackup(true, true); updateCharts(); alert('✅ 貸款建立成功！');
+      newTx.loanId = loanId; 
+      initLoan.name = ''; initLoan.principal = null; initLoan.rate = null; initLoan.payment = null; 
+      initLoan.autoDeduct = false; initLoan.deductDay = 1; initLoan.deductAccountId = '';
+      showAddLoanModal.value = false; autoBackup(true, true); updateCharts(); alert('✅ 貸款建立成功！');
     };
 
     const openRateModal = (loan) => { activeLoan.value = loan; rateData.rate = loan.interest_rate; showRateModal.value = true; };
@@ -1697,6 +1707,38 @@ const app = createApp({
            }
            data.transactions.unshift(txObj); rec.last_exec_month = curM;
         }
+// 處理貸款自動扣款
+      (data.loans || []).forEach(loan => {
+        if(!loan || !loan.auto_deduct || !loan.monthly_payment || !loan.deduct_account_id) return;
+        let lastExec = loan.last_exec_month || '';
+        
+        // 如果這個月還沒執行過，而且今天的日期已經大於等於設定的扣款日
+        if (lastExec !== curM && today >= loan.deduct_day) {
+            // 動態精算當下剩餘本金與利息
+            let cp = Math.abs(calculateBalance(loan.liability_acc_id, 'all'));
+            if (cp <= 0) return; // 已經還清就不再扣款
+            
+            let interest = Math.round(cp * ((loan.interest_rate || 0) / 100 / 12));
+            let principal = Math.min(loan.monthly_payment - interest, cp); // 本金最多只能還到剩下 0
+            let totalDeduct = principal + interest;
+
+            let txObj = { 
+                id: 'tx_loan_auto_' + Date.now() + Math.random(), 
+                date: `${curM}-${String(loan.deduct_day).padStart(2,'0')}`, 
+                scope: 'personal', 
+                desc: `[自動扣款] 貸款還款: ${loan.name}`, 
+                debits: [
+                    { account_id: loan.liability_acc_id, amount: principal },
+                    { account_id: '5103', amount: interest }
+                ], 
+                credits: [{ account_id: loan.deduct_account_id, amount: totalDeduct }], 
+                auto_generated: true,
+                loan_id: loan.id
+            };
+            data.transactions.unshift(txObj); 
+            loan.last_exec_month = curM;
+        }
+      });
       });
     };
 
