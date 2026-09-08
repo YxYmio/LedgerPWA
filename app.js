@@ -1319,7 +1319,7 @@ const app = createApp({
       data.transactions.splice(idx, 1); autoBackup(true, true); updateCharts();
     };
 
-const duplicateTransaction = (tx) => {
+    const duplicateTransaction = (tx) => {
         if (!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed || tx.auto_generated) {
             return alert("特殊狀態或系統自動生成的明細，不支援直接複製。");
         }
@@ -1361,7 +1361,204 @@ const duplicateTransaction = (tx) => {
         setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
     };
 
-    
+    const smartPredictEntry = () => {
+        const now = new Date();
+        const hour = now.getHours();
+        const date = now.getDate();
+        // 定義薪資預測區間：每月 25 號到下個月 5 號
+        const isEndOfMonth = date >= 25 || date <= 5;
+
+        // 1. 月底/月初發薪日預測
+        if (isEndOfMonth) {
+            const currentMonth = getLocalISODate().substring(0, 7);
+            const hasSalary = data.transactions.some(t => 
+                t.date.startsWith(currentMonth) && 
+                t.credits && t.credits[0] && 
+                data.accounts.find(a => a.id === t.credits[0].account_id && a.name === '本薪')
+            );
+
+            if (!hasSalary) {
+                if (confirm('💡 系統偵測到發薪日區間，要幫您快速載入「本月薪資」表單嗎？')) {
+                    entryMode.value = 'income';
+                    const salaryAcc = data.accounts.find(a => a.name === '本薪' && a.type === 'Income');
+                    if (salaryAcc) {
+                        newTx.mainCategory = salaryAcc.category || '';
+                        newTx.subAccount = salaryAcc.id;
+                        newTx.desc = '本月薪資';
+                        // 預設找第一個銀行資產帳戶入帳 (排除現金與投資)
+                        const bankAcc = data.accounts.find(a => a.type === 'Asset' && !a.is_contra && a.id !== '1101' && a.id !== '1103' && a.id !== '1201' && a.id !== '1104');
+                        if (bankAcc) newTx.paymentAcc = bankAcc.id;
+                    }
+                    return;
+                }
+            }
+        }
+
+        // 2. 日常三餐時間段預測
+        entryMode.value = 'expense';
+        let targetSubName = '飲料點心'; // 非正餐時間的預設值
+        if (hour >= 5 && hour <= 10) targetSubName = '早餐';
+        else if (hour >= 11 && hour <= 14) targetSubName = '午餐';
+        else if (hour >= 17 && hour <= 21) targetSubName = '晚餐';
+
+        const subAcc = data.accounts.find(a => a.name === targetSubName && a.type === 'Expense');
+        if (subAcc) {
+            newTx.mainCategory = subAcc.category || '';
+            newTx.subAccount = subAcc.id;
+            newTx.desc = `#${targetSubName}`;
+
+            // 3. 智慧反查：尋找最近一次這項開銷是用哪個帳戶付錢的
+            const recentMatch = data.transactions.find(t => 
+                t.debits && t.debits[0] && t.debits[0].account_id === subAcc.id &&
+                t.credits && t.credits[0]
+            );
+
+            if (recentMatch) {
+                newTx.paymentAcc = recentMatch.credits[0].account_id;
+            } else {
+                // 若無紀錄則預設帶出現金錢包
+                const cashAcc = data.accounts.find(a => a.name === '現金錢包');
+                if (cashAcc) newTx.paymentAcc = cashAcc.id;
+            }
+        }
+    };
+// --- 新增：發票 QR Code 掃描器邏輯 ---
+    const showScannerModal = ref(false);
+    let html5QrCode = null;
+
+    const startScanner = () => {
+        showScannerModal.value = true;
+        // 等待彈窗 DOM 渲染完成後啟動相機
+        nextTick(() => {
+            if (typeof Html5Qrcode === 'undefined') return alert('掃描模組載入失敗，請檢查網路連線。');
+            html5QrCode = new Html5Qrcode("qr-reader");
+            
+            const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+                // 解析台灣電子發票格式 (擷取前段資訊)
+                // 格式: 字軌(10) + 民國年月日(7) + 隨機碼(4) + 銷售額Hex(8) + 總計額Hex(8)
+                if (decodedText && decodedText.length >= 37 && /^[A-Z]{2}\d{8}\d{7}/.test(decodedText)) {
+                    try {
+                        // 1. 取得日期並轉換為西元
+                        let rocYear = parseInt(decodedText.substring(10, 13), 10);
+                        let month = decodedText.substring(13, 15);
+                        let day = decodedText.substring(15, 17);
+                        let gregorianYear = rocYear + 1911;
+                        let invoiceDate = `${gregorianYear}-${month}-${day}`;
+
+                        // 2. 取得總計額 (第 29 到 37 字元為 16進制)
+                        let hexAmount = decodedText.substring(29, 37);
+                        let totalAmount = parseInt(hexAmount, 16);
+
+                        // 3. 取得發票號碼
+                        let invNumber = decodedText.substring(0, 10);
+
+                        // 4. 寫入記帳表單
+                        entryMode.value = 'expense';
+                        newTx.currency = 'TWD';
+                        newTx.date = invoiceDate;
+                        newTx.amount = totalAmount;
+                        
+                        if (!newTx.desc || newTx.desc === '無摘要') {
+                            newTx.desc = `發票 ${invNumber}`;
+                        } else if (!newTx.desc.includes(invNumber)) {
+                            newTx.desc += ` (發票 ${invNumber})`;
+                        }
+
+                        // 成功震動回饋 (如果手機支援)
+                        if (navigator.vibrate) navigator.vibrate(200);
+                        
+                        stopScanner();
+                        setTimeout(() => { alert(`✅ 發票掃描成功！\n\n日期：${invoiceDate}\n金額：$${totalAmount}`); }, 100);
+                    } catch (e) {
+                        console.warn("發票解析錯誤:", e);
+                    }
+                }
+            };
+
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            // 優先調用後置相機 (environment)
+            html5QrCode.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
+                .catch((err) => {
+                    alert("無法存取相機，請確認瀏覽器已給予鏡頭權限。");
+                    stopScanner();
+                });
+        });
+    };
+
+    const stopScanner = () => {
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => {
+                html5QrCode.clear();
+                html5QrCode = null;
+                showScannerModal.value = false;
+            }).catch(err => {
+                showScannerModal.value = false;
+            });
+        } else {
+            showScannerModal.value = false;
+        }
+    };
+    const smartPredictEntry = () => {
+        const now = new Date();
+        const hour = now.getHours();
+        const date = now.getDate();
+        // 定義薪資預測區間：每月 25 號到下個月 5 號
+        const isEndOfMonth = date >= 25 || date <= 5;
+
+        // 1. 月底/月初發薪日預測
+        if (isEndOfMonth) {
+            const currentMonth = getLocalISODate().substring(0, 7);
+            const hasSalary = data.transactions.some(t => 
+                t.date.startsWith(currentMonth) && 
+                t.credits && t.credits[0] && 
+                data.accounts.find(a => a.id === t.credits[0].account_id && a.name === '本薪')
+            );
+
+            if (!hasSalary) {
+                if (confirm('💡 系統偵測到發薪日區間，要幫您快速載入「本月薪資」表單嗎？')) {
+                    entryMode.value = 'income';
+                    const salaryAcc = data.accounts.find(a => a.name === '本薪' && a.type === 'Income');
+                    if (salaryAcc) {
+                        newTx.mainCategory = salaryAcc.category || '';
+                        newTx.subAccount = salaryAcc.id;
+                        newTx.desc = '本月薪資';
+                        // 預設找第一個銀行資產帳戶入帳 (排除現金與投資)
+                        const bankAcc = data.accounts.find(a => a.type === 'Asset' && !a.is_contra && a.id !== '1101' && a.id !== '1103' && a.id !== '1201' && a.id !== '1104');
+                        if (bankAcc) newTx.paymentAcc = bankAcc.id;
+                    }
+                    return;
+                }
+            }
+        }
+
+        // 2. 日常三餐時間段預測
+        entryMode.value = 'expense';
+        let targetSubName = '飲料點心'; // 非正餐時間的預設值
+        if (hour >= 5 && hour <= 10) targetSubName = '早餐';
+        else if (hour >= 11 && hour <= 14) targetSubName = '午餐';
+        else if (hour >= 17 && hour <= 21) targetSubName = '晚餐';
+
+        const subAcc = data.accounts.find(a => a.name === targetSubName && a.type === 'Expense');
+        if (subAcc) {
+            newTx.mainCategory = subAcc.category || '';
+            newTx.subAccount = subAcc.id;
+            newTx.desc = `#${targetSubName}`;
+
+            // 3. 智慧反查：尋找最近一次這項開銷是用哪個帳戶付錢的
+            const recentMatch = data.transactions.find(t => 
+                t.debits && t.debits[0] && t.debits[0].account_id === subAcc.id &&
+                t.credits && t.credits[0]
+            );
+
+            if (recentMatch) {
+                newTx.paymentAcc = recentMatch.credits[0].account_id;
+            } else {
+                // 若無紀錄則預設帶出現金錢包
+                const cashAcc = data.accounts.find(a => a.name === '現金錢包');
+                if (cashAcc) newTx.paymentAcc = cashAcc.id;
+            }
+        }
+    };
 
     const submitProjectBudget = () => {
         // 1. 寬鬆驗證：只強制要求名稱與金額上限
@@ -1901,7 +2098,7 @@ const duplicateTransaction = (tx) => {
       getTxColorBand, getTxAmountColor, applyQuickTag, onDividendSymbolChange,activeProjectTags, combinedQuickTags, recentExpenses, applyRecentTx, bsData, isData, cfData,
       switchBook, createNewBook, submitNewBook, deleteBook, submitNewAssetAccount, submitTransaction, openRefundModal, closeRefundModal, submitRefund,
       openReimburseModal, closeReimburseModal, submitReimburse, reimburseTx, openEditModal, saveEditTx, viewInstallmentDetails,
-      deleteTransaction, duplicateTransaction, submitInitialStock, calculateInitStockCost, submitFixedAsset, openDisposalModal, submitDisposal, submitAddLoan, 
+      deleteTransaction, duplicateTransaction,smartPredictEntry, showScannerModal, startScanner, stopScanner, submitInitialStock, calculateInitStockCost, submitFixedAsset, openDisposalModal, submitDisposal, submitAddLoan, 
       openRateModal, submitRateAdjust, submitAddGoal, openUpdateGoalModal, submitUpdateGoal, deleteGoal, addRecurring, 
       deleteRecurring, addMainCategory, deleteMainCategory, addSubCategory, addPreset, removePreset, toggleAccountVisibility, 
       deleteAccount, runAutoTasks, autoBackup, initGoogleAuth, handleGoogleAuth, handleGoogleSignout, syncWithGoogleDrive, 
