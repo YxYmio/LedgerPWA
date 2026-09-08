@@ -485,15 +485,15 @@
             <!-- 金額與虛擬計算機區塊 -->
             <template v-if="entryMode !== 'invest'">
               <div class="relative mt-2">
-                <div class="flex items-center gap-2">
-                  <select v-model="newTx.currency" class="border p-3 rounded-lg dark:bg-slate-800 dark:border-slate-600 outline-none text-sm font-bold bg-slate-100 text-slate-600 dark:text-slate-300 shadow-inner">
+                <div class="flex items-center gap-1.5">
+                  <select v-model="newTx.currency" class="border p-2.5 rounded-lg dark:bg-slate-800 dark:border-slate-600 outline-none text-sm font-bold bg-slate-100 text-slate-600 dark:text-slate-300 shadow-inner flex-shrink-0">
                     <option value="TWD">TWD</option>
                     <option value="USD">USD</option>
                     <option value="JPY">JPY</option>
                   </select>
-                  <input type="number" inputmode="decimal" v-model.number="newTx.amount" placeholder="輸入總金額" class="flex-1 border p-3 rounded-lg dark:bg-slate-800 dark:border-slate-600 outline-none text-2xl font-black tracking-wider shadow-inner bg-slate-100 text-blue-700 dark:text-blue-300 placeholder-slate-400 text-center">
-                  <button @click="isCalcOpen = !isCalcOpen" :class="isCalcOpen ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600 dark:bg-slate-700 dark:text-blue-400'" class="p-3.5 rounded-lg shadow-sm transition border border-blue-200 dark:border-slate-600 flex-shrink-0">
-                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+                  <input type="number" inputmode="decimal" v-model.number="newTx.amount" placeholder="輸入總金額" class="flex-1 min-w-0 border p-2.5 rounded-lg dark:bg-slate-800 dark:border-slate-600 outline-none text-2xl font-black tracking-wider shadow-inner bg-slate-100 text-blue-700 dark:text-blue-300 placeholder-slate-400 text-center">
+                  <button @click="isCalcOpen = !isCalcOpen" :class="isCalcOpen ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-600 dark:bg-slate-700 dark:text-blue-400'" class="p-3 rounded-lg shadow-sm transition border border-blue-200 dark:border-slate-600 flex-shrink-0">
+                    <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
                   </button>
                 </div>
                 
@@ -622,6 +622,7 @@
               載入更多明細 (還有 {{ filteredTransactions.length - paginatedTransactions.length }} 筆)
             </button>
           </div>
+        </div>
             <div class="flex flex-col items-end">
               <div class="font-black text-lg" :class="getTxAmountColor(tx)">${{ formatNumber(getDebitAmount(tx)) }}</div>
               <div class="flex gap-2 mt-1">
