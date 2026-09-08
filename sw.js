@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ledger-pwa-v4'; // 升級版本號以強制更新
+const CACHE_NAME = 'ledger-pwa-v5'; // 升級版本號以強制更新
 // 移除所有外部 CDN (Tailwind, Vue 等)，只保留本地端自己的檔案
 const urlsToCache = [
   './',
