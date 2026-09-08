@@ -1809,7 +1809,9 @@ const app = createApp({
            }
            data.transactions.unshift(txObj); rec.last_exec_month = curM;
         }
-// 處理貸款自動扣款
+      }); // <-- 修正：確保週期排程在這裡正確關閉！
+
+      // 獨立的貸款自動扣款引擎
       (data.loans || []).forEach(loan => {
         if(!loan || !loan.auto_deduct || !loan.monthly_payment || !loan.deduct_account_id) return;
         let lastExec = loan.last_exec_month || '';
@@ -1840,7 +1842,6 @@ const app = createApp({
             data.transactions.unshift(txObj); 
             loan.last_exec_month = curM;
         }
-      });
       });
     };
 
