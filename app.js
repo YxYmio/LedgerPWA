@@ -1364,61 +1364,46 @@ const app = createApp({
     const smartPredictEntry = () => {
         const now = new Date();
         const hour = now.getHours();
-        const date = now.getDate();
-        // 定義薪資預測區間：每月 25 號到下個月 5 號
-        const isEndOfMonth = date >= 25 || date <= 5;
 
-        // 1. 月底/月初發薪日預測
-        if (isEndOfMonth) {
-            const currentMonth = getLocalISODate().substring(0, 7);
-            const hasSalary = data.transactions.some(t => 
-                t.date.startsWith(currentMonth) && 
-                t.credits && t.credits[0] && 
-                data.accounts.find(a => a.id === t.credits[0].account_id && a.name === '本薪')
-            );
-
-            if (!hasSalary) {
-                if (confirm('💡 系統偵測到發薪日區間，要幫您快速載入「本月薪資」表單嗎？')) {
-                    entryMode.value = 'income';
-                    const salaryAcc = data.accounts.find(a => a.name === '本薪' && a.type === 'Income');
-                    if (salaryAcc) {
-                        newTx.mainCategory = salaryAcc.category || '';
-                        newTx.subAccount = salaryAcc.id;
-                        newTx.desc = '本月薪資';
-                        // 預設找第一個銀行資產帳戶入帳 (排除現金與投資)
-                        const bankAcc = data.accounts.find(a => a.type === 'Asset' && !a.is_contra && a.id !== '1101' && a.id !== '1103' && a.id !== '1201' && a.id !== '1104');
-                        if (bankAcc) newTx.paymentAcc = bankAcc.id;
-                    }
-                    return;
-                }
+        if (entryMode.value === 'income') {
+            const salaryAcc = data.accounts.find(a => a.name === '本薪' && a.type === 'Income');
+            if (salaryAcc) {
+                newTx.mainCategory = salaryAcc.category || '';
+                newTx.subAccount = salaryAcc.id;
+                newTx.desc = '本月薪資';
+                const bankAcc = data.accounts.find(a => a.type === 'Asset' && !a.is_contra && a.id !== '1101' && a.id !== '1103' && a.id !== '1201' && a.id !== '1104');
+                if (bankAcc) newTx.paymentAcc = bankAcc.id;
+            } else {
+                alert('找不到「本薪」科目，請先於設定中建立。');
             }
+            return;
         }
 
-        // 2. 日常三餐時間段預測
-        entryMode.value = 'expense';
-        let targetSubName = '飲料點心'; // 非正餐時間的預設值
-        if (hour >= 5 && hour <= 10) targetSubName = '早餐';
-        else if (hour >= 11 && hour <= 14) targetSubName = '午餐';
-        else if (hour >= 17 && hour <= 21) targetSubName = '晚餐';
+        if (entryMode.value === 'expense') {
+            let targetSubName = '飲料點心'; // 非正餐時間的預設值
+            if (hour >= 5 && hour <= 10) targetSubName = '早餐';
+            else if (hour >= 11 && hour <= 14) targetSubName = '午餐';
+            else if (hour >= 17 && hour <= 21) targetSubName = '晚餐';
 
-        const subAcc = data.accounts.find(a => a.name === targetSubName && a.type === 'Expense');
-        if (subAcc) {
-            newTx.mainCategory = subAcc.category || '';
-            newTx.subAccount = subAcc.id;
-            newTx.desc = `#${targetSubName}`;
+            const subAcc = data.accounts.find(a => a.name === targetSubName && a.type === 'Expense');
+            if (subAcc) {
+                newTx.mainCategory = subAcc.category || '';
+                newTx.subAccount = subAcc.id;
+                newTx.desc = `#${targetSubName}`;
 
-            // 3. 智慧反查：尋找最近一次這項開銷是用哪個帳戶付錢的
-            const recentMatch = data.transactions.find(t => 
-                t.debits && t.debits[0] && t.debits[0].account_id === subAcc.id &&
-                t.credits && t.credits[0]
-            );
+                const recentMatch = data.transactions.find(t => 
+                    t.debits && t.debits[0] && t.debits[0].account_id === subAcc.id &&
+                    t.credits && t.credits[0]
+                );
 
-            if (recentMatch) {
-                newTx.paymentAcc = recentMatch.credits[0].account_id;
+                if (recentMatch) {
+                    newTx.paymentAcc = recentMatch.credits[0].account_id;
+                } else {
+                    const cashAcc = data.accounts.find(a => a.name === '現金錢包');
+                    if (cashAcc) newTx.paymentAcc = cashAcc.id;
+                }
             } else {
-                // 若無紀錄則預設帶出現金錢包
-                const cashAcc = data.accounts.find(a => a.name === '現金錢包');
-                if (cashAcc) newTx.paymentAcc = cashAcc.id;
+                alert(`找不到「${targetSubName}」科目，請先於設定中建立。`);
             }
         }
     };
