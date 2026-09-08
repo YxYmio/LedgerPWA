@@ -109,7 +109,7 @@ const app = createApp({
     // 5. 表單綁定狀態 (Forms Data)
     // ------------------------------------------------------------------------
     const newTx = reactive({ 
-      date: getLocalISODate(), scope: 'personal', desc: '', amount: null, 
+      date: getLocalISODate(), scope: 'personal', desc: '', amount: null, currency: 'TWD',
       mainCategory: '', subAccount: '', paymentAcc: '', fromAcc: '', toAcc: '', investAction: 'buy', 
       symbol: '', stockName: '', shares: null, price: null, fee: null, tax: null, 
       isInst: false, periods: 3, isFA: false, faName: '', faMonths: 60, loanId: '',
@@ -866,12 +866,23 @@ const app = createApp({
       return sum;
     };
 
+    // --- 新增：即時外幣換算屬性 ---
+    const newTxBaseAmount = computed(() => {
+        let amt = Number(newTx.amount) || 0;
+        if (newTx.currency !== 'TWD' && amt > 0 && entryMode.value !== 'invest') {
+            let rate = data.currencyRates[newTx.currency] || 1;
+            return Math.round(amt * rate);
+        }
+        return amt;
+    });
+
     const loanRepayPreview = computed(() => {
       let loan = (data.loans || []).find(l => l && l.id === newTx.loanId);
-      if(!loan || !newTx.amount) return { interest: 0, principal: 0, current_principal: 0 };
+      let baseAmt = newTxBaseAmount.value;
+      if(!loan || !baseAmt) return { interest: 0, principal: 0, current_principal: 0 };
       let cp = Math.abs(calculateBalance(loan.liability_acc_id, 'all'));
       let interest = Math.round(cp * ((loan.interest_rate || 0) / 100 / 12));
-      let principal = Math.min((newTx.amount || 0) - interest, cp);
+      let principal = Math.min(baseAmt - interest, cp);
       return { interest, principal, current_principal: cp };
     });
 
@@ -933,6 +944,7 @@ const app = createApp({
 
     const submitTransaction = () => {
       txError.value = '';
+      let baseAmt = newTxBaseAmount.value;
       let extractedTags = [];
       let tagMatches = (newTx.desc || '').match(/#\S+/g);
       if (tagMatches) extractedTags = tagMatches.map(t => t.substring(1));
@@ -940,55 +952,60 @@ const app = createApp({
       // 攔截標籤：若符合儲蓄目標，自動將該筆金額累加至存入進度
       extractedTags.forEach(tag => {
           let matchedGoal = (data.savings_goals || []).find(g => g && (g.name === tag || g.tag === tag));
-          if (matchedGoal && newTx.amount > 0) {
-              matchedGoal.saved = (Number(matchedGoal.saved) || 0) + Number(newTx.amount);
+          if (matchedGoal && baseAmt > 0) {
+              matchedGoal.saved = (Number(matchedGoal.saved) || 0) + baseAmt;
           }
       });
 
-     let finalDesc = (newTx.desc || '').trim();
+      let finalDesc = (newTx.desc || '').trim();
       if (!finalDesc && newTx.subAccount && !newTx.isReimbursement) {
           let acc = (data.accounts || []).find(a => a && a.id === newTx.subAccount);
           if (acc && acc.name) finalDesc = acc.name;
       }
       if (!finalDesc) finalDesc = '無摘要';
+
+      // 智慧附註：若是外幣記帳，自動將原幣別金額加入摘要後方
+      if (newTx.currency !== 'TWD' && newTx.amount > 0 && entryMode.value !== 'invest') {
+          finalDesc += ` (${newTx.currency} ${newTx.amount})`;
+      }
       
       let txObj = { id: 'tx_' + Date.now(), date: newTx.date, scope: newTx.scope, desc: finalDesc, tags: extractedTags, debits: [], credits: [] };
       
       if (entryMode.value === 'expense') {
-        if (!newTx.paymentAcc || !newTx.amount) return txError.value = '請填寫完整金額與扣款帳戶';
+        if (!newTx.paymentAcc || !baseAmt) return txError.value = '請填寫完整金額與扣款帳戶';
         let debitAcc = newTx.isReimbursement ? '1104' : newTx.subAccount;
         if (!debitAcc) return txError.value = '請選擇分類或勾選代墊';
         if (!newTx.isReimbursement && newTx.desc) { if(!data.smart_tags) data.smart_tags = {}; data.smart_tags[newTx.desc] = newTx.paymentAcc; }
         
         if (newTx.isInst && newTx.periods > 1) {
-          let perAmt = Math.round(newTx.amount / newTx.periods);
-          let firstAmt = newTx.amount - (perAmt * (newTx.periods - 1));
+          let perAmt = Math.round(baseAmt / newTx.periods);
+          let firstAmt = baseAmt - (perAmt * (newTx.periods - 1));
           let nextM = newTx.date && newTx.date.length >= 7 ? newTx.date.substring(0,7) : getLocalISODate().substring(0,7);
           let nextD = newTx.date && newTx.date.length >= 10 ? newTx.date.substring(8,10) : '01';
-          data.installments.push({ id: 'inst_'+Date.now(), desc: newTx.desc||'無摘要', total_amount: newTx.amount, periods: newTx.periods, amount_per_period: perAmt, first_amount: firstAmt, paid_periods: 0, next_month: nextM, date_day: nextD, debit_acc: debitAcc, credit_acc: newTx.paymentAcc, scope: newTx.scope });
-          runAutoTasks(); newTx.amount = null; newTx.desc = ''; newTx.isInst = false; autoBackup(true, true);; updateCharts(); refreshIcons(); alert('✅ 分期建立成功！'); return;
+          data.installments.push({ id: 'inst_'+Date.now(), desc: newTx.desc||'無摘要', total_amount: baseAmt, periods: newTx.periods, amount_per_period: perAmt, first_amount: firstAmt, paid_periods: 0, next_month: nextM, date_day: nextD, debit_acc: debitAcc, credit_acc: newTx.paymentAcc, scope: newTx.scope });
+          runAutoTasks(); newTx.amount = null; newTx.desc = ''; newTx.isInst = false; autoBackup(true, true); updateCharts(); alert('✅ 分期建立成功！'); return;
         } else {
-          txObj.debits.push({ account_id: debitAcc, amount: newTx.amount });
-          txObj.credits.push({ account_id: newTx.paymentAcc, amount: newTx.amount });
+          txObj.debits.push({ account_id: debitAcc, amount: baseAmt });
+          txObj.credits.push({ account_id: newTx.paymentAcc, amount: baseAmt });
         }
         if (!newTx.isReimbursement && newTx.isFA && newTx.faMonths > 0) {
-           let monthlyDep = Math.round(newTx.amount / newTx.faMonths);
+           let monthlyDep = Math.round(baseAmt / newTx.faMonths);
            let newFaId = 'fa_'+Date.now();
-           data.fixed_assets.push({ id: newFaId, name: newTx.faName||newTx.desc, purchase_date: newTx.date, original_cost: newTx.amount, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: newTx.date, is_disposed: false });
+           data.fixed_assets.push({ id: newFaId, name: newTx.faName||newTx.desc, purchase_date: newTx.date, original_cost: baseAmt, monthly_depreciation: monthlyDep, asset_account_id: '1201', accumulated_dep_account_id: '1201-DEP', expense_account_id: '5102', last_depreciation_date: newTx.date, is_disposed: false });
            txObj.debits[0].account_id = '1201';
            txObj.desc = `購入固定資產: ${newTx.faName||newTx.desc}`;
            txObj.fa_init_id = newFaId;
            newTx.isFA = false; newTx.faMonths = 60; newTx.faName = '';
         }
       } else if (entryMode.value === 'income') {
-        if (!newTx.subAccount || !newTx.paymentAcc || !newTx.amount) return txError.value = '欄位不完整';
+        if (!newTx.subAccount || !newTx.paymentAcc || !baseAmt) return txError.value = '欄位不完整';
         if(newTx.desc) { if(!data.smart_tags) data.smart_tags = {}; data.smart_tags[newTx.desc] = newTx.paymentAcc; }
-        txObj.debits.push({ account_id: newTx.paymentAcc, amount: newTx.amount }); txObj.credits.push({ account_id: newTx.subAccount, amount: newTx.amount }); 
+        txObj.debits.push({ account_id: newTx.paymentAcc, amount: baseAmt }); txObj.credits.push({ account_id: newTx.subAccount, amount: baseAmt }); 
       } else if (entryMode.value === 'transfer') {
-        if (!newTx.fromAcc || !newTx.toAcc || !newTx.amount) return txError.value = '欄位不完整';
+        if (!newTx.fromAcc || !newTx.toAcc || !baseAmt) return txError.value = '欄位不完整';
         if (newTx.fromAcc === newTx.toAcc) return txError.value = '轉出入不可相同';
-        txObj.debits.push({ account_id: newTx.toAcc, amount: newTx.amount });
-        txObj.credits.push({ account_id: newTx.fromAcc, amount: newTx.amount });
+        txObj.debits.push({ account_id: newTx.toAcc, amount: baseAmt });
+        txObj.credits.push({ account_id: newTx.fromAcc, amount: baseAmt });
         if(txObj.desc === '無摘要') txObj.desc = '轉帳';
       } else if (entryMode.value === 'invest') {
         if (newTx.investAction === 'dividend') {
@@ -1002,7 +1019,6 @@ const app = createApp({
            if (!newTx.symbol || !newTx.shares || !newTx.price || !newTx.paymentAcc) return txError.value = '欄位不完整';
            let totalAmt = getInvestTotalAmount();
            let inv = (data.investments || []).find(i => i && i.symbol === newTx.symbol);
-           
            if (newTx.investAction === 'buy') {
              txObj.debits.push({ account_id: '1103', amount: totalAmt });
              txObj.credits.push({ account_id: newTx.paymentAcc, amount: totalAmt });
@@ -1024,19 +1040,20 @@ const app = createApp({
            }
         }
       } else if (entryMode.value === 'loan_repay') {
-        if (!newTx.loanId || !newTx.paymentAcc || !newTx.amount) return txError.value = '欄位不完整';
+        if (!newTx.loanId || !newTx.paymentAcc || !baseAmt) return txError.value = '欄位不完整';
         let loan = (data.loans || []).find(l => l && l.id === newTx.loanId); if(!loan) return txError.value = '貸款資料錯誤';
         let preview = loanRepayPreview.value;
         txObj.loan_id = loan.id;
         txObj.desc = newTx.desc || `貸款還款: ${loan.name}`;
+        if (newTx.currency !== 'TWD') txObj.desc += ` (${newTx.currency} ${newTx.amount})`;
         txObj.debits.push({ account_id: loan.liability_acc_id, amount: preview.principal });
         txObj.debits.push({ account_id: '5103', amount: preview.interest });
-        txObj.credits.push({ account_id: newTx.paymentAcc, amount: newTx.amount });
+        txObj.credits.push({ account_id: newTx.paymentAcc, amount: baseAmt });
       }
 
       data.transactions.unshift(txObj);
-      newTx.amount = null; newTx.desc = ''; newTx.shares = null; newTx.price = null; newTx.fee = null; newTx.tax = null; newTx.loanId = ''; newTx.manualSymbol = ''; newTx.manualName = '';
-      autoBackup(true, true); updateCharts(); refreshIcons();
+      newTx.amount = null; newTx.desc = ''; newTx.currency = 'TWD'; newTx.shares = null; newTx.price = null; newTx.fee = null; newTx.tax = null; newTx.loanId = ''; newTx.manualSymbol = ''; newTx.manualName = '';
+      autoBackup(true, true); updateCharts();
       alert('✅ 記帳成功！'); 
     };
 
@@ -1306,7 +1323,7 @@ const duplicateTransaction = (tx) => {
         if (!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed || tx.auto_generated) {
             return alert("特殊狀態或系統自動生成的明細，不支援直接複製。");
         }
-        
+        newTx.currency = 'TWD';
         // 帶入基礎資訊
         entryMode.value = getDebitAccType(tx) === 'Expense' ? 'expense' : (getDebitAccType(tx) === 'Asset' ? 'transfer' : 'income');
         newTx.date = getLocalISODate(); // 預設帶入今天日期
@@ -1865,7 +1882,7 @@ const duplicateTransaction = (tx) => {
       saveGroupSplitProject, deleteGroupSplitProject, initGroupSplitRecordForm, editGroupSplitRecord, calculateGroupSplitRecord,
       saveGroupSplitRecord, deleteGroupSplitRecord, shareGroupSettlement, writeGroupSettlementToLedger,
       
-      activeRefundTx, refundData, activeReimburseTx, reimburseData, settings, currentBookId, newBookName, data, newTx, txError, 
+      activeRefundTx, refundData, activeReimburseTx, reimburseData, settings, currentBookId, newBookName, data, newTx, txError,newTxBaseAmount, 
       historyFilter, settingCategoryMode, newPreset, newMainCat, newSubCat, newAssetAcc, initStock, initFA, 
       disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
       editingTx, selectedInstallment, projectBudgetForm,
