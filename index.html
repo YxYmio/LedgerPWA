@@ -435,9 +435,9 @@
                   <input type="text" v-model="newTx.stockName" placeholder="名稱(如 台積電)" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white">
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2">
-                  <input type="number" inputmode="numeric" pattern="[0-9]*" v-model.number="newTx.shares" placeholder="成交股數" class="border p-2 rounded-lg w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white">
-                  <input type="number" inputmode="decimal" step="0.01" v-model.number="newTx.price" placeholder="成交單價" class="border p-2 rounded-lg w-1/2 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white">
+                <div class="flex gap-2">
+                  <input type="number" inputmode="numeric" pattern="[0-9]*" v-model.number="newTx.shares" placeholder="成交股數" class="border p-2.5 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white">
+                  <input type="number" inputmode="decimal" step="0.01" v-model.number="newTx.price" placeholder="成交單價" class="border p-2.5 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white">
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                   <input type="number" inputmode="decimal" v-model.number="newTx.fee" placeholder="手續費(選填)" class="border p-2 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white">
@@ -564,7 +564,11 @@
         <div v-show="activeTab === 'history'" class="space-y-4">
           <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2">
             <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
-              <svg class="w-5 h-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> 明細查詢
+              <button v-if="historyPreviousTab" @click="clearHistoryFilterAndBack" class="p-1 bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-blue-500 rounded-lg shadow-sm border dark:border-slate-600 transition mr-1">
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <svg v-else class="w-5 h-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> 
+              明細查詢
             </h2>
             <button @click="setHistoryToCurrentMonth" class="text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg hover:bg-slate-300 transition font-bold shadow-sm">查看本月</button>
           </div>
@@ -864,7 +868,18 @@
                        <div class="text-[10px] text-slate-500">{{ acc && acc.currency ? acc.currency : '' }}</div>
                      </div>
                   </div>
-                  <div class="font-mono font-bold" :class="(acc && acc.balance < 0) ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'">${{ formatNumber(acc && acc.balance ? acc.balance : 0) }}</div>
+                  <div class="flex items-center gap-3">
+                     <div class="text-right">
+                        <div class="font-mono font-bold" :class="(acc && acc.balance < 0) ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'">
+                           <span v-if="acc && acc.currency !== 'TWD'" class="text-[10px] mr-0.5 text-slate-400">{{ acc.currency }}</span>${{ formatNumber(Math.abs(acc && acc.balance ? acc.balance : 0)) }}
+                        </div>
+                        <div v-if="acc && acc.currency !== 'TWD'" class="text-[10px] text-slate-400 font-mono mt-0.5">≈ NT$ {{ formatNumber(Math.abs(acc.baseBalance || 0)) }}</div>
+                     </div>
+                     <button @click.stop="openEditAccountModal(acc)" class="p-1.5 bg-slate-50 dark:bg-slate-900 border dark:border-slate-600 rounded-lg text-slate-400 hover:text-blue-500 transition shadow-sm">
+                       <svg class="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                     </button>
+                  </div>
+               </div>
                </div>
             </div>
           </div>
@@ -1002,12 +1017,12 @@
                 <div class="pl-2 pr-2 mt-2 space-y-1.5 text-sm">
                   <div class="flex justify-between font-bold text-slate-700 dark:text-slate-300 border-b dark:border-slate-700 pb-1"><span>流動資產</span><span>${{ formatNumber((bsData && bsData.currentAssets) ? bsData.currentAssets : 0) }}</span></div>
                   <!-- 流動資產 -->                 
-                  <div v-for="a in (bsData && bsData.currentAssetsList) ? bsData.currentAssetsList : []" :key="a && a.name ? a.name : ''" @click="filterByAccount(a, '', reportEndDate)" class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2 cursor-pointer hover:text-blue-600 transition">
+                  <div v-for="a in (bsData && bsData.currentAssetsList) ? bsData.currentAssetsList : []" :key="a && a.name ? a.name : ''" @click="filterByAccount(a, '', reportEndDate)" class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2 cursor-pointer hover:text-rose-500 transition">
   <span>{{ a && a.name ? a.name : '' }}</span><span>${{ formatNumber(a && a.amount ? a.amount : 0) }}</span>
                   </div>
                   <div class="flex justify-between font-bold text-slate-700 dark:text-slate-300 border-b dark:border-slate-700 pb-1 pt-2"><span>非流動資產 (投資/固定)</span><span>${{ formatNumber((bsData && bsData.nonCurrentAssets) ? bsData.nonCurrentAssets : 0) }}</span></div>
                  <!-- 非流動資產 -->
-                  <div v-for="a in (bsData && bsData.nonCurrentAssetsList) ? bsData.nonCurrentAssetsList : []" :key="a && a.name ? a.name : ''" @click="filterByAccount(a, '', reportEndDate)" class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2 cursor-pointer hover:text-blue-600 transition">
+                  <div v-for="a in (bsData && bsData.nonCurrentAssetsList) ? bsData.nonCurrentAssetsList : []" :key="a && a.name ? a.name : ''" @click="filterByAccount(a, '', reportEndDate)" class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2 cursor-pointer hover:text-rose-500 transition">
   <span>{{ a && a.name ? a.name : '' }}</span><span>${{ formatNumber(a && a.amount ? a.amount : 0) }}</span>
                   </div>
                 </div>
@@ -1019,7 +1034,7 @@
                 </div>
                 <div class="pl-2 pr-2 mt-2 space-y-1.5 text-sm">
                   <!-- 負債 -->
-                  <div v-for="a in (bsData && bsData.liabList) ? bsData.liabList : []" :key="a && a.name ? a.name : ''" @click="filterByAccount(a, '', reportEndDate)"class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2 cursor-pointer hover:text-blue-600 transition">
+                  <div v-for="a in (bsData && bsData.liabList) ? bsData.liabList : []" :key="a && a.name ? a.name : ''" @click="filterByAccount(a, '', reportEndDate)"class="flex justify-between text-slate-600 dark:text-slate-400 text-xs pl-2 cursor-pointer hover:text-rose-500 transition">
   <span>{{ a && a.name ? a.name : '' }}</span><span>${{ formatNumber(a && a.amount ? a.amount : 0) }}</span>
                   </div>
                 </div>
@@ -1246,13 +1261,23 @@
               <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg> 多帳本與帳務基礎
             </h2>
             <div class="space-y-3">
-              <div class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm flex items-center gap-2">
-                <select v-model="currentBookId" @change="switchBook($event)" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm font-bold bg-slate-50 dark:text-white">
-                  <option v-for="book in availableBooks" :key="book && book.id ? book.id : ''" :value="book && book.id ? book.id : ''">{{ book && book.name ? book.name : '' }}</option>
-                </select>
-                <button @click="showNewBookModal = true" class="bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800 border border-indigo-200 px-3 py-2 rounded-lg font-bold text-sm shadow-sm transition whitespace-nowrap">+ 建立</button>
-                <button @click="deleteBook(currentBookId)" class="bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800 border border-red-200 px-3 py-2 rounded-lg font-bold text-sm shadow-sm transition whitespace-nowrap">刪除</button>
+              <div class="bg-white dark:bg-slate-800 p-4 rounded-xl border dark:border-slate-700 shadow-sm flex flex-col gap-3">
+              <div class="flex justify-between items-center mb-1">
+                <span class="text-xs text-slate-500 font-bold">自訂匯率 (1外幣 = X台幣)</span>
+                <button @click="updateFxRates" class="text-[10px] bg-orange-100 text-orange-700 hover:bg-orange-200 px-2.5 py-1.5 rounded-lg font-bold shadow-sm border border-orange-200 transition flex items-center gap-1">
+                  <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> 雲端自動更新
+                </button>
               </div>
+              <div v-for="(rate, cur) in data.currencyRates" :key="cur" v-show="cur !== 'TWD'" class="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+                <span class="w-10">{{ cur }}</span>
+                <input type="number" inputmode="decimal" step="0.0001" v-model.number="data.currencyRates[cur]" @change="autoBackup" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white" />
+                <button v-if="cur !== 'USD' && cur !== 'JPY'" @click="deleteCustomCurrency(cur)" class="p-2 text-slate-400 hover:text-red-500 bg-slate-50 dark:bg-slate-900 rounded-lg transition"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></button>
+              </div>
+              <div class="flex gap-2 pt-3 border-t dark:border-slate-700 mt-1">
+                <input type="text" v-model="newCurrencyCode" placeholder="新增幣別(如 EUR)" maxlength="3" class="border p-2 rounded-lg w-1/2 dark:bg-slate-700 outline-none text-sm bg-slate-50 dark:text-white uppercase font-mono">
+                <button @click="addCustomCurrency" class="flex-1 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 rounded-lg text-sm font-bold shadow-sm transition">新增幣別</button>
+              </div>
+            </div>
               <div class="flex items-center justify-between bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm gap-3">
                 <div class="flex flex-col">
                     <span class="text-sm font-bold text-slate-700 dark:text-slate-300">結算起算日 (非自然月)</span>
@@ -1497,6 +1522,36 @@
         </div>
       </div>
 
+<!-- [全新] 編輯/刪除帳戶彈窗 -->
+      <div v-if="showEditAccountModal" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+          <h3 class="text-xl font-bold mb-4 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-blue-600 dark:text-blue-400">
+            <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg> 編輯帳戶資訊
+          </h3>
+          <div class="space-y-4">
+            <div>
+              <div class="text-xs text-slate-500 mb-1 font-bold">帳戶/卡片名稱</div>
+              <input type="text" v-model="editingAccount.name" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-base font-bold bg-slate-50 dark:text-white">
+            </div>
+            <div>
+              <div class="text-xs text-slate-500 mb-1 font-bold flex justify-between"><span>選擇新圖示</span><span class="text-blue-500">{{ editingAccount.icon }}</span></div>
+              <div class="grid grid-cols-6 gap-1.5 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border dark:border-slate-700">
+                <button v-for="emoji in ['🏦','💳','👛','🐷','💰','📈','🏠','🚗','🛒','💎','✈️','🎁']" :key="emoji" @click="editingAccount.icon = emoji" :class="editingAccount.icon === emoji ? 'bg-blue-200 dark:bg-blue-800 border-blue-400 scale-110 shadow-sm' : 'bg-white dark:bg-slate-800 border-transparent hover:bg-slate-100 dark:hover:bg-slate-700'" class="text-xl h-10 rounded border transition flex items-center justify-center">
+                  {{ emoji }}
+                </button>
+              </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+              <button @click="showEditAccountModal = false" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold transition">取消</button>
+              <button @click="saveEditAccount" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-bold transition shadow-lg">儲存</button>
+            </div>
+            <button @click="executeDeleteAccountFromModal" class="w-full mt-3 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 text-red-500 border border-red-200 dark:border-red-800 p-2.5 rounded-xl font-bold transition flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> 刪除此帳戶
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- 2. 新增貸款彈窗 -->
       <div v-if="showAddLoanModal" class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
         <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
@@ -1586,7 +1641,7 @@
                 <input type="text" v-model="initStock.name" placeholder="如: 台積電" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white">
               </div>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex gap-3">
               <div class="w-1/3">
                 <div class="text-xs text-slate-500 mb-1 font-bold">單位</div>
                 <select v-model="initStock.unitType" @change="calculateInitStockCost('unitType')" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none font-bold bg-slate-50 dark:text-white">
@@ -1599,7 +1654,7 @@
                 <input type="number" inputmode="numeric" pattern="[0-9]*" v-model.number="initStock.shares" @input="calculateInitStockCost('shares')" placeholder="輸入數量" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none font-mono bg-slate-50 dark:text-white">
               </div>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="flex gap-3">
               <div class="flex-1">
                 <div class="text-xs text-slate-500 mb-1 font-bold">每股買進單價</div>
                 <input type="number" inputmode="decimal" step="0.01" v-model.number="initStock.price" @input="calculateInitStockCost('price')" placeholder="單價" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none font-mono bg-slate-50 dark:text-white">

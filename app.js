@@ -555,6 +555,108 @@ const app = createApp({
    activeTab.value = 'history';
    setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
     };
+
+    // --- 1. 明細頁面返回鍵邏輯 ---
+    const historyPreviousTab = ref(null);
+    const clearHistoryFilterAndBack = () => {
+        historyFilter.keyword = '';
+        historyFilter.dateFrom = '';
+        historyFilter.dateTo = '';
+        activeTab.value = historyPreviousTab.value || 'assets';
+        historyPreviousTab.value = null;
+        setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
+    };
+
+    // (修改原本的 filterByAccount，加入記錄前一頁的功能)
+    const filterByAccount = (acc, fromDate = '', toDate = '') => {
+       if (!acc) return;
+       historyPreviousTab.value = activeTab.value; // 紀錄是從哪個 Tab 過來的
+       historyFilter.keyword = acc.name || ''; 
+       historyFilter.dateFrom = fromDate || ''; 
+       historyFilter.dateTo = toDate || ''; 
+       historyFilter.scope = 'all'; 
+       activeTab.value = 'history';
+       setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
+    };
+
+    // --- 2. 帳戶編輯與刪除彈窗邏輯 ---
+    const showEditAccountModal = ref(false);
+    const editingAccount = reactive({ id: '', name: '', icon: '' });
+    
+    const openEditAccountModal = (acc) => {
+        editingAccount.id = acc.id;
+        editingAccount.name = acc.name;
+        editingAccount.icon = acc.icon || '🏦';
+        showEditAccountModal.value = true;
+    };
+    
+    const saveEditAccount = () => {
+        let acc = data.accounts.find(a => a.id === editingAccount.id);
+        if (acc) {
+            acc.name = editingAccount.name;
+            acc.icon = editingAccount.icon;
+            autoBackup(true, true);
+        }
+        showEditAccountModal.value = false;
+        refreshIcons();
+    };
+    
+    const executeDeleteAccountFromModal = () => {
+        let id = editingAccount.id;
+        let isUsed = false;
+        data.transactions.forEach(tx => {
+            if(tx.debits) tx.debits.forEach(d => { if(d.account_id === id) isUsed = true; });
+            if(tx.credits) tx.credits.forEach(c => { if(c.account_id === id) isUsed = true; });
+        });
+        if (isUsed) {
+            alert("⚠️ 該帳戶已有交易紀錄無法直接刪除。\n若不再使用，請至「設定 > 分類與標籤」中點選停用即可隱藏。");
+            return;
+        }
+        if (confirm("確定要永久刪除此帳戶嗎？此操作無法復原。")) { 
+            data.accounts = data.accounts.filter(a => a && a.id !== id); 
+            showEditAccountModal.value = false;
+            autoBackup(true, true); 
+        }
+    };
+
+    // --- 3. 外幣匯率自訂與自動更新邏輯 ---
+    const newCurrencyCode = ref('');
+    
+    const addCustomCurrency = () => {
+        let code = newCurrencyCode.value.toUpperCase().trim();
+        if (!code || code.length !== 3) return alert('請輸入3碼英文幣別 (如: EUR, GBP)');
+        if (data.currencyRates[code]) return alert('該幣別已經存在列表囉');
+        data.currencyRates[code] = 1.0; 
+        newCurrencyCode.value = '';
+        autoBackup(true, true);
+    };
+    
+    const deleteCustomCurrency = (code) => {
+        if(code === 'USD' || code === 'JPY' || code === 'TWD') return alert('系統預設幣別無法刪除');
+        if(!confirm(`確定要刪除幣別 ${code} 嗎？\n(注意：若有使用該幣別的帳戶，換算可能會受影響)`)) return;
+        delete data.currencyRates[code];
+        autoBackup(true, true);
+    };
+    
+    const updateFxRates = async () => {
+        try {
+            let res = await fetchWithTimeout('https://api.exchangerate-api.com/v4/latest/TWD', {}, 4000);
+            let apiData = await res.json();
+            if (apiData && apiData.rates) {
+                for (let cur in data.currencyRates) {
+                    if (cur !== 'TWD' && apiData.rates[cur]) {
+                        // API 回傳的是 1 台幣 = X 外幣，所以 1 外幣 = (1 / X) 台幣
+                        data.currencyRates[cur] = Number((1 / apiData.rates[cur]).toFixed(4));
+                    }
+                }
+                autoBackup();
+                alert('✅ 所有外幣匯率已自動雲端同步更新完畢！');
+            }
+        } catch(e) {
+            alert('⚠️ 無法連線至匯率 API，請檢查網路狀態或稍後再試。');
+        }
+    };
+
     const viewProjectDetails = (tag) => {
        if (!tag) return;
        historyFilter.keyword = '#' + tag; historyFilter.dateFrom = ''; historyFilter.dateTo = ''; historyFilter.scope = 'all'; activeTab.value = 'history'; isDrawerOpen.value = false;
@@ -2052,7 +2154,7 @@ const app = createApp({
       calcAppend, calcClear, calcBackspace, calcConfirm, startVoiceRecognition,
       editingProjectId, openEditProjectBudgetModal, closeProjectBudgetModal,
       submitProjectBudget, deleteProjectBudget, projectBudgetStats, viewProjectDetails,
-      changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput, onInvestSelectedSymbolChange, filterByAccount,
+      changeTab, unlockApp, saveSettings, exportData, importData, onSymbolInput, onInvestSelectedSymbolChange, filterByAccount,historyPreviousTab, clearHistoryFilterAndBack, showEditAccountModal, editingAccount, openEditAccountModal, saveEditAccount, executeDeleteAccountFromModal, newCurrencyCode, addCustomCurrency, deleteCustomCurrency, updateFxRates,
       activeBookName, availableBooks, assetAccounts, paymentAccounts, liabilityAccounts, activeInstallments, 
       getSubAccounts, safeQuickTags, safeInvestments, safeFixedAssets, safeLoans, safeRecurring, safeSavingsGoals,
       currentHoldings, historicalHoldings, calculateBalance, getBaseBalance, accountsWithBalance, 
