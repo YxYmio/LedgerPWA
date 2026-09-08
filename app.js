@@ -549,16 +549,7 @@ const app = createApp({
     };
 
     const changeTab = (tab) => { activeTab.value = tab; isDrawerOpen.value = false; };
-    const filterByAccount = (acc, fromDate = '', toDate = '') => {
-   if (!acc) return;
-   historyFilter.keyword = acc.name || ''; 
-   historyFilter.dateFrom = fromDate || ''; 
-   historyFilter.dateTo = toDate || ''; 
-   historyFilter.scope = 'all'; 
-   activeTab.value = 'history';
-   setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
-    };
-
+    
     // --- 1. 明細頁面返回鍵邏輯 ---
     const historyPreviousTab = ref(null);
     const clearHistoryFilterAndBack = () => {
