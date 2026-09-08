@@ -2173,9 +2173,9 @@
               <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
               <h3 class="text-2xl font-black drop-shadow-md">{{ sharedData && sharedData.n ? sharedData.n : '專案結算報告' }}</h3>
             </div>
-            <button @click="showSharedSettlementModal = false; sharedData = null" class="z-10 p-2 bg-black/20 hover:bg-black/40 rounded-full transition backdrop-blur-md">
-              <svg class="w-5 h-5" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-            </button>
+            <button @click="closeSharedSettlementModal" class="z-10 p-2 bg-black/20 hover:bg-black/40 rounded-full transition backdrop-blur-md">
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+           </button>
           </div>
 
           <!-- 滾動內容 Body -->

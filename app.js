@@ -79,7 +79,10 @@ const app = createApp({
     // --- Phase 4: 分享結算報告彈窗 ---
     const showSharedSettlementModal = ref(false);
     const sharedData = ref(null);
-
+    const closeSharedSettlementModal = () => {
+        showSharedSettlementModal.value = false;
+        sharedData.value = null;
+    };
     // ------------------------------------------------------------------------
     // 4. 設定與全域資料模型 (Data Models)
     // ------------------------------------------------------------------------
@@ -2141,7 +2144,7 @@ const app = createApp({
       
       showGroupSplitProjectModal, showGroupSplitRecordModal, showGroupSettleLedgerModal,
       showRolloverModal, rolloverDate, hasDownloadedBackup, openRolloverModal, downloadBackupForRollover, executeRollover,
-      showSharedSettlementModal, sharedData,
+      showSharedSettlementModal, sharedData,closeSharedSettlementModal,
       activeSplitProjectId, groupSplitProjectForm, groupSplitRecordForm, groupSettleLedgerForm,
       activeSplitProject, activeSplitRecords, activeSplitBalances, activeSplitSettlements,
       openGroupSplitCenter, viewGroupSplitProject, backToSplitProjects, addSplitMemberField, removeSplitMemberField,
