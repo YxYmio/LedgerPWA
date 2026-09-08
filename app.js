@@ -1498,6 +1498,7 @@ const app = createApp({
             showScannerModal.value = false;
         }
     };
+
     
     const submitProjectBudget = () => {
         // 1. 寬鬆驗證：只強制要求名稱與金額上限
