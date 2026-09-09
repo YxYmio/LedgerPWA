@@ -104,56 +104,7 @@ const app = createApp({
         updateCharts();
         alert('✅ 固定資產修改成功！');
     };
-    const showDisposalModal = ref(false);
-    // 1. 新增 subsidyAmount (補助金)
-    const disposalForm = reactive({ type: 'scrap', price: null, account: '', subsidyAmount: null });
-    
-    // 2. 新增 date (購買日期)
-    const showEditFAModal = ref(false);
-    const editFAForm = reactive({ id: '', name: '', date: '', cost: null, months: 60 });
 
-    const openEditFAModal = (fa) => {
-        if (!fa) return;
-        editFAForm.id = fa.id;
-        editFAForm.name = fa.name;
-        editFAForm.date = fa.purchase_date || typeof getLocalISODate === 'function' ? getLocalISODate() : '';
-        editFAForm.cost = fa.original_cost;
-        editFAForm.months = fa.monthly_depreciation ? Math.round(fa.original_cost / fa.monthly_depreciation) : 60;
-        showEditFAModal.value = true;
-    };
-
-    const saveEditFA = () => {
-        if (!editFAForm.name || !editFAForm.date || !editFAForm.cost || !editFAForm.months) return alert("請填寫完整資訊");
-        let fa = data.fixed_assets.find(f => f && f.id === editFAForm.id);
-        if (!fa) return;
-
-        fa.name = editFAForm.name;
-        fa.purchase_date = editFAForm.date;
-        fa.original_cost = editFAForm.cost;
-        fa.monthly_depreciation = Math.round(editFAForm.cost / editFAForm.months);
-
-        // 同步更新原本的期初帳務明細與日期
-        let initTx = data.transactions.find(t => t && t.fa_init_id === fa.id);
-        if (initTx) {
-            initTx.date = editFAForm.date;
-            initTx.desc = `購入固定資產: ${fa.name}`;
-            if (initTx.debits && initTx.debits[0]) initTx.debits[0].amount = editFAForm.cost;
-            if (initTx.credits && initTx.credits[0]) initTx.credits[0].amount = editFAForm.cost;
-            
-            // 重新排序交易明細
-            data.transactions.sort((a, b) => {
-                let d1 = (a && a.date) ? a.date : ''; let d2 = (b && b.date) ? b.date : '';
-                if (d1 !== d2) return d1 < d2 ? 1 : -1;
-                let id1 = (a && a.id) ? a.id : ''; let id2 = (b && b.id) ? b.id : '';
-                return id2.localeCompare(id1);
-            });
-        }
-
-        showEditFAModal.value = false;
-        autoBackup(true, true);
-        updateCharts();
-        alert('✅ 固定資產修改成功！');
-    };
     const showAddLoanModal = ref(false);
     const showRateModal = ref(false);
     const showResetModal = ref(false);
