@@ -775,14 +775,15 @@ const app = createApp({
 
     const recentExpenses = computed(() => {
         return sortedTransactions.value.filter(tx => {
-            if (!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed) return false;
+            // 新增 || tx.auto_generated：徹底過濾掉折舊、分期、定期等系統產生的明細
+            if (!tx || tx.is_refunded || tx.is_refund || tx.is_reimbursed || tx.auto_generated) return false;
             let isExp = false;
             if (tx.debits && tx.debits.length > 0) {
                 let acc = (data.accounts || []).find(a => a && a.id === tx.debits[0].account_id);
                 if (acc && acc.type === 'Expense') isExp = true;
             }
             return isExp;
-        }).slice(0, 5); // 抓取近 5 筆支出
+        }).slice(0, 5); // 抓取近 5 筆手動支出
     });
 
     const applyRecentTx = (tx) => {
