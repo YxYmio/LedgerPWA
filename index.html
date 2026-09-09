@@ -1215,7 +1215,8 @@
   <div class="flex items-center gap-2 mt-1">
      <span class="text-xs text-slate-500 font-bold ml-1 w-12">圖示:</span>
      <div class="flex-1 grid grid-cols-8 gap-1">
-        <button v-for="emoji in ['🍽️','🚗','🏠','🎉','👗','🏥','🛒','🎮']" :key="emoji" @click="newSubCat.icon = emoji" :class="newSubCat.icon === emoji ? 'bg-blue-200 dark:bg-blue-800 border-blue-400 scale-110 shadow-sm' : 'bg-white dark:bg-slate-800 border-transparent hover:bg-slate-100 dark:hover:bg-slate-700'" class="text-base h-8 rounded border transition flex items-center justify-center">
+        <!-- 替換這一行 -->
+        <button v-for="emoji in ['🍽️','🚗','🏠','🎉','👗','🏥','🛒','🎮','☕','🚆','💡','🎬','📱','💊','🛍️','🎧','🍔','✈️','🧻','📚','💼','🐶','🧾','💰']" :key="emoji" @click="newSubCat.icon = emoji" :class="newSubCat.icon === emoji ? 'bg-blue-200 dark:bg-blue-800 border-blue-400 scale-110 shadow-sm' : 'bg-white dark:bg-slate-800 border-transparent hover:bg-slate-100 dark:hover:bg-slate-700'" class="text-base h-8 rounded border transition flex items-center justify-center">
           {{ emoji }}
         </button>
      </div>
