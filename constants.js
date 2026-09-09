@@ -10,7 +10,7 @@ const DEFAULT_CATEGORIES = {
         { category: '薪資', sub: ['本薪'] },
         { category: '獎金分紅', sub: ['年終獎金', '績效獎金'] },
         { category: '副業/兼職', sub: ['兼職收入'] },
-        { category: '投資股利/利息', sub: ['銀行利息'] },
+        { category: '存款利息/財務收益', sub: ['銀行活存利息', '定存利息'] },
         { category: '其他入帳', sub: ['其他收入'] }
     ],
     QuickTags: ['早餐', '午餐', '晚餐', '飲料', '加油']
