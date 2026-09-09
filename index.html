@@ -606,6 +606,8 @@
           
           <div v-for="tx in paginatedTransactions" :key="tx && tx.id ? tx.id : ''" class="p-3.5 border rounded-xl flex justify-between items-center mb-3 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm relative overflow-hidden transition-all hover:border-blue-300" :class="{'opacity-60': tx && (tx.is_refunded || tx.is_refund || tx.is_reimbursed)}">
             <div class="absolute left-0 top-0 bottom-0 w-1.5" :class="getTxColorBand(tx)"></div>
+            
+            <!-- 左半部：資訊區塊 -->
             <div class="pl-2 flex-1 pr-2">
               <div class="font-bold text-[15px] truncate text-slate-800 dark:text-white flex flex-wrap items-center gap-1">
                 <span v-if="tx && tx.is_refunded" class="text-[10px] bg-slate-200 text-slate-600 px-1 rounded flex-shrink-0">已退滿</span>
@@ -624,9 +626,13 @@
                 <span>{{ tx && tx.date ? tx.date : '' }}</span>
                 <span v-if="tx && tx.refunded_amount > 0 && !tx.is_refund" class="text-orange-500 font-bold">(已退 ${{ formatNumber(tx.refunded_amount) }})</span>
               </div>
+              
+              <!-- 借貸顯示邏輯 -->
               <div v-if="tx && tx.invest_action === 'stock_dividend'" class="text-[11px] text-teal-600 dark:text-teal-400 mt-1.5 bg-teal-50 dark:bg-teal-900/30 inline-block px-1.5 py-0.5 rounded border border-teal-200 dark:border-teal-800">備忘錄 (僅增加庫存股數，無資金異動)</div>
-<div v-else class="text-[11px] text-slate-600 dark:text-slate-400 mt-1.5 bg-slate-100 dark:bg-slate-900 inline-block px-1.5 py-0.5 rounded border dark:border-slate-700">借: {{ getDebitAccName(tx) }} / 貸: {{ getCreditAccName(tx) }}</div>
+              <div v-else class="text-[11px] text-slate-600 dark:text-slate-400 mt-1.5 bg-slate-100 dark:bg-slate-900 inline-block px-1.5 py-0.5 rounded border dark:border-slate-700">借: {{ getDebitAccName(tx) }} / 貸: {{ getCreditAccName(tx) }}</div>
+            </div> <!-- 🛑 關鍵：這個 </div> 剛剛不小心被刪掉了，這裡已經幫你補上 -->
 
+            <!-- 右半部：金額與按鈕區塊 -->
             <div class="flex flex-col items-end">
               <div class="font-black text-lg" :class="getTxAmountColor(tx)">${{ formatNumber(getDebitAmount(tx)) }}</div>
               <div class="flex gap-2 mt-1">
