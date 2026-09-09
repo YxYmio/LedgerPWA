@@ -202,8 +202,11 @@ const app = createApp({
     const initGoal = reactive({ id: '', name: '', target: null, deadline: '', tag: '' });
     const editGoal = (goal) => {
         if(!goal) return;
-        initGoal.id = goal.id; initGoal.name = goal.name; initGoal.tag = goal.tag || '';
-        initGoal.target = goal.target; initGoal.deadline = goal.deadline || '';
+        initGoal.id = goal.id; 
+        initGoal.name = goal.name; 
+        initGoal.tag = goal.tag || '';
+        initGoal.target = goal.target; 
+        initGoal.deadline = goal.deadline || '';
         showAddGoalModal.value = true;
     };
     const activeGoal = ref(null);
@@ -274,6 +277,7 @@ const app = createApp({
     const addSplitMemberField = () => { groupSplitProjectForm.members.push({name: ''}); };
     const removeSplitMemberField = (idx) => { groupSplitProjectForm.members.splice(idx, 1); };
 
+    // 新增：群組專案編輯函式
     const editGroupSplitProject = (proj) => {
         if (!proj) return;
         groupSplitProjectForm.id = proj.id;
@@ -290,16 +294,22 @@ const app = createApp({
         if(!validMembers.find(m => m.name === '我')) validMembers.unshift({name: '我'});
 
         if (groupSplitProjectForm.id) {
+            // 編輯模式
             let p = data.split_projects.find(x => x && x.id === groupSplitProjectForm.id);
             if (p) { p.name = groupSplitProjectForm.name; p.members = validMembers; }
         } else {
+            // 新增模式
             data.split_projects.push({
-                id: 'gsp_' + Date.now(), name: groupSplitProjectForm.name,
+                id: 'gsp_' + Date.now(), 
+                name: groupSplitProjectForm.name,
                 date: typeof getLocalISODate === 'function' ? getLocalISODate() : getLocalISODate(),
-                members: validMembers, is_settled: false
+                members: validMembers, 
+                is_settled: false
             });
         }
-        showGroupSplitProjectModal.value = false; autoBackup(true, true);
+        groupSplitProjectForm.name = ''; groupSplitProjectForm.members = [{name: '我'}, {name: ''}];
+        showGroupSplitProjectModal.value = false; 
+        autoBackup(true, true);
     };
 
     const deleteGroupSplitProject = (id) => {
@@ -751,7 +761,14 @@ const app = createApp({
 
     const viewProjectDetails = (tag) => {
        if (!tag) return;
-       historyFilter.keyword = '#' + tag; historyFilter.dateFrom = ''; historyFilter.dateTo = ''; historyFilter.scope = 'all'; activeTab.value = 'history'; isDrawerOpen.value = false;
+       historyPreviousTab.value = activeTab.value; // 補上這行：紀錄從哪個分頁跳轉過去的
+       historyFilter.keyword = '#' + tag; 
+       historyFilter.dateFrom = ''; 
+       historyFilter.dateTo = ''; 
+       historyFilter.scope = 'all'; 
+       activeTab.value = 'history'; 
+       isDrawerOpen.value = false;
+       setTimeout(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, 50);
     };
 
     const resetData = () => {
@@ -1904,12 +1921,17 @@ const app = createApp({
       let tagClean = initGoal.tag ? initGoal.tag.replace('#', '').trim() : initGoal.name.replace(/\s+/g, '');
       
       if (initGoal.id) {
+          // 編輯模式
           let g = data.savings_goals.find(x => x && x.id === initGoal.id);
           if (g) { g.name = initGoal.name; g.tag = tagClean; g.target = initGoal.target; g.deadline = initGoal.deadline; }
       } else {
+          // 新增模式
           data.savings_goals.push({ id: 'goal_' + Date.now(), name: initGoal.name, tag: tagClean, target: initGoal.target, deadline: initGoal.deadline, saved: 0 });
       }
-      showAddGoalModal.value = false; autoBackup(true, true); alert('✅ 目標儲存成功！');
+      showAddGoalModal.value = false; 
+      initGoal.name = ''; initGoal.tag = ''; initGoal.target = null; initGoal.deadline = ''; 
+      autoBackup(true, true); 
+      alert('✅ 目標儲存成功！');
     };
     const openUpdateGoalModal = (goal) => { activeGoal.value = goal; updateGoalData.amount = null; updateGoalData.type = 'add'; showUpdateGoalModal.value = true; };
     const submitUpdateGoal = () => {
