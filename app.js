@@ -1020,7 +1020,19 @@ const app = createApp({
     };
     const getInvCurrentValue = (inv) => inv ? (Number(inv.shares)||0) * (Number(inv.last_price)||0) * (data.currencyRates[inv.currency||'TWD'] || 1) : 0;
     const getUnrealizedGain = (inv) => inv ? getInvCurrentValue(inv) - (Number(inv.total_cost) || 0) : 0;
-    const getFAAccDep = (fa) => fa ? Math.abs(calculateBalance(fa.accumulated_dep_account_id, 'all')) : 0;
+    const getFAAccDep = (fa) => {
+        if (!fa) return 0;
+        let sum = 0;
+        // 精準透過 asset_id 加總，避免多個固定資產的折舊額混淆
+        (data.transactions || []).forEach(tx => {
+            if (tx && tx.asset_id === fa.id && !tx.is_refunded && !tx.is_refund) {
+                (tx.credits || []).forEach(c => {
+                    if (c && c.account_id === fa.accumulated_dep_account_id) sum += (Number(c.amount) || 0);
+                });
+            }
+        });
+        return sum;
+    };
     const getFABookValue = (fa) => fa ? (Number(fa.original_cost)||0) - getFAAccDep(fa) : 0;
     const getAccumulatedInterest = (loanId) => {
       let sum = 0;
@@ -1881,14 +1893,46 @@ const app = createApp({
 
     const runAutoTasks = () => {
       let curM = getLocalISODate().substring(0,7); let today = new Date().getDate();
+      // 固定資產折舊 (支援補齊歷史未折舊月份)
       (data.fixed_assets || []).forEach(fa => {
         if(!fa || fa.is_disposed) return;
         let ld = fa.last_depreciation_date || fa.purchase_date || '';
-        if (ld && ld.length >= 7 && ld.substring(0,7) < curM) {
-          let accDep = getFAAccDep(fa);
-          if (accDep + fa.monthly_depreciation > fa.original_cost) return; 
-          data.transactions.unshift({ id: 'tx_dep_'+Date.now()+Math.random(), date: getLocalISODate(), desc: `${fa.name} 自動折舊`, scope: 'family', auto_generated: true, asset_id: fa.id, debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }], credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }] });
-          fa.last_depreciation_date = getLocalISODate();
+        if (ld && ld.length >= 7) {
+            let startY = parseInt(ld.substring(0,4));
+            let startM = parseInt(ld.substring(5,7));
+            let loopY = startY;
+            let loopM = startM;
+            let processCount = 0;
+
+            while (true) {
+                // 每回合推進一個月
+                loopM++;
+                if (loopM > 12) { loopM = 1; loopY++; }
+                let targetM = `${loopY}-${String(loopM).padStart(2,'0')}`;
+                
+                if (targetM > curM) break; // 已達到或超越當前月份，停止補齊
+                
+                let currentAccDep = getFAAccDep(fa);
+                if (currentAccDep + fa.monthly_depreciation > fa.original_cost) {
+                    fa.last_depreciation_date = targetM + '-01'; 
+                    continue; // 已經折舊完畢，只推進日期不產生明細
+                }
+                
+                data.transactions.unshift({ 
+                    id: 'tx_dep_' + Date.now() + Math.random(), 
+                    date: `${targetM}-01`, // 紀錄為該月的 1 號
+                    desc: `${fa.name} 自動折舊`, 
+                    scope: 'family', 
+                    auto_generated: true, 
+                    asset_id: fa.id, 
+                    debits: [{ account_id: fa.expense_account_id, amount: fa.monthly_depreciation }], 
+                    credits: [{ account_id: fa.accumulated_dep_account_id, amount: fa.monthly_depreciation }] 
+                });
+                fa.last_depreciation_date = `${targetM}-01`;
+                processCount++;
+                
+                if (processCount > 600) break; // 防呆機制，最多補齊 50 年避免無窮迴圈
+            }
         }
       });
       (data.installments || []).forEach(inst => {

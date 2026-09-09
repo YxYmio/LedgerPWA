@@ -356,7 +356,8 @@
                 </select>
                 <select v-model="newTx.subAccount" class="border p-2.5 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white">
                   <option value="" disabled>子類別</option>
-                  <option v-for="acc in getSubAccounts('Income', newTx.mainCategory)" :key="acc && acc.id ? acc.id : ''" :value="acc && acc.id ? acc.id : ''">{{ acc && acc.icon ? acc.icon : '🏷️' }} {{ acc && acc.name ? acc.name : '' }}</option>
+                  <!-- 隱藏系統自動生成的處分 (4201) 與股利科目 (4202)，強制引導從「投資」功能紀錄 -->
+                  <option v-for="acc in getSubAccounts('Income', newTx.mainCategory).filter(a => !['4201', '4202'].includes(a && a.id))" :key="acc && acc.id ? acc.id : ''" :value="acc && acc.id ? acc.id : ''">{{ acc && acc.icon ? acc.icon : '🏷️' }} {{ acc && acc.name ? acc.name : '' }}</option>
                 </select>
               </div>
               <select v-model="newTx.paymentAcc" class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white mt-2">
