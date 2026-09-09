@@ -58,11 +58,72 @@ const app = createApp({
     // 1. 新增 subsidyAmount (補助金)
     const disposalForm = reactive({ type: 'scrap', price: null, account: '', subsidyAmount: null });
     
-    // 2. 新增 date (購買日期)
+    // 2. 新增 date (購買日期) 與固定資產編輯/刪除邏輯
     const showEditFAModal = ref(false);
     const editFAForm = reactive({ id: '', name: '', date: '', cost: null, months: 60 });
 
-    const openEditFAModal
+    const openEditFAModal = (fa) => {
+        if (!fa) return;
+        editFAForm.id = fa.id;
+        editFAForm.name = fa.name;
+        editFAForm.date = fa.purchase_date || ((typeof getLocalISODate === 'function') ? getLocalISODate() : '');
+        editFAForm.cost = fa.original_cost;
+        editFAForm.months = fa.monthly_depreciation ? Math.round(fa.original_cost / fa.monthly_depreciation) : 60;
+        showEditFAModal.value = true;
+    };
+
+    const saveEditFA = () => {
+        if (!editFAForm.name || !editFAForm.date || !editFAForm.cost || !editFAForm.months) return alert("請填寫完整資訊");
+        let fa = data.fixed_assets.find(f => f && f.id === editFAForm.id);
+        if (!fa) return;
+
+        fa.name = editFAForm.name;
+        fa.purchase_date = editFAForm.date;
+        fa.original_cost = editFAForm.cost;
+        fa.monthly_depreciation = Math.round(editFAForm.cost / editFAForm.months);
+
+        // 同步更新原本的期初帳務明細與日期
+        let initTx = data.transactions.find(t => t && t.fa_init_id === fa.id);
+        if (initTx) {
+            initTx.date = editFAForm.date;
+            initTx.desc = `購入固定資產: ${fa.name}`;
+            if (initTx.debits && initTx.debits[0]) initTx.debits[0].amount = editFAForm.cost;
+            if (initTx.credits && initTx.credits[0]) initTx.credits[0].amount = editFAForm.cost;
+            
+            // 重新排序交易明細 (因為日期可能改變了)
+            data.transactions.sort((a, b) => {
+                let d1 = (a && a.date) ? a.date : ''; let d2 = (b && b.date) ? b.date : '';
+                if (d1 !== d2) return d1 < d2 ? 1 : -1;
+                let id1 = (a && a.id) ? a.id : ''; let id2 = (b && b.id) ? b.id : '';
+                return id2.localeCompare(id1);
+            });
+        }
+
+        showEditFAModal.value = false;
+        autoBackup(true, true);
+        updateCharts();
+        alert('✅ 固定資產修改成功！');
+    };
+
+    const executeDeleteFAFromModal = () => {
+        if (!confirm('確定要刪除此固定資產嗎？這將會同步刪除「當時期初建檔」與「所有自動折舊」的交易紀錄！')) return;
+        
+        // 1. 徹底刪除該資產產生的所有自動折舊明細
+        data.transactions = data.transactions.filter(t => !(t && t.asset_id === editFAForm.id));
+
+        // 2. 找出並刪除期初建檔明細 (這會連帶觸發 deleteTransaction 內部邏輯刪除 fixed_assets 陣列)
+        let initTx = data.transactions.find(t => t && t.fa_init_id === editFAForm.id);
+        if (initTx) {
+            deleteTransaction(initTx.id); 
+        } else {
+            // 防呆：若無期初明細，直接手動刪除資產
+            data.fixed_assets = data.fixed_assets.filter(f => f && f.id !== editFAForm.id);
+            autoBackup(true, true);
+            updateCharts();
+        }
+        showEditFAModal.value = false;
+        alert('✅ 固定資產及其相關折舊紀錄已徹底刪除！');
+    };
 
     const showAddLoanModal = ref(false);
     const showRateModal = ref(false);
