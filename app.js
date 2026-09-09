@@ -54,7 +54,40 @@ const app = createApp({
     const showAddAccountModal = ref(false);
     const showInitialStockModal = ref(false);
     const showAddFixedAssetModal = ref(false);
-    const showDisposalModal = ref(false);
+    const showEditFAModal = ref(false);
+    const editFAForm = reactive({ id: '', name: '', cost: null, months: 60 });
+
+    const openEditFAModal = (fa) => {
+        if (!fa) return;
+        editFAForm.id = fa.id;
+        editFAForm.name = fa.name;
+        editFAForm.cost = fa.original_cost;
+        editFAForm.months = fa.monthly_depreciation ? Math.round(fa.original_cost / fa.monthly_depreciation) : 60;
+        showEditFAModal.value = true;
+    };
+
+    const saveEditFA = () => {
+        if (!editFAForm.name || !editFAForm.cost || !editFAForm.months) return alert("請填寫完整資訊");
+        let fa = data.fixed_assets.find(f => f && f.id === editFAForm.id);
+        if (!fa) return;
+
+        fa.name = editFAForm.name;
+        fa.original_cost = editFAForm.cost;
+        fa.monthly_depreciation = Math.round(editFAForm.cost / editFAForm.months);
+
+        // 同步更新原本的期初帳務明細
+        let initTx = data.transactions.find(t => t && t.fa_init_id === fa.id);
+        if (initTx) {
+            initTx.desc = `購入固定資產: ${fa.name}`;
+            if (initTx.debits && initTx.debits[0]) initTx.debits[0].amount = editFAForm.cost;
+            if (initTx.credits && initTx.credits[0]) initTx.credits[0].amount = editFAForm.cost;
+        }
+
+        showEditFAModal.value = false;
+        autoBackup(true, true);
+        updateCharts();
+        alert('✅ 固定資產修改成功！');
+    };
     const showAddLoanModal = ref(false);
     const showRateModal = ref(false);
     const showResetModal = ref(false);
@@ -167,7 +200,7 @@ const app = createApp({
     const settingCategoryMode = ref('Expense');
     const newPreset = ref(''); 
     const newMainCat = ref(''); 
-    const newSubCat = reactive({ main: '', name: '' });
+    const newSubCat = reactive({ main: '', name: '', icon: '' });
 
     let tokenClient = null;
 
@@ -1753,7 +1786,23 @@ const app = createApp({
 
     const addMainCategory = () => { let list = data.main_categories[settingCategoryMode.value] || []; if (newMainCat.value && !list.includes(newMainCat.value)) { data.main_categories[settingCategoryMode.value].push(newMainCat.value); newMainCat.value = ''; autoBackup(true, true); } };
     const deleteMainCategory = (type, name) => { if(getSubAccounts(type, name, true).length > 0) return alert("請先清空子類別"); data.main_categories[type] = (data.main_categories[type] || []).filter(c => c !== name); autoBackup(true, true); };
-    const addSubCategory = () => { if (newSubCat.name && newSubCat.main) { data.accounts.push({ id: 'acc_'+Date.now(), name: newSubCat.name, type: settingCategoryMode.value, category: newSubCat.main, currency: 'TWD', is_hidden: false }); newSubCat.name = ''; autoBackup(); refreshIcons(); } };
+    const addSubCategory = () => { 
+    if (newSubCat.name && newSubCat.main) { 
+        data.accounts.push({ 
+            id: 'acc_'+Date.now(), 
+            name: newSubCat.name, 
+            type: settingCategoryMode.value, 
+            category: newSubCat.main, 
+            currency: 'TWD', 
+            is_hidden: false, 
+            icon: newSubCat.icon || '🏷️' 
+        }); 
+        newSubCat.name = ''; 
+        newSubCat.icon = ''; 
+        autoBackup(); 
+        refreshIcons(); 
+    } 
+};
     const addPreset = () => { let list = data.quick_tags || []; if (newPreset.value && !list.includes(newPreset.value)) { data.quick_tags.push(newPreset.value); newPreset.value = ''; autoBackup(true, true); } };
     const removePreset = (idx) => { data.quick_tags.splice(idx, 1); autoBackup(true, true); };
     const toggleAccountVisibility = (id) => { let a = data.accounts.find(a => a && a.id === id); if (a) { a.is_hidden = !a.is_hidden; autoBackup(); refreshIcons(); } };
@@ -2129,7 +2178,7 @@ const app = createApp({
       syncStatus, isSyncing, showAmounts, dashboardMonth, fxRate,
       isCalcOpen, calcExpression, isListening,
       reportView, reportPeriod, reportStartDate, reportEndDate,
-      showAddAccountModal, showInitialStockModal, showAddFixedAssetModal, showDisposalModal, showAddLoanModal, showRateModal, 
+      showAddAccountModal, showInitialStockModal, showAddFixedAssetModal, showDisposalModal,showEditFAModal, editFAForm, openEditFAModal, saveEditFA, showAddLoanModal, showRateModal, 
       showResetModal, showNewBookModal, showAddGoalModal, showUpdateGoalModal, showManualStockModal, showRefundModal, showReimburseModal,
       editTxModal, showInstallmentModal, showProjectBudgetModal,
       
