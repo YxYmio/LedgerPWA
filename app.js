@@ -174,7 +174,7 @@ const app = createApp({
     const newAssetAcc = reactive({ name: '', type: 'Asset', initBalance: null, currency: 'TWD', icon: '', billingDay: 1 });
     const initFA = reactive({ name: '', date: getLocalISODate(), cost: null, months: 60, scope: 'personal' });
     const disposalAsset = ref(null);
-    const disposalForm = reactive({ type: 'scrap', price: null, account: '' });
+    
     const initLoan = reactive({ name: '', principal: null, rate: null, payment: null, autoDeduct: false, deductDay: 1, deductAccountId: '' });
     const activeLoan = ref(null);
     const rateData = reactive({ rate: null });
@@ -1739,22 +1739,62 @@ const app = createApp({
       showAddFixedAssetModal.value = false; initFA.name = ''; initFA.cost = null; initFA.months = 60; initFA.scope = 'personal'; autoBackup(true, true); updateCharts(); alert('✅ 固定資產登錄成功！');
     };
 
-    const openDisposalModal = (fa) => { disposalAsset.value = fa; disposalForm.type = 'scrap'; disposalForm.price = null; disposalForm.account = ''; showDisposalModal.value = true; };
+    // --- 新增：刪除固定資產功能 ---
+    const executeDeleteFAFromModal = () => {
+        if (!confirm('確定要刪除此固定資產嗎？這將會同步刪除當時期初建檔的交易紀錄！')) return;
+        let initTx = data.transactions.find(t => t && t.fa_init_id === editFAForm.id);
+        if (initTx) {
+            deleteTransaction(initTx.id); // 呼叫共用刪除邏輯連動刪除
+        } else {
+            data.fixed_assets = data.fixed_assets.filter(f => f && f.id !== editFAForm.id);
+            autoBackup(true, true);
+            updateCharts();
+        }
+        showEditFAModal.value = false;
+    };
+
+    // --- 更新：支援政府補助金的處分/報廢邏輯 ---
+    const openDisposalModal = (fa) => { 
+        disposalAsset.value = fa; 
+        disposalForm.type = 'scrap'; 
+        disposalForm.price = null; 
+        disposalForm.account = ''; 
+        disposalForm.subsidyAmount = null; 
+        showDisposalModal.value = true; 
+    };
+    
     const submitDisposal = () => {
       if (disposalForm.type === 'sell' && (disposalForm.price === null || !disposalForm.account)) return alert("請填寫出售金額與入帳帳戶");
+      if (disposalForm.type === 'scrap' && disposalForm.subsidyAmount > 0 && !disposalForm.account) return alert("請選擇政府補助金的入帳帳戶");
+      
       let fa = disposalAsset.value; if(!fa) return;
       let bookValue = getFABookValue(fa); let accDep = getFAAccDep(fa);
       let txObj = { id: 'tx_disp_' + Date.now(), date: getLocalISODate(), scope: 'family', desc: `處分資產: ${fa.name}`, debits: [{ account_id: '1201-DEP', amount: accDep }], credits: [{ account_id: '1201', amount: fa.original_cost }] };
+      
       if (disposalForm.type === 'scrap') {
-         if(bookValue > 0) txObj.debits.push({ account_id: '4201', amount: bookValue });
          txObj.desc = `報廢資產: ${fa.name}`;
+         if (disposalForm.subsidyAmount > 0) txObj.desc += ` (含政府補助款)`;
+         
+         let netLossGain = (disposalForm.subsidyAmount || 0) - bookValue;
+         
+         // 認列補助金入帳
+         if (disposalForm.subsidyAmount > 0) {
+             txObj.debits.push({ account_id: disposalForm.account, amount: disposalForm.subsidyAmount });
+         }
+         
+         // 結算淨損益
+         if (netLossGain < 0) {
+             txObj.debits.push({ account_id: '4201', amount: Math.abs(netLossGain) });
+         } else if (netLossGain > 0) {
+             txObj.credits.push({ account_id: '4201', amount: netLossGain });
+         }
       } else {
          txObj.debits.push({ account_id: disposalForm.account, amount: disposalForm.price });
          let gain = disposalForm.price - bookValue;
          if(gain > 0) txObj.credits.push({ account_id: '4201', amount: gain });
          else if (gain < 0) txObj.debits.push({ account_id: '4201', amount: Math.abs(gain) });
       }
-      data.transactions.unshift(txObj); fa.is_disposed = true; showDisposalModal.value = false; autoBackup(true, true); updateCharts(); alert('✅ 處分完成！');
+      data.transactions.unshift(txObj); fa.is_disposed = true; showDisposalModal.value = false; autoBackup(true, true); updateCharts(); alert('✅ 處分/報廢完成！');
     };
 
     const submitAddLoan = () => {
