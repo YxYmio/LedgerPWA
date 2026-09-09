@@ -54,6 +54,7 @@ const app = createApp({
     const showAddAccountModal = ref(false);
     const showInitialStockModal = ref(false);
     const showAddFixedAssetModal = ref(false);
+    const showDisposalModal = ref(false);
     const showEditFAModal = ref(false);
     const editFAForm = reactive({ id: '', name: '', cost: null, months: 60 });
 
