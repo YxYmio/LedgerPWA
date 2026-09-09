@@ -1193,6 +1193,23 @@ const app = createApp({
            txObj.credits.push({ account_id: '4202', amount: newTx.amount });
            txObj.desc = finalName ? `領取配息: ${finalName}` : '領取股利/配息';
            if(newTx.desc) txObj.desc += ` (${newTx.desc})`;
+        } else if (newTx.investAction === 'stock_dividend') {
+           // --- 新增：配股專用邏輯 ---
+           if (!newTx.symbol || !newTx.shares) return txError.value = '請確認配股標的與股數';
+           let inv = (data.investments || []).find(i => i && i.symbol === newTx.symbol);
+           txObj.desc = `配發股票股利: ${newTx.stockName || newTx.symbol} ${newTx.shares}股`;
+           txObj.invest_action = 'stock_dividend'; 
+           txObj.invest_symbol = newTx.symbol; 
+           txObj.invest_shares = newTx.shares; 
+           txObj.invest_cost_value = 0; // 配股為無償取得，不增加總成本
+           
+           if (inv) { 
+             inv.shares += newTx.shares; 
+             // 持有股數增加，總成本不變，藉此攤平平均單價
+             if (inv.shares > 0) inv.last_price = inv.total_cost / inv.shares; 
+           } else { 
+             data.investments.push({ id: 'inv_'+Date.now(), symbol: newTx.symbol, name: newTx.stockName || newTx.symbol, shares: newTx.shares, total_cost: 0, last_price: 0, currency: 'TWD' }); 
+           }
         } else {
            if (!newTx.symbol || !newTx.shares || !newTx.price || !newTx.paymentAcc) return txError.value = '欄位不完整';
            let totalAmt = getInvestTotalAmount();
@@ -1484,7 +1501,23 @@ const app = createApp({
               if (orig.reimbursed_amount < getDebitAmount(orig)) orig.is_reimbursed = false;
           } 
       }
-      if (tx && tx.invest_symbol && tx.invest_shares) { let inv = data.investments.find(i => i && i.symbol === tx.invest_symbol); if (inv) { let s = Number(tx.invest_shares) || 0; let c = Number(tx.invest_cost_value) || 0; if (tx.invest_action === 'buy' || tx.invest_action === 'init') { inv.shares = Math.max(0, inv.shares - s); inv.total_cost = Math.max(0, inv.total_cost - c); } else if (tx.invest_action === 'sell') { inv.shares += s; inv.total_cost += c; } if(inv.shares > 0) inv.last_price = inv.total_cost / inv.shares; else inv.total_cost = 0; } }
+      if (tx && tx.invest_symbol && tx.invest_shares) { 
+          let inv = data.investments.find(i => i && i.symbol === tx.invest_symbol); 
+          if (inv) { 
+              let s = Number(tx.invest_shares) || 0; 
+              let c = Number(tx.invest_cost_value) || 0; 
+              // 將 stock_dividend 納入反向扣除邏輯中
+              if (tx.invest_action === 'buy' || tx.invest_action === 'init' || tx.invest_action === 'stock_dividend') { 
+                  inv.shares = Math.max(0, inv.shares - s); 
+                  inv.total_cost = Math.max(0, inv.total_cost - c); 
+              } else if (tx.invest_action === 'sell') { 
+                  inv.shares += s; 
+                  inv.total_cost += c; 
+              } 
+              if(inv.shares > 0) inv.last_price = inv.total_cost / inv.shares; 
+              else inv.total_cost = 0; 
+          } 
+      }
       if (tx && tx.loan_init_id) { data.loans = data.loans.filter(l => l && l.id !== tx.loan_init_id); if(tx.loan_account_id) data.accounts = data.accounts.filter(a => a && a.id !== tx.loan_account_id); }
       if (tx && tx.fa_init_id) { data.fixed_assets = data.fixed_assets.filter(fa => fa && fa.id !== tx.fa_init_id); }
       
