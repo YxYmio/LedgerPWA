@@ -670,7 +670,7 @@
                <h2 class="text-xl font-bold flex items-center gap-2 text-indigo-600 dark:text-indigo-400"><svg class="w-5 h-5" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg> 專案與分帳中心</h2>
                <div class="flex flex-wrap items-center gap-2">
                  <button @click="showProjectBudgetModal = true" class="text-[10px] bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-slate-200 font-bold shadow-sm transition">+ 個人計畫</button>
-                 <button @click="showGroupSplitProjectModal = true" class="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-900/30 dark:border-indigo-700 dark:text-indigo-300 px-2 py-1.5 rounded-lg hover:bg-indigo-100 font-bold shadow-sm transition">+ 群組分帳</button>
+                 <button @click="groupSplitProjectForm.id=''; groupSplitProjectForm.name=''; groupSplitProjectForm.members=[{name:'我'}, {name:''}]; showGroupSplitProjectModal = true" class="...">+ 群組分帳</button>
                </div>
              </div>
              
@@ -679,7 +679,14 @@
              <div v-if="data.split_projects && data.split_projects.length === 0" class="text-center text-slate-400 text-xs py-4 border border-dashed rounded-lg dark:border-slate-700">目前無群組專案</div>
              <div class="space-y-3">
                <div v-for="proj in data.split_projects" :key="proj && proj.id ? proj.id : ''" @click="viewGroupSplitProject(proj && proj.id ? proj.id : '')" class="p-4 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-xl shadow-sm cursor-pointer hover:border-indigo-400 transition relative">
-                  <div class="flex justify-between items-start mb-1">
+                  
+                  <div class="absolute top-3 right-3 flex gap-2">
+                      <button @click.stop="editGroupSplitProject(proj)" class="text-blue-400 hover:text-blue-500 transition"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+                      <button @click.stop="deleteGroupSplitProject(proj && proj.id ? proj.id : '')" class="text-slate-400 hover:text-red-500 transition"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></button>
+                  </div>
+                  
+                  <div class="flex justify-between items-start mb-1 pr-16">
+                    <!-- ...保持後續原樣... -->
                     <div class="font-bold text-lg text-slate-800 dark:text-white pr-16 truncate">{{ proj && proj.name ? proj.name : '' }}</div>
                     <button @click.stop="viewProjectDetails(proj && proj.name ? proj.name.replace(/\s+/g, '') : '')" class="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded shadow-sm border dark:border-slate-600 hover:bg-slate-200 transition whitespace-nowrap">明細</button>
                   </div>
@@ -695,9 +702,13 @@
                <div v-if="!projectBudgetStats || projectBudgetStats.length === 0" class="text-center text-slate-400 text-xs py-4 border border-dashed rounded-lg dark:border-slate-700">目前無個人專案</div>
                <div v-for="proj in projectBudgetStats" :key="proj && proj.id ? proj.id : ''" class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm relative">
                   <div class="absolute top-3 right-3 flex gap-2">
-                      <button @click.stop="openEditProjectBudgetModal(proj)" class="text-blue-400 hover:text-blue-500 transition"><svg class="w-4 h-4" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
-                      <button @click.stop="deleteProjectBudget(proj && proj.id ? proj.id : '')" class="text-slate-400 hover:text-red-500 transition"><svg class="w-4 h-4" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></button>
-                  </div>
+          <button @click="editGoal(goal)" class="text-blue-400 hover:text-blue-500 transition">
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          </button>
+          <button @click="deleteGoal(goal && goal.id ? goal.id : '')" class="text-slate-400 hover:text-red-500 transition">
+            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+          </button>
+        </div>
                   <div class="flex justify-between items-start mb-1 pr-16">
                       <div class="font-bold text-slate-800 dark:text-white text-sm truncate">{{ proj && proj.name ? proj.name : '' }} <span class="text-[10px] bg-slate-100 dark:bg-slate-700 px-1 rounded text-slate-500 font-normal ml-1">#{{ proj && proj.tag ? proj.tag : '' }}</span></div>
                       <button @click.stop="viewProjectDetails(proj && proj.tag ? proj.tag : '')" class="text-[10px] bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-2 py-1 rounded shadow-sm border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition whitespace-nowrap">明細</button>
@@ -833,7 +844,7 @@
     <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
       <svg class="w-5 h-5 text-pink-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" x2="18" y1="12" y2="12"/><line x1="6" x2="2" y1="12" y2="12"/><line x1="12" x2="12" y1="6" y2="2"/><line x1="12" x2="12" y1="22" y2="18"/></svg> 儲蓄目標計畫
     </h2>
-    <button @click="showAddGoalModal = true" class="text-xs bg-pink-50 text-pink-600 border border-pink-200 dark:bg-pink-900/30 dark:border-pink-700 dark:text-pink-300 px-2 py-1 rounded font-bold shadow-sm transition">+ 新增目標</button>
+    <button @click="initGoal.id=''; initGoal.name=''; initGoal.tag=''; initGoal.target=null; initGoal.deadline=''; showAddGoalModal = true" class="...">+ 新增目標</button>
   </div>
   <div class="space-y-3">
      <div v-if="!safeSavingsGoals || safeSavingsGoals.length === 0" class="text-center text-slate-400 text-xs py-4 border border-dashed rounded-lg dark:border-slate-700">目前無儲蓄目標</div>
@@ -947,7 +958,7 @@
             </div>
             <div class="space-y-2">
                <div v-if="!safeInvestments || safeInvestments.length === 0" class="text-center text-slate-400 text-xs py-3 border border-dashed rounded-lg dark:border-slate-700">無庫存標的</div>
-               <div v-for="inv in (safeInvestments || []).filter(i => i && i.shares > 0)" :key="inv && inv.symbol ? inv.symbol : ''" class="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm">
+               <div v-for="inv in (safeInvestments || []).filter(i => i && i.shares > 0)" :key="inv && inv.symbol ? inv.symbol : ''" @click="filterByAccount({name: (inv.name || inv.symbol)})" class="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm cursor-pointer hover:border-blue-300 transition relative">
                   <div class="flex justify-between items-center mb-1">
                      <div class="font-bold text-sm text-slate-800 dark:text-white">{{ (inv && inv.name) ? inv.name : (inv && inv.symbol ? inv.symbol : '') }} <span class="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 px-1 rounded ml-1">{{ inv && inv.symbol ? inv.symbol : '' }}</span></div>
                      <div class="font-mono font-black text-slate-800 dark:text-white">${{ formatNumber(getInvCurrentValue(inv)) }}</div>

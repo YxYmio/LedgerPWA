@@ -199,7 +199,13 @@ const app = createApp({
     const activeLoan = ref(null);
     const rateData = reactive({ rate: null });
     const newRecurring = reactive({ type: 'expense', desc: '', amount: null, day: 1, account: '' });
-    const initGoal = reactive({ name: '', target: null, deadline: '', tag: '' });
+    const initGoal = reactive({ id: '', name: '', target: null, deadline: '', tag: '' });
+    const editGoal = (goal) => {
+        if(!goal) return;
+        initGoal.id = goal.id; initGoal.name = goal.name; initGoal.tag = goal.tag || '';
+        initGoal.target = goal.target; initGoal.deadline = goal.deadline || '';
+        showAddGoalModal.value = true;
+    };
     const activeGoal = ref(null);
     const updateGoalData = reactive({ amount: null, type: 'add' });
     const activeRefundTx = ref(null);
@@ -268,22 +274,31 @@ const app = createApp({
     const addSplitMemberField = () => { groupSplitProjectForm.members.push({name: ''}); };
     const removeSplitMemberField = (idx) => { groupSplitProjectForm.members.splice(idx, 1); };
 
+    const editGroupSplitProject = (proj) => {
+        if (!proj) return;
+        groupSplitProjectForm.id = proj.id;
+        groupSplitProjectForm.name = proj.name;
+        groupSplitProjectForm.members = JSON.parse(JSON.stringify(proj.members));
+        showGroupSplitProjectModal.value = true;
+    };
+
     const saveGroupSplitProject = () => {
         if(!groupSplitProjectForm.name) return alert('請填寫專案名稱');
-        // 強制防呆：確保陣列存在
         if (!data.split_projects) data.split_projects = [];
         
         let validMembers = groupSplitProjectForm.members.filter(m => (m.name || '').trim() !== '');
         if(!validMembers.find(m => m.name === '我')) validMembers.unshift({name: '我'});
 
-        data.split_projects.push({
-            id: 'gsp_' + Date.now(),
-            name: groupSplitProjectForm.name,
-            date: typeof getLocalISODate === 'function' ? getLocalISODate() : getLocalISODate(),
-            members: validMembers,
-            is_settled: false
-        });
-        groupSplitProjectForm.name = ''; groupSplitProjectForm.members = [{name: '我'}, {name: ''}];
+        if (groupSplitProjectForm.id) {
+            let p = data.split_projects.find(x => x && x.id === groupSplitProjectForm.id);
+            if (p) { p.name = groupSplitProjectForm.name; p.members = validMembers; }
+        } else {
+            data.split_projects.push({
+                id: 'gsp_' + Date.now(), name: groupSplitProjectForm.name,
+                date: typeof getLocalISODate === 'function' ? getLocalISODate() : getLocalISODate(),
+                members: validMembers, is_settled: false
+            });
+        }
         showGroupSplitProjectModal.value = false; autoBackup(true, true);
     };
 
@@ -402,16 +417,29 @@ const app = createApp({
         if(activeSplitSettlements.value.length === 0) { text += `✅ 大家互不相欠！\n`; } 
         else { activeSplitSettlements.value.forEach(s => { text += `👉 [${s.from}] 需轉帳給 [${s.to}] $${formatNumber(s.amount)}\n`; }); }
         
-        // 加入 Magic Link
         let magicLink = generateMagicLink();
-        if (magicLink) {
-             text += `\n🔗 點擊查看動態結算報告：\n${magicLink}\n`;
-        }
+        if (magicLink) { text += `\n🔗 點擊查看動態結算報告：\n${magicLink}\n`; }
         text += `\n(Powered by Kadu｜卡度記帳)`;
 
-        if(navigator.share) { try { await navigator.share({ title: activeSplitProject.value.name, text: text }); } catch(e) {} } 
-        else { navigator.clipboard.writeText(text); alert('✅ 已複製至剪貼簿，可直接貼到 LINE 等通訊軟體！'); }
-        }; 
+        if(navigator.share) { 
+            try { await navigator.share({ title: activeSplitProject.value.name, text: text }); } catch(e) {} 
+        } else { 
+            // 加入傳統 DOM 複製備援方案 (支援電腦網頁版)
+            let textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                alert('✅ 結算報告已複製至剪貼簿！可直接貼上至 LINE 或其他通訊軟體。');
+            } catch (err) {
+                alert('⚠️ 您的瀏覽器不支援自動複製，請手動複製！');
+            }
+            document.body.removeChild(textArea);
+        }
+    }; 
     // Phase 4: 攔截與解析網址參數
     const checkSharedUrl = () => {
         try {
@@ -1874,8 +1902,14 @@ const app = createApp({
     const submitAddGoal = () => {
       if(!initGoal.name || !initGoal.target) return alert("請填寫目標名稱與金額");
       let tagClean = initGoal.tag ? initGoal.tag.replace('#', '').trim() : initGoal.name.replace(/\s+/g, '');
-      data.savings_goals.push({ id: 'goal_' + Date.now(), name: initGoal.name, tag: tagClean, target: initGoal.target, deadline: initGoal.deadline, saved: 0 });
-      showAddGoalModal.value = false; initGoal.name = ''; initGoal.tag = ''; initGoal.target = null; initGoal.deadline = ''; autoBackup(true, true); alert('✅ 目標建立成功！');
+      
+      if (initGoal.id) {
+          let g = data.savings_goals.find(x => x && x.id === initGoal.id);
+          if (g) { g.name = initGoal.name; g.tag = tagClean; g.target = initGoal.target; g.deadline = initGoal.deadline; }
+      } else {
+          data.savings_goals.push({ id: 'goal_' + Date.now(), name: initGoal.name, tag: tagClean, target: initGoal.target, deadline: initGoal.deadline, saved: 0 });
+      }
+      showAddGoalModal.value = false; autoBackup(true, true); alert('✅ 目標儲存成功！');
     };
     const openUpdateGoalModal = (goal) => { activeGoal.value = goal; updateGoalData.amount = null; updateGoalData.type = 'add'; showUpdateGoalModal.value = true; };
     const submitUpdateGoal = () => {
@@ -2329,12 +2363,12 @@ const app = createApp({
       activeSplitProjectId, groupSplitProjectForm, groupSplitRecordForm, groupSettleLedgerForm,
       activeSplitProject, activeSplitRecords, activeSplitBalances, activeSplitSettlements,
       openGroupSplitCenter, viewGroupSplitProject, backToSplitProjects, addSplitMemberField, removeSplitMemberField,
-      saveGroupSplitProject, deleteGroupSplitProject, initGroupSplitRecordForm, editGroupSplitRecord, calculateGroupSplitRecord,
+      editGroupSplitProject ,saveGroupSplitProject, deleteGroupSplitProject, initGroupSplitRecordForm, editGroupSplitRecord, calculateGroupSplitRecord,
       saveGroupSplitRecord, deleteGroupSplitRecord, shareGroupSettlement, writeGroupSettlementToLedger,
       
       activeRefundTx, refundData, activeReimburseTx, reimburseData, settings, currentBookId, newBookName, data, newTx, txError,newTxBaseAmount, 
       historyFilter, settingCategoryMode, newPreset, newMainCat, newSubCat, newAssetAcc, initStock, initFA, 
-      disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, activeGoal, updateGoalData,
+      disposalAsset, disposalForm, initLoan, activeLoan, rateData, newRecurring, initGoal, editGoal, activeGoal, updateGoalData,
       editingTx, selectedInstallment, projectBudgetForm,
       calcAppend, calcClear, calcBackspace, calcConfirm, startVoiceRecognition,
       editingProjectId, openEditProjectBudgetModal, closeProjectBudgetModal,
