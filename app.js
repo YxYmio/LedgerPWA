@@ -64,6 +64,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     // 3. 彈窗控制狀態 (Modals)
     // ------------------------------------------------------------------------
+    const showGoogleClientIdTutorialModal = ref(false);
     const showAddAccountModal = ref(false);
     const showInitialStockModal = ref(false);
     const showAddFixedAssetModal = ref(false);
@@ -3653,7 +3654,10 @@ const app = createApp({
     };
 
     const handleGoogleAuth = () => {
-      if (!settings.googleClientId) return alert("請先填寫 Client ID");
+      if (!settings.googleClientId) {
+        showGoogleClientIdTutorialModal.value = true;
+        return;
+      }
       if (tokenClient) tokenClient.requestAccessToken({ prompt: "consent" });
     };
     const handleGoogleSignout = () => {
@@ -4302,6 +4306,7 @@ const app = createApp({
       reportStartDate,
       reportEndDate,
       showAddAccountModal,
+      showGoogleClientIdTutorialModal,
       showInitialStockModal,
       showAddFixedAssetModal,
       showDisposalModal,

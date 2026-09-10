@@ -4977,7 +4977,104 @@
         </main>
 
         <!-- ================= 8. 彈窗區塊 (Modals) ================= -->
+        <!-- Google Client ID 取得教學彈窗 -->
+        <div
+          v-if="showGoogleClientIdTutorialModal"
+          class="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm"
+        >
+          <div
+            class="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl border border-blue-200 dark:border-slate-700 max-h-[85vh] flex flex-col"
+          >
+            <h3
+              class="text-xl font-bold mb-4 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-blue-600 dark:text-blue-400 shrink-0"
+            >
+              <svg
+                class="w-6 h-6"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+              如何取得 Google Client ID？
+            </h3>
 
+            <div
+              class="overflow-y-auto custom-scrollbar pr-2 space-y-4 text-sm text-slate-700 dark:text-slate-300"
+            >
+              <p class="font-bold text-slate-500">
+                為了確保您的帳本資料 100%
+                掌握在自己手中，請按照以下步驟免費建立您專屬的雲端存取憑證：
+              </p>
+
+              <div
+                class="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border dark:border-slate-700"
+              >
+                <div class="font-bold text-blue-600 dark:text-blue-400 mb-1">
+                  步驟 1：前往 Google Cloud 控制台
+                </div>
+                登入
+                <a
+                  href="https://console.cloud.google.com/"
+                  target="_blank"
+                  class="text-indigo-500 underline font-bold"
+                  >Google Cloud Console</a
+                >。
+              </svg>
+
+              <div
+                class="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border dark:border-slate-700"
+              >
+                <div class="font-bold text-blue-600 dark:text-blue-400 mb-1">
+                  步驟 2：建立專案與憑證
+                </div>
+                建立一個新專案後，從左側選單進入<strong
+                  >「API 和服務」>「憑證」</strong
+                >。<br />
+                點擊頂部<strong>「+ 建立憑證」>「OAuth 用戶端 ID」</strong>。
+              </div>
+
+              <div
+                class="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border dark:border-slate-700"
+              >
+                <div class="font-bold text-blue-600 dark:text-blue-400 mb-1">
+                  步驟 3：設定應用程式類型
+                </div>
+                應用程式類型請選擇<strong>「網頁應用程式」</strong>。<br />
+                在「已授權的 JavaScript 來源」點擊新增
+                URI，輸入本記帳系統的網址：<br />
+                <code
+                  class="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-xs mt-1 inline-block select-all"
+                  >https://您的專案網址.com</code
+                >
+              </div>
+
+              <div
+                class="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border dark:border-slate-700"
+              >
+                <div class="font-bold text-blue-600 dark:text-blue-400 mb-1">
+                  步驟 4：複製並貼上
+                </div>
+                點擊建立後，將視窗中的<strong>「用戶端編號 (Client ID)」</strong
+                >複製，並貼回卡度記帳的設定欄位中即可完成授權連線！
+              </div>
+            </div>
+
+            <div class="mt-5 pt-3 border-t dark:border-slate-700 shrink-0">
+              <button
+                @click="showGoogleClientIdTutorialModal = false"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl font-bold transition shadow-lg"
+              >
+                我明白了，關閉教學
+              </button>
+            </div>
+          </div>
+        </div>
         <!-- [全新] 發票 QR Code 掃描彈窗 -->
         <div
           v-if="showScannerModal"
