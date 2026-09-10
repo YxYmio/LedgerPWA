@@ -129,6 +129,37 @@ const app = createApp({
     const showRateModal = ref(false);
     const showResetModal = ref(false);
     const showNewBookModal = ref(false);
+    
+    // --- 新增：編輯帳本名稱狀態與函式 ---
+    const showEditBookModal = ref(false);
+    const editBookForm = reactive({ id: '', name: '' });
+    
+    const openEditBookModal = (book) => {
+        if (!book) return;
+        editBookForm.id = book.id;
+        editBookForm.name = book.name;
+        showEditBookModal.value = true;
+    };
+    
+    const saveEditBookName = () => {
+        if (!editBookForm.name) return alert("請輸入帳本名稱");
+        let b = settings.booksIndex.find(x => x && x.id === editBookForm.id);
+        if (b) {
+            b.name = editBookForm.name;
+            saveSettings(false);
+        }
+        showEditBookModal.value = false;
+        alert('✅ 帳本名稱修改成功！');
+    };
+
+    // --- 新增：首次使用引導狀態與函式 ---
+    const showOnboardingModal = ref(false);
+    const completeOnboarding = () => {
+        settings.hasSeenOnboarding = true;
+        saveSettings(false);
+        showOnboardingModal.value = false;
+        changeTab('assets'); // 點擊後直接跳轉至資產頁面
+    };
     const showAddGoalModal = ref(false);
     const showUpdateGoalModal = ref(false);
     const showManualStockModal = ref(false);
@@ -2372,14 +2403,18 @@ const app = createApp({
       let loadingScreen = document.getElementById('native-loading'); if(loadingScreen) loadingScreen.style.display = 'none';
       if(window.google) initGoogleAuth(); else setTimeout(initGoogleAuth, 2000);
       migrateLegacyData(); runAutoTasks(); if (['dashboard', 'reports', 'budget'].includes(activeTab.value)) updateCharts(); refreshIcons();
+      
+      // 新增：新手引導判斷邏輯
+      if (settings.hasSeenOnboarding === undefined) settings.hasSeenOnboarding = false;
+      if (data.transactions && data.transactions.length > 0 && !settings.hasSeenOnboarding) {
+          // 如果已有紀錄但沒看過引導 (舊用戶升級)，自動標記為已看過，不干擾
+          settings.hasSeenOnboarding = true;
+          saveSettings(false);
+      } else if (!settings.hasSeenOnboarding) {
+          // 真正的全新用戶，顯示歡迎與引導彈窗
+          showOnboardingModal.value = true;
+      }
     };
-
-    onMounted(() => {
-      loadSettings();
-      checkSharedUrl();
-      if(isUnlocked.value) { initData(); } 
-      else { isAppReady.value = true; let loadingScreen = document.getElementById('native-loading'); if(loadingScreen) loadingScreen.style.display = 'none'; refreshIcons(); }
-    });
 
     const safeFormatNumber = typeof formatNumber === 'function' ? formatNumber : (n => Math.round(n).toLocaleString());
 
@@ -2390,7 +2425,7 @@ const app = createApp({
       isCalcOpen, calcExpression, isListening,
       reportView, reportPeriod, reportStartDate, reportEndDate,
       showAddAccountModal, showInitialStockModal, showAddFixedAssetModal, showDisposalModal,showEditFAModal, editFAForm, openEditFAModal, saveEditFA, executeDeleteFAFromModal, showAddLoanModal, showRateModal, 
-      showResetModal, showNewBookModal, showAddGoalModal, showUpdateGoalModal, showManualStockModal, showRefundModal, showReimburseModal,
+      showResetModal, showNewBookModal, showEditBookModal, openEditBookModal, saveEditBookName, showOnboardingModal, completeOnboarding, editBookForm, showAddGoalModal, showUpdateGoalModal, showManualStockModal, showRefundModal, showReimburseModal,
       editTxModal, showInstallmentModal, showProjectBudgetModal,
       
       showGroupSplitProjectModal, showGroupSplitRecordModal, showGroupSettleLedgerModal,
