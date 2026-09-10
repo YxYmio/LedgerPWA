@@ -703,18 +703,17 @@
                       <span v-if="proj && proj.is_settled" class="text-[10px] bg-green-100 text-green-700 px-2 py-1 rounded font-bold">已結帳</span>
                       <span v-else class="text-[10px] bg-orange-100 text-orange-700 px-2 py-1 rounded font-bold">進行中</span>
                       
-                      <!-- 只有在 is_settled (已結帳) 的狀態下，才顯示查看明細按鈕 -->
                       <button v-if="proj && proj.is_settled" @click.stop="viewProjectDetails(proj && proj.name ? proj.name.replace(/\s+/g, '') : '')" class="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded shadow-sm border dark:border-slate-600 hover:bg-slate-200 transition whitespace-nowrap font-bold">查看結帳明細</button>
                   </div>
                </div>
              </div>
 
              <!-- 2. 個人專案預算區塊 -->
-             <h3 class="text-sm font-bold text-slate-600 dark:text-slate-400 mb-2 mt-6 flex items-center gap-1"><svg class="w-4 h-4" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> 個人專案預算追蹤</h3>
+             <h3 class="text-sm font-bold text-slate-600 dark:text-slate-400 mb-2 mt-6 flex items-center gap-1"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> 個人專案預算追蹤</h3>
              <div class="space-y-3 mb-6">
                <div v-if="!projectBudgetStats || projectBudgetStats.length === 0" class="text-center text-slate-400 text-xs py-4 border border-dashed rounded-lg dark:border-slate-700">目前無個人專案</div>
                <div v-for="proj in projectBudgetStats" :key="proj && proj.id ? proj.id : ''" @click="viewProjectDetails(proj && proj.tag ? proj.tag : '')" class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm relative cursor-pointer hover:border-indigo-300 transition">
-                  <!-- 卡片右上角：編輯與刪除按鈕 (已修正為呼叫 Project 專屬函式) -->
+                  <!-- 卡片右上角：編輯與刪除按鈕 -->
                   <div class="absolute top-3 right-3 flex gap-2">
                       <button @click.stop="openEditProjectBudgetModal(proj)" class="text-blue-400 hover:text-blue-500 transition"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
                       <button @click.stop="deleteProjectBudget(proj && proj.id ? proj.id : '')" class="text-slate-400 hover:text-red-500 transition"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></button>
@@ -740,9 +739,9 @@
           <!-- 專案內頁 (Project Detail) -->
           <div v-else>
              <div class="flex items-center gap-2 mb-4">
-               <button @click="backToSplitProjects" class="p-2 bg-slate-200 dark:bg-slate-700 rounded-full text-slate-600 dark:text-slate-300"><svg class="w-4 h-4" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+               <button @click="backToSplitProjects" class="p-2 bg-slate-200 dark:bg-slate-700 rounded-full text-slate-600 dark:text-slate-300"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
                <h2 class="text-xl font-bold flex-1 text-slate-800 dark:text-white truncate">{{ activeSplitProject && activeSplitProject.name ? activeSplitProject.name : '' }}</h2>
-               <button @click="shareGroupSettlement" class="p-2 bg-indigo-100 text-indigo-700 rounded-full dark:bg-indigo-900/40 dark:text-indigo-300"><svg class="w-4 h-4" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg></button>
+               <button @click="shareGroupSettlement" class="p-2 bg-indigo-100 text-indigo-700 rounded-full dark:bg-indigo-900/40 dark:text-indigo-300"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg></button>
              </div>
 
              <!-- 結算報告 (最佳化路徑) -->
@@ -785,8 +784,8 @@
                  <div class="flex items-center gap-3">
                     <span class="font-black text-indigo-600 dark:text-indigo-400">$ {{ formatNumber(rec && rec.amount ? rec.amount : 0) }}</span>
                     <div v-if="activeSplitProject && !activeSplitProject.is_settled" class="flex gap-1">
-                      <button @click="editGroupSplitRecord(rec)" class="text-blue-400 hover:text-blue-600 bg-slate-50 dark:bg-slate-700 p-1.5 rounded transition shadow-sm border border-slate-200 dark:border-slate-600"><svg class="w-4 h-4" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
-                      <button @click="deleteGroupSplitRecord(rec && rec.id ? rec.id : '')" class="text-slate-400 hover:text-red-500 bg-slate-50 dark:bg-slate-700 p-1.5 rounded transition shadow-sm border border-slate-200 dark:border-slate-600"><svg class="w-4 h-4" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></button>
+                      <button @click="editGroupSplitRecord(rec)" class="text-blue-400 hover:text-blue-600 bg-slate-50 dark:bg-slate-700 p-1.5 rounded transition shadow-sm border border-slate-200 dark:border-slate-600"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+                      <button @click="deleteGroupSplitRecord(rec && rec.id ? rec.id : '')" class="text-slate-400 hover:text-red-500 bg-slate-50 dark:bg-slate-700 p-1.5 rounded transition shadow-sm border border-slate-200 dark:border-slate-600"><svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg></button>
                     </div>
                  </div>
                </div>
@@ -794,10 +793,10 @@
              
              <!-- 結算寫入按鈕 -->
              <button v-if="activeSplitProject && !activeSplitProject.is_settled" @click="showGroupSettleLedgerModal = true" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold p-3.5 rounded-xl shadow-lg flex justify-center items-center gap-2 transition tracking-wider">
-               <svg class="w-5 h-5" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> 結帳並寫入我的個人帳本
+               <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> 結帳並寫入我的個人帳本
              </button>
              <button v-if="activeSplitProject && activeSplitProject.is_settled" @click="deleteGroupSplitProject(activeSplitProject && activeSplitProject.id ? activeSplitProject.id : '')" class="w-full border border-red-200 text-red-500 bg-red-50 dark:bg-red-900/20 dark:border-red-800 font-bold p-3 rounded-xl flex justify-center items-center gap-2 mt-4 transition">
-               <svg class="w-4 h-4" xmlns="[http://www.w3.org/2000/svg](http://www.w3.org/2000/svg)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> 刪除此已結算專案
+               <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg> 刪除此已結算專案
              </button>
           </div>
         </div>
@@ -861,7 +860,7 @@
      <div v-if="!safeSavingsGoals || safeSavingsGoals.length === 0" class="text-center text-slate-400 text-xs py-4 border border-dashed rounded-lg dark:border-slate-700">目前無儲蓄目標</div>
      <div v-for="goal in safeSavingsGoals" :key="goal && goal.id ? goal.id : ''" @click="viewProjectDetails(goal && goal.tag ? goal.tag : (goal && goal.name ? goal.name : ''))" class="bg-white dark:bg-slate-800 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm relative cursor-pointer hover:border-pink-300 transition">
         
-        <!-- 卡片右上角：編輯與刪除按鈕 (加入 .stop 防止點擊卡片跳轉) -->
+        <!-- 卡片右上角：編輯與刪除按鈕 -->
         <div class="absolute top-3 right-3 flex gap-2">
           <button @click.stop="editGoal(goal)" class="text-blue-400 hover:text-blue-500 transition">
             <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
@@ -872,8 +871,7 @@
         </div>
 
         <div class="flex justify-between items-start mb-1 pr-16">
-            <div class="font-bold text-slate-800 dark:text-white text-sm truncate">{{ goal && goal.name ? goal.name : '' }} <span v-if="goal && goal.tag" class="text-[10px] bg-slate-100 dark:bg-slate-700 px-1 rounded text-slate-500 font-normal ml-1">#{{ goal.tag }}</span>
-            </div>
+            <div class="font-bold text-slate-800 dark:text-white text-sm truncate">{{ goal && goal.name ? goal.name : '' }} <span v-if="goal && goal.tag" class="text-[10px] bg-slate-100 dark:bg-slate-700 px-1 rounded text-slate-500 font-normal ml-1">#{{ goal.tag }}</span></div>
             <button @click.stop="openUpdateGoalModal(goal)" class="text-[10px] bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 px-2 py-1 rounded shadow-sm border border-pink-200 dark:border-pink-800 hover:bg-pink-100 transition whitespace-nowrap">更新進度</button>
         </div>
         <div class="flex justify-between text-[10px] text-slate-500 mb-2">
@@ -888,7 +886,8 @@
         </div>
      </div>
   </div>
-</div>        <!-- ================= 5. 資產與貸款 Tab (Assets) ================= -->
+</div>
+        <!-- ================= 5. 資產與貸款 Tab (Assets) ================= -->
         <div v-show="activeTab === 'assets'" class="space-y-4">
           <div class="flex justify-between items-center border-b dark:border-slate-700 pb-2">
             <h2 class="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-white">
