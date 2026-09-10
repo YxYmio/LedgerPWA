@@ -2423,6 +2423,26 @@ const app = createApp({
 
     const safeFormatNumber = typeof formatNumber === 'function' ? formatNumber : (n => Math.round(n).toLocaleString());
 
+    // 加入以下初始化邏輯：
+    onMounted(() => {
+      // 1. 先載入本機設定檔 (確認是否有開啟 PIN 碼)
+      loadSettings();
+
+      // 2. 依據 PIN 碼狀態決定啟動流程
+      if (settings.pinEnabled) {
+          // 若有開啟 PIN 碼防窺，需先顯示 App 骨架並隱藏原生載入畫面，才能讓使用者輸入密碼
+          isAppReady.value = true;
+          let loadingScreen = document.getElementById('native-loading');
+          if (loadingScreen) loadingScreen.style.display = 'none';
+          // 注意：這裡不呼叫 initData()，等待 unlockApp() 密碼正確後再呼叫
+      } else {
+          // 若無開啟 PIN 碼，直接進行完整的資料初始化
+          initData();
+      }
+    });
+
+
+
     // --- 嚴格確保所有新增狀態與方法 100% 匯出 ---
     return { 
       isAppReady, activeTab,  isDrawerOpen, entryMode, dashboardScope, isUnlocked, pinInput, pinError, resetPin,
