@@ -2189,7 +2189,7 @@ const app = createApp({
       alert("✅ 記帳成功！");
     };
 
-    const switchBook = (targetId) => {
+    const switchBook = async (targetId) => {
       let newId = currentBookId.value;
       if (targetId && targetId.target && targetId.target.value) {
         newId = targetId.target.value;
@@ -2198,7 +2198,13 @@ const app = createApp({
       }
 
       let oldId = settings.currentBookId || "default";
-      localStorage.setItem("ledger_backup_" + oldId, JSON.stringify(data));
+
+      // [資安升級 Phase 3] 切換前將舊帳本加密存檔
+      let oldDataStr = JSON.stringify(data);
+      if (settings.pinEnabled && settings.pinCode.length === 4) {
+        oldDataStr = await CryptoUtils.encrypt(oldDataStr, settings.pinCode);
+      }
+      localStorage.setItem("ledger_backup_" + oldId, oldDataStr);
 
       currentBookId.value = newId;
       settings.currentBookId = newId;
@@ -2208,7 +2214,12 @@ const app = createApp({
 
       const newBackup = localStorage.getItem("ledger_backup_" + newId);
       if (newBackup) {
-        Object.assign(data, JSON.parse(newBackup));
+        let decryptedStr = newBackup;
+        // [資安升級 Phase 3] 載入新帳本時解密
+        if (settings.pinEnabled && settings.pinCode.length === 4) {
+          decryptedStr = await CryptoUtils.decrypt(newBackup, settings.pinCode);
+        }
+        if (decryptedStr) Object.assign(data, JSON.parse(decryptedStr));
       } else {
         data.version = "6.4.0";
       }
@@ -2238,7 +2249,7 @@ const app = createApp({
       if (["dashboard", "reports", "budget"].includes(activeTab.value))
         updateCharts();
 
-      autoBackup(false); // 確保新建帳本立刻存入本機，防止白屏
+      autoBackup(false);
       alert(`已成功切換至: ${activeBookName.value}`);
     };
 
@@ -3572,14 +3583,22 @@ const app = createApp({
 
     let backupTimeout = null; // 防抖計時器
 
-    // immediate 參數：若為 true 則無底延遲立即存檔 (例如新增一筆交易時)
     const autoBackup = (syncCloud = true, immediate = false) => {
-      const coreTask = () => {
+      const coreTask = async () => {
         data.last_modified = Date.now(); // 寫入最新時間戳記，供防覆蓋比對用
         try {
-          const serializedData = JSON.stringify(data, (key, value) =>
+          let serializedData = JSON.stringify(data, (key, value) =>
             value === null ? undefined : value,
           );
+
+          // [資安升級 Phase 3] 寫入前使用 Web Crypto API 進行 AES 加密
+          if (settings.pinEnabled && settings.pinCode.length === 4) {
+            serializedData = await CryptoUtils.encrypt(
+              serializedData,
+              settings.pinCode,
+            );
+          }
+
           const SAFE_LIMIT = 4200000;
           if (serializedData.length > SAFE_LIMIT && !hasShownStorageWarning) {
             hasShownStorageWarning = true;
@@ -3613,9 +3632,18 @@ const app = createApp({
             data.transactions = data.transactions.filter(
               (tx) => tx && tx.date >= cutoffDate,
             );
+
+            // 降載後再次加密寫入
+            let trimmedData = JSON.stringify(data);
+            if (settings.pinEnabled && settings.pinCode.length === 4) {
+              trimmedData = await CryptoUtils.encrypt(
+                trimmedData,
+                settings.pinCode,
+              );
+            }
             localStorage.setItem(
               "ledger_backup_" + settings.currentBookId,
-              JSON.stringify(data),
+              trimmedData,
             );
             hasShownStorageWarning = false;
           }
@@ -4221,9 +4249,21 @@ const app = createApp({
           "ledger_backup_" + currentBookId.value,
         );
         if (backup) {
-          Object.assign(data, JSON.parse(backup));
+          let decryptedData = backup;
+          // [資安升級 Phase 3] 讀取時進行 AES 解密
+          if (settings.pinEnabled && settings.pinCode.length === 4) {
+            decryptedData = await CryptoUtils.decrypt(backup, settings.pinCode);
+            if (!decryptedData) {
+              alert("⚠️ 嚴重錯誤：PIN 碼錯誤或資料損毀，無法解密本機資料！");
+              return; // 停止初始化，避免空資料覆蓋您的雲端帳本
+            }
+          }
+          Object.assign(data, JSON.parse(decryptedData));
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("資料解析失敗", e);
+      }
+
       if (typeof setupDefaultData === "function")
         setupDefaultData(
           data,
