@@ -1002,7 +1002,10 @@ const app = createApp({
       return sortedTransactions.value.filter(tx => {
         if(!tx) return false;
         let kw = historyFilter.keyword.toLowerCase(), desc = getTxDesc(tx).toLowerCase(), accD = getDebitAccName(tx).toLowerCase(), accC = getCreditAccName(tx).toLowerCase();
-        let matchTags = (tx.tags || []).join(' ').toLowerCase().includes(kw);
+        
+        // 修正：動態在比對時為 tx.tags 陣列元素補上 '#' 符號，確保專案跳轉過濾能 100% 命中
+        let matchTags = (tx.tags || []).map(t => '#' + t).join(' ').toLowerCase().includes(kw);
+        
         let matchKw = !kw || desc.includes(kw) || accD.includes(kw) || accC.includes(kw) || matchTags;
         let matchScope = historyFilter.scope === 'all' || tx.scope === historyFilter.scope;
         let matchDate = (!historyFilter.dateFrom || tx.date >= historyFilter.dateFrom) && (!historyFilter.dateTo || tx.date <= historyFilter.dateTo);
