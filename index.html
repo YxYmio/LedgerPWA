@@ -2407,24 +2407,61 @@
              </button>
           </div>
           
-          <!-- Q&A 內容捲動區 -->
+         <!-- Q&A 內容捲動區 -->
           <div class="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-1">
              
+             <!-- 1. 複式記帳概念 (加上醒目的專屬樣式) -->
+             <div class="bg-indigo-50 dark:bg-indigo-900/30 p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-800">
+                <div class="font-bold text-sm text-indigo-800 dark:text-indigo-300 mb-1 flex items-start gap-1.5"><span class="text-indigo-600 dark:text-indigo-400 font-black">Q.</span>什麼是「複式記帳」？跟一般流水帳有什麼不同？</div>
+                <div class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed pl-5 space-y-2">
+                   <p>傳統流水帳只記「花了多少錢」，容易造成帳戶餘額對不上的窘境。本系統採用專業會計的<strong>「複式記帳法 (Double-Entry)」</strong>，每一筆交易都會同時追蹤<strong>「資金來源」</strong>與<strong>「資金去向」</strong>。</p>
+                   <div class="bg-white dark:bg-slate-800 p-2.5 rounded-lg border dark:border-slate-700 mt-1">
+                      <strong>💡 舉例來說：</strong><br>
+                      週末去吃赤富士日式燒肉花了 1,500 元，系統會同時記錄：<br>
+                      1. <span class="text-red-500 font-bold">支出增加</span> (資金去向：飲食花費了 1,500)<br>
+                      2. <span class="text-blue-600 dark:text-blue-400 font-bold">資產減少</span> (資金來源：從現金或信用卡扣除 1,500)
+                   </div>
+                   <p>這種記法能確保「有借必有貸，借貸必相等」，幫助您自動產出精準的資產負債表與真實淨資產！</p>
+                </div>
+             </div>
+
+             <!-- 2. 信用卡記帳 -->
+             <div class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700">
+                <div class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"><span class="text-teal-600">Q.</span>信用卡帳單繳費時，該怎麼記帳？</div>
+                <div class="text-xs text-slate-500 leading-relaxed pl-5">刷卡消費時系統已經記過「支出」並增加「信用卡負債」了。因此，繳清卡費時請使用<strong>「轉帳」模式</strong>，將資金從「銀行活存 (轉出)」轉至「信用卡 (轉入)」。這樣只會沖銷您的負債餘額，不會被重複計算成支出！</div>
+             </div>
+
+             <!-- 3. 公私帳切換 -->
+             <div class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700">
+                <div class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"><span class="text-teal-600">Q.</span>記帳時的「個人」與「家庭」歸屬有什麼差別？</div>
+                <div class="text-xs text-slate-500 leading-relaxed pl-5">這是用來完美切分公私帳的功能。當您在總覽儀表板或歷史明細上方切換視角時，系統會動態重新計算，只單獨顯示該歸屬範圍內的淨資產、收支結構與剩餘預算。</div>
+             </div>
+
+             <!-- 4. 掃描器 -->
+             <div class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700">
+                <div class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"><span class="text-teal-600">Q.</span>電子發票 QR Code 掃描器能抓到什麼資訊？</div>
+                <div class="text-xs text-slate-500 leading-relaxed pl-5">將手機鏡頭對準實體電子發票<strong>「左側」</strong>的 QR Code，系統能瞬間為您帶入「消費日期、總金額與發票號碼」，大幅減少手動輸入的時間與打錯字的風險。</div>
+             </div>
+
+             <!-- 5. 雲端同步 -->
              <div class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700">
                 <div class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"><span class="text-teal-600">Q.</span>雲端同步如何運作？資料存在哪裡？</div>
                 <div class="text-xs text-slate-500 leading-relaxed pl-5">本系統是純前端架構 (無後端資料庫)，資料預設存在您的「瀏覽器本機快取」。啟用 Google Drive 同步後，系統會在背景產生一份隱藏的 JSON 檔案存在您個人的雲端硬碟中。絕對保護您的資料隱私。</div>
              </div>
              
+             <!-- 6. 結轉瘦身 -->
              <div class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700">
                 <div class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"><span class="text-teal-600">Q.</span>如何避免手機或電腦容量被塞滿？</div>
                 <div class="text-xs text-slate-500 leading-relaxed pl-5">您可以至「設定」底部執行【會計結轉與瘦身精靈】。它會幫您將指定日期前的所有歷史明細合併為一筆「期初金額」，並刪除舊資料來釋放空間，同時完美保留您的當前總資產與各帳戶餘額。</div>
              </div>
              
+             <!-- 7. 股票配息與配股 -->
              <div class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700">
                 <div class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"><span class="text-teal-600">Q.</span>「領配息」和「領配股」有什麼差別？</div>
                 <div class="text-xs text-slate-500 leading-relaxed pl-5">「配息 (現金股利)」會增加你的實體資金帳戶餘額；而「配股 (股票股利)」是備忘錄明細，不會動到現金，但系統會自動幫您增加庫存股數，並重新攤平該股票的「每股平均成本」。</div>
              </div>
 
+             <!-- 8. 忘記密碼 -->
              <div class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700">
                 <div class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"><span class="text-teal-600">Q.</span>如果不小心忘記 PIN 碼密碼怎麼辦？</div>
                 <div class="text-xs text-slate-500 leading-relaxed pl-5">基於安全防護，密碼無法被找回。若您忘記密碼，只能在解鎖畫面點選「強制重置」清除所有本機資料。如果您有綁定 Google Drive，重置後重新登入即可一鍵還原雲端備份。</div>
