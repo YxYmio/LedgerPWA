@@ -125,6 +125,8 @@ const app = createApp({
         alert('✅ 固定資產及其相關折舊紀錄已徹底刪除！');
     };
 
+    // ... 上方是 executeDeleteFAFromModal 的結束 ...
+
     const showAddLoanModal = ref(false);
     const showRateModal = ref(false);
     const showResetModal = ref(false);
@@ -160,6 +162,7 @@ const app = createApp({
         showOnboardingModal.value = false;
         changeTab('assets'); // 點擊後直接跳轉至資產頁面
     };
+
     const showAddGoalModal = ref(false);
     const showUpdateGoalModal = ref(false);
     const showManualStockModal = ref(false);
@@ -173,7 +176,7 @@ const app = createApp({
     const showGroupSplitRecordModal = ref(false);
     const showGroupSettleLedgerModal = ref(false);
     
-   const showRolloverModal = ref(false);
+    const showRolloverModal = ref(false);
     const rolloverDate = ref('');
     const hasDownloadedBackup = ref(false);
     
@@ -195,6 +198,8 @@ const app = createApp({
         showSharedSettlementModal.value = false;
         sharedData.value = null;
     };
+
+
     // ------------------------------------------------------------------------
     // 4. 設定與全域資料模型 (Data Models)
     // ------------------------------------------------------------------------
