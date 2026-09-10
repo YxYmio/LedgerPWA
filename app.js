@@ -4269,13 +4269,33 @@ const app = createApp({
       // 1. 先載入本機設定檔 (確認是否有開啟 PIN 碼)
       loadSettings();
 
+      // ====================================================================
+      // [資安與穩定性升級 Phase 2] 資料持久化鎖定 (StorageManager API)
+      // 向瀏覽器底層請求將此 PWA 的儲存空間設為「持久化」，防止被系統無預警清空
+      // ====================================================================
+      if (navigator.storage && navigator.storage.persist) {
+        navigator.storage
+          .persist()
+          .then((granted) => {
+            if (granted) {
+              console.log("🔒 PWA 儲存空間已獲准持久化 (Persisted)");
+            } else {
+              console.warn(
+                "⚠️ 無法取得持久化儲存權限，資料仍受瀏覽器空間管理策略影響 (建議使用者將網頁加入主畫面以提高權重)",
+              );
+            }
+          })
+          .catch((err) => {
+            console.error("請求持久化儲存失敗:", err);
+          });
+      }
+
       // 2. 依據 PIN 碼狀態決定啟動流程
       if (settings.pinEnabled) {
-        // 若有開啟 PIN 碼防窺，需先顯示 App 骨架並隱藏原生載入畫面，才能讓使用者輸入密碼
+        // 若有開啟 PIN 碼防窺，需先顯示 App 骨架並隱藏原生載入畫面，讓使用者輸入密碼
         isAppReady.value = true;
         let loadingScreen = document.getElementById("native-loading");
         if (loadingScreen) loadingScreen.style.display = "none";
-        // 注意：這裡不呼叫 initData()，等待 unlockApp() 密碼正確後再呼叫
       } else {
         // 若無開啟 PIN 碼，直接進行完整的資料初始化
         initData();

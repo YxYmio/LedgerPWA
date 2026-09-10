@@ -90,11 +90,10 @@ const splitBillCalculator = (totalAmount, peopleCount, isPayer = true) => {
 };
 
 // ==========================================
-// 全新群組結算引擎 (AA 演算法)
+// 全新 Lightsplit 群組結算引擎 (AA 演算法)
 // ==========================================
 
 // 1. 計算群組內每位成員的淨結餘 (代墊總額 - 應分擔總額)
-// records 格式範例: [{ payer: 'A', amount: 1000, splits: [{member: 'A', amount: 500}, {member: 'B', amount: 500}] }]
 const calculateNetBalances = (records, members) => {
   let balances = {};
   (members || []).forEach((m) => {
@@ -118,7 +117,6 @@ const calculateNetBalances = (records, members) => {
 };
 
 // 2. 貪婪演算法：計算最佳化結算矩陣 (最少轉帳次數)
-// 傳入 balances 格式: { 'A': 500, 'B': -200, 'C': -300 }
 const optimizeSettlements = (balances) => {
   let debtors = [];
   let creditors = [];
@@ -172,7 +170,7 @@ const evaluateCalc = (expression) => {
     let sanitized = expression.replace(/[^-()\d/*+.]/g, "");
     if (!sanitized) return null;
     let result = new Function("return " + sanitized)();
-    // 移除 Math.round，保留小數精確度，並避免浮點數溢位 (如 0.1+0.2=0.300000004)
+    // 移除 Math.round，保留小數精確度，並避免浮點數溢位
     if (typeof result === "number" && isFinite(result)) {
       return Number(result.toFixed(2));
     }
@@ -475,4 +473,70 @@ const setupDefaultData = (data, defaultCategories) => {
 
   // 統一呼叫共用圖示修補邏輯
   patchAccountIcons(accountsList);
+};
+
+// ==========================================
+// [資安升級 Phase 3] Web Crypto API 終極加解密引擎
+// ==========================================
+const CryptoUtils = {
+  // 透過 PBKDF2 將 4 位數 PIN 碼衍生為 256-bit 的強金鑰
+  async deriveKey(pin, salt) {
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      enc.encode(pin),
+      { name: "PBKDF2" },
+      false,
+      ["deriveKey"],
+    );
+    return crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+      keyMaterial,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
+  },
+
+  // AES-GCM 加密，回傳包含 Salt、IV 與 Ciphertext 的 Base64 字串
+  async encrypt(plaintext, pin) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await this.deriveKey(pin, salt);
+    const enc = new TextEncoder();
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: iv },
+      key,
+      enc.encode(plaintext),
+    );
+    return JSON.stringify({
+      s: Array.from(salt),
+      i: Array.from(iv),
+      c: Array.from(new Uint8Array(ciphertext)),
+    });
+  },
+
+  // AES-GCM 解密，若密碼錯誤或遭竄改會直接丟出例外並回傳 null
+  async decrypt(cryptoJsonStr, pin) {
+    try {
+      const parsed = JSON.parse(cryptoJsonStr);
+      // 判斷是否為未加密的舊版明文 JSON
+      if (!parsed.s || !parsed.i || !parsed.c) return cryptoJsonStr;
+
+      const salt = new Uint8Array(parsed.s);
+      const iv = new Uint8Array(parsed.i);
+      const ciphertext = new Uint8Array(parsed.c);
+      const key = await this.deriveKey(pin, salt);
+      const decrypted = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: iv },
+        key,
+        ciphertext,
+      );
+      const dec = new TextDecoder();
+      return dec.decode(decrypted);
+    } catch (e) {
+      console.error("解密失敗：PIN 碼錯誤或資料損毀", e);
+      return null;
+    }
+  },
 };

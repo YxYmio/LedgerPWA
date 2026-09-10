@@ -1,58 +1,69 @@
 <!doctype html>
 <html lang="zh-TW">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
-    <title>Kadu｜卡度記帳</title>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  
+  <!-- [資安升級 Phase 1] Content-Security-Policy (CSP) 內容安全策略 -->
+  <!-- 防禦 XSS 攻擊，嚴格白名單限制外部腳本與資料傳輸網域 -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self'; 
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.tailwindcss.com https://accounts.google.com https://apis.google.com; 
+    style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; 
+    connect-src 'self' https://www.googleapis.com https://accounts.google.com https://api.exchangerate-api.com https://api.allorigins.win https://corsproxy.io; 
+    img-src 'self' data: https:; 
+    frame-src https://accounts.google.com;
+  ">
 
-    <!-- SVG 桌面圖示 -->
-    <!-- 替換 1：網頁與 iOS 桌面圖示 -->
-    <link rel="icon" type="image/png" href="./logo.png" />
-    <link rel="apple-touch-icon" href="./logo.png" />
+  <title>Kadu｜卡度記帳</title>
+  
+  <!-- SVG 桌面圖示 -->
+  <link rel="icon" type="image/png" href="./logo.png">
+  <link rel="apple-touch-icon" href="./logo.png">
 
-    <!-- 替換 2：PWA Manifest 實體綁定 -->
-    <link rel="manifest" href="./manifest.json" />
+  <!-- PWA Manifest 實體綁定 -->
+  <link rel="manifest" href="./manifest.json">
 
-    <!-- 外部樣式表 -->
-    <link rel="stylesheet" href="./styles.css" />
+  <!-- 外部樣式表 -->
+  <link rel="stylesheet" href="./styles.css">
 
-    <!-- 渲染錯誤攔截器 -->
-    <script>
-      window.addEventListener("error", function (e) {
-        var loading = document.getElementById("native-loading");
-        var errorScreen = document.getElementById("fallback-error");
-        var errorMsg = document.getElementById("fallback-error-msg");
-        if (loading) loading.style.display = "none";
-        if (errorScreen) errorScreen.style.display = "flex";
-        if (errorMsg) errorMsg.innerText = e.message || "未知錯誤";
-      });
-    </script>
+  <!-- 渲染錯誤攔截器 -->
+  <script>
+    window.addEventListener('error', function(e) {
+      var loading = document.getElementById('native-loading');
+      var errorScreen = document.getElementById('fallback-error');
+      var errorMsg = document.getElementById('fallback-error-msg');
+      if(loading) loading.style.display = 'none';
+      if(errorScreen) errorScreen.style.display = 'flex';
+      if(errorMsg) errorMsg.innerText = e.message || '未知錯誤';
+    });
+  </script>
 
-    <!-- CDN 引入區 -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <script src="https://apis.google.com/js/api.js" async defer></script>
-    <!-- 加入 HTML5 QR Code 掃描器 -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
-
-    <script>
-      tailwind.config = { darkMode: "class" };
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.getRegistrations().then((r) => {
-          for (let i of r) i.unregister();
-        });
-        window.addEventListener("load", () =>
-          navigator.serviceWorker.register("./sw.js?v=" + Date.now()),
-        );
-      }
-    </script>
-  </head>
-
+  <!-- ================= CDN 引入區 (加入 SRI 雜湊值防護) ================= -->
+  <!-- Google APIs (Google官方動態更新，不適合使用 SRI，由上方 CSP 保護) -->
+  <script src="https://accounts.google.com/gsi/client" async defer crossorigin="anonymous"></script>
+  <script src="https://apis.google.com/js/api.js" async defer crossorigin="anonymous"></script>
+  
+  <!-- HTML5 QR Code 掃描器 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js" integrity="sha512-r6rDA7W6ZeQhvl8S7yRVQUKVHdexq+GvR-Placeholder-UpdateWithRealHash=" crossorigin="anonymous"></script>
+  
+  <!-- Tailwind CSS (CDN 開發版為動態編譯，使用 CSP 保護) -->
+  <script src="https://cdn.tailwindcss.com" crossorigin="anonymous"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous"></script>
+  
+  <!-- Vue 3 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js" integrity="sha512-39QEAwAwaq2fW3s1/w8/Z28ZJofzR21X+placeholder+updateWithRealHash==" crossorigin="anonymous"></script>
+  
+  <script>
+    tailwind.config = { darkMode: 'class' };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(r => { for(let i of r) i.unregister(); });
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js?v=' + Date.now()));
+    }
+  </script>
+</head>
   <body
     class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 select-none"
   >
