@@ -142,9 +142,20 @@ const app = createApp({
     const showGroupSplitRecordModal = ref(false);
     const showGroupSettleLedgerModal = ref(false);
     
-    const showRolloverModal = ref(false);
+   const showRolloverModal = ref(false);
     const rolloverDate = ref('');
     const hasDownloadedBackup = ref(false);
+    
+    // --- 全新：常見 Q&A 彈窗狀態 ---
+    const showQAModal = ref(false);
+
+    // --- 全新：記帳提醒邏輯 (判斷今日是否已記帳) ---
+    const showDailyReminder = computed(() => {
+        let today = typeof getLocalISODate === 'function' ? getLocalISODate() : new Date().toISOString().split('T')[0];
+        // 尋找交易紀錄中，有沒有「今天」且「非系統自動生成」的明細
+        let hasTodayTx = (data.transactions || []).some(tx => tx && tx.date === today && !tx.auto_generated);
+        return !hasTodayTx; // 如果今天沒有紀錄，就回傳 true (顯示提醒)
+    });
     
     // --- Phase 4: 分享結算報告彈窗 ---
     const showSharedSettlementModal = ref(false);
@@ -2383,7 +2394,7 @@ const app = createApp({
       editTxModal, showInstallmentModal, showProjectBudgetModal,
       
       showGroupSplitProjectModal, showGroupSplitRecordModal, showGroupSettleLedgerModal,
-      showRolloverModal, rolloverDate, hasDownloadedBackup, openRolloverModal, downloadBackupForRollover, executeRollover,
+      showRolloverModal, showQAModal, showDailyReminder, rolloverDate, hasDownloadedBackup, openRolloverModal, downloadBackupForRollover, executeRollover,
       showSharedSettlementModal, sharedData,closeSharedSettlementModal,
       activeSplitProjectId, groupSplitProjectForm, groupSplitRecordForm, groupSettleLedgerForm,
       activeSplitProject, activeSplitRecords, activeSplitBalances, activeSplitSettlements,
