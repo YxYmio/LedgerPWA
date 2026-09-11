@@ -103,9 +103,10 @@
 
     <!-- Vue App 掛載點 -->
     <div id="app">
+      <!-- [修改] 加入 md 與 lg 的最大寬度，解鎖平板與寬螢幕佈局 -->
       <div
         v-if="isAppReady"
-        class="max-w-md mx-auto min-h-screen bg-slate-50 dark:bg-slate-900 shadow-xl relative pb-[80px]"
+        class="max-w-md md:max-w-3xl lg:max-w-4xl mx-auto min-h-screen bg-slate-50 dark:bg-slate-900 shadow-xl relative pb-[80px] transition-all duration-300"
         v-cloak
       >
         <!-- ================= 全域遮罩與抽屜選單 ================= -->
@@ -875,7 +876,8 @@
             </div>
 
             <!-- 圖表垂直單欄排列 -->
-            <div class="flex flex-col gap-4">
+            <!-- [修改] 圖表響應式並排排列 (手機單欄，平板雙欄) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div
                 class="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm border dark:border-slate-700 flex flex-col"
               >
@@ -4818,10 +4820,11 @@
                 />
               </div>
 
-              <div class="flex gap-2 mb-4">
+              <!-- [修改] 匯出入按鈕區塊 (加入 CSV 按鈕) -->
+              <div class="grid grid-cols-2 gap-2 mb-4">
                 <button
                   @click="exportData"
-                  class="flex-1 bg-slate-700 hover:bg-slate-800 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm shadow transition"
+                  class="bg-slate-700 hover:bg-slate-800 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm shadow transition"
                 >
                   <svg
                     class="w-4 h-4"
@@ -4839,8 +4842,30 @@
                   </svg>
                   匯出 JSON
                 </button>
+                <button
+                  @click="exportCSV"
+                  class="bg-emerald-600 hover:bg-emerald-700 text-white p-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm shadow transition"
+                >
+                  <svg
+                    class="w-4 h-4"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" x2="8" y1="13" y2="13" />
+                    <line x1="16" x2="8" y1="17" y2="17" />
+                    <polyline points="10 9 9 9 8 9" />
+                  </svg>
+                  匯出 CSV
+                </button>
                 <label
-                  class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer text-sm shadow transition border dark:border-slate-600"
+                  class="col-span-2 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer text-sm shadow transition border dark:border-slate-600"
                 >
                   <svg
                     class="w-4 h-4"
@@ -4856,7 +4881,7 @@
                     <polyline points="17 8 12 3 7 8" />
                     <line x1="12" x2="12" y1="3" y2="15" />
                   </svg>
-                  匯入覆蓋
+                  匯入 JSON 覆蓋還原
                   <input
                     type="file"
                     @change="importData"
@@ -4865,6 +4890,7 @@
                   />
                 </label>
               </div>
+
 
               <!-- 結轉與瘦身精靈按鈕 (整合包 B) -->
               <button

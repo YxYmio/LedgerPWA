@@ -4093,6 +4093,49 @@ const app = createApp({
       a.download = `Ledger_${currentBookId.value}_${getLocalISODate()}.json`;
       a.click();
     };
+
+    // --- [新增] CSV 匯出功能 ---
+    const exportCSV = () => {
+      let csvContent =
+        "日期,歸屬,摘要,借方科目(資產/費用增加),貸方科目(資產減少/收入),金額,自訂標籤\n";
+
+      const escapeCSV = (str) =>
+        `"${(str || "").toString().replace(/"/g, '""')}"`;
+
+      // 依日期遞減排序
+      let txs = [...(data.transactions || [])].sort((a, b) => {
+        let d1 = a && a.date ? a.date : "";
+        let d2 = b && b.date ? b.date : "";
+        return d2.localeCompare(d1);
+      });
+
+      txs.forEach((tx) => {
+        if (!tx) return;
+        let date = tx.date || "";
+        let scope = tx.scope === "family" ? "家庭" : "個人";
+        let desc = getTxDesc(tx);
+        let debitAcc = getDebitAccName(tx);
+        let creditAcc = getCreditAccName(tx);
+        let amount = getDebitAmount(tx);
+        let tags = (tx.tags || []).join(";");
+
+        csvContent += `${date},${scope},${escapeCSV(desc)},${escapeCSV(debitAcc)},${escapeCSV(creditAcc)},${amount},${escapeCSV(tags)}\n`;
+      });
+
+      // 加入 UTF-8 BOM 讓 Excel 正確識別中文
+      const bom = "\uFEFF";
+      const blob = new Blob([bom + csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `Ledger_Export_${currentBookId.value}_${getLocalISODate()}.csv`;
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
     const importData = (e) => {
       const f = e.target.files[0];
       if (!f) return;
@@ -4490,6 +4533,7 @@ const app = createApp({
       unlockApp,
       saveSettings,
       exportData,
+      exportCSV,
       importData,
       onSymbolInput,
       onInvestSelectedSymbolChange,
