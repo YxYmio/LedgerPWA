@@ -4051,6 +4051,10 @@ const app = createApp({
     const loadSettings = () => {
       try {
         const s = JSON.parse(localStorage.getItem("ledger_settings") || "{}");
+
+        // 【資安防護】載入時若發現舊版殘留的 Token，強制抹除，確保 Token 只存在於當次記憶體
+        delete s.googleToken;
+
         if (s && typeof s === "object") Object.assign(settings, s);
       } catch (e) {}
       if (!settings.appName) settings.appName = "Kadu｜卡度記帳";
@@ -4060,7 +4064,6 @@ const app = createApp({
       currentBookId.value = settings.currentBookId || "default";
       if (!settings.pinEnabled) isUnlocked.value = true;
     };
-
     const unlockApp = () => {
       if (pinInput.value === settings.pinCode) {
         isUnlocked.value = true;
@@ -4071,9 +4074,16 @@ const app = createApp({
     };
     const saveSettings = (showAlert = true) => {
       settings.currentBookId = currentBookId.value;
-      localStorage.setItem("ledger_settings", JSON.stringify(settings));
+
+      // 【資安防護】深拷貝設定，強制剔除敏感的 Token 後再存入本機實體空間
+      const safeSettings = JSON.parse(JSON.stringify(settings));
+      delete safeSettings.googleToken;
+
+      localStorage.setItem("ledger_settings", JSON.stringify(safeSettings));
       if (showAlert) alert("設定已儲存");
-      if (settings.googleToken && settings.googleClientId) initGoogleAuth();
+
+      // 移除對 googleToken 的檢查，只要有 Client ID 就初始化
+      if (settings.googleClientId) initGoogleAuth();
     };
     const exportData = () => {
       const a = document.createElement("a");
