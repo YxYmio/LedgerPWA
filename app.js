@@ -229,7 +229,11 @@ const app = createApp({
     const showRolloverModal = ref(false);
     const rolloverDate = ref("");
     const hasDownloadedBackup = ref(false);
-
+    // --- [新增] 圖片全螢幕預覽狀態 ---
+    const previewImageUrl = ref("");
+    const openImagePreview = (url) => {
+      if (url) previewImageUrl.value = url;
+    };
     // --- 全新：常見 Q&A 彈窗狀態 ---
     const showQAModal = ref(false);
 
@@ -2915,19 +2919,29 @@ const app = createApp({
     };
 
     const stopScanner = () => {
+      showScannerModal.value = false; // 1. 優先無條件隱藏彈窗，確保使用者畫面不卡死
       if (html5QrCode) {
-        html5QrCode
-          .stop()
-          .then(() => {
+        try {
+          // 2. 嘗試關閉相機串流 (若相機仍在請求權限或未啟動完成，stop() 可能會報錯)
+          html5QrCode
+            .stop()
+            .then(() => {
+              html5QrCode.clear();
+              html5QrCode = null;
+            })
+            .catch(() => {
+              try {
+                html5QrCode.clear();
+              } catch (e) {}
+              html5QrCode = null;
+            });
+        } catch (e) {
+          // 3. 攔截相機尚未啟動就強制中斷所造成的同步例外報錯
+          try {
             html5QrCode.clear();
-            html5QrCode = null;
-            showScannerModal.value = false;
-          })
-          .catch((err) => {
-            showScannerModal.value = false;
-          });
-      } else {
-        showScannerModal.value = false;
+          } catch (err) {}
+          html5QrCode = null;
+        }
       }
     };
 
@@ -4484,6 +4498,8 @@ const app = createApp({
       showDailyReminder,
       rolloverDate,
       hasDownloadedBackup,
+      previewImageUrl,
+      openImagePreview,
       openRolloverModal,
       downloadBackupForRollover,
       executeRollover,

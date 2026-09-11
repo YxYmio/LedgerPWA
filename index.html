@@ -2193,11 +2193,11 @@
                   借: {{ getDebitAccName(tx) }} / 貸: {{ getCreditAccName(tx) }}
                 </div>
 
-                <!-- [新增] 歷史明細縮圖呈現 -->
+                <!-- [修改] 歷史明細縮圖呈現，替換 onclick 事件 -->
                 <div v-if="tx && tx.receipt_image" class="mt-2">
                   <img
                     :src="tx.receipt_image"
-                    onclick="window.open(this.src)"
+                    @click.stop="openImagePreview(tx.receipt_image)"
                     class="h-14 w-14 object-cover rounded-lg border dark:border-slate-600 shadow-sm cursor-zoom-in"
                     title="點擊放大查看"
                   />
@@ -8191,6 +8191,49 @@
                 了解，關閉視窗
               </button>
             </div>
+          </div>
+        </div>
+        <!-- [新增] 收據/明細照片全螢幕預覽彈窗 -->
+        <div
+          v-if="previewImageUrl"
+          class="fixed inset-0 bg-black/90 z-[999999] flex flex-col items-center justify-center p-4 backdrop-blur-sm transition-opacity"
+          @click="previewImageUrl = ''"
+        >
+          <!-- 關閉按鈕 -->
+          <button
+            class="absolute top-4 right-4 text-white bg-slate-800/60 hover:bg-slate-700 p-2 rounded-full transition shadow-lg z-50"
+            @click.stop="previewImageUrl = ''"
+          >
+            <svg
+              class="w-6 h-6"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+
+          <!-- 圖片本體 (點擊圖片本身不關閉) -->
+          <div
+            class="relative max-w-full max-h-full flex items-center justify-center overflow-hidden"
+          >
+            <img
+              :src="previewImageUrl"
+              class="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl transition-transform"
+              @click.stop
+            />
+          </div>
+
+          <div
+            class="absolute bottom-6 text-slate-400 text-sm font-bold tracking-widest pointer-events-none"
+          >
+            點擊背景關閉
           </div>
         </div>
       </div>
