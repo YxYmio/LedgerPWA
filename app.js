@@ -41,6 +41,7 @@ const app = createApp({
     const pinError = ref("");
     const syncStatus = ref("offline");
     const isSyncing = ref(false);
+    const isProcessingLocal = ref(false);
     const showAmounts = ref(false);
     const dashboardMonth = ref(getLocalISODate().substring(0, 7));
     const fxRate = ref(1);
@@ -3619,6 +3620,7 @@ const app = createApp({
 
     const autoBackup = (syncCloud = true, immediate = false) => {
       const coreTask = async () => {
+        isProcessingLocal.value = true; // [新增] 開啟非同步處理中狀態
         data.last_modified = Date.now(); // 寫入最新時間戳記，供防覆蓋比對用
         try {
           let serializedData = JSON.stringify(data, (key, value) =>
@@ -3633,13 +3635,13 @@ const app = createApp({
             );
           }
 
-          const SAFE_LIMIT = 4200000;
+          const SAFE_LIMIT = 50000000; // [修改] IndexedDB 容量大，警戒值提升至 50MB
           if (serializedData.length > SAFE_LIMIT && !hasShownStorageWarning) {
             hasShownStorageWarning = true;
             setTimeout(() => {
               if (
                 confirm(
-                  "⚠️ 系統偵測到您的帳本資料量已達本機儲存上限 85%！\n建議您執行「會計結轉與瘦身精靈」，是否立即前往清理？",
+                  "⚠️ 系統偵測到您的帳本資料量已達龐大級別！\n建議您執行「會計結轉與瘦身精靈」，是否立即前往清理？",
                 )
               ) {
                 activeTab.value = "settings";
@@ -3652,7 +3654,7 @@ const app = createApp({
             serializedData,
           );
         } catch (e) {
-          if (e.name === "QuotaExceededError") {
+          if (e.name === "QuotaExceededError" || e.name === "ConstraintError") {
             alert(
               "⚠️ 本機空間已滿！系統已自動觸發歷史紀錄降載 (僅保留近 2 年)。",
             );
@@ -3677,10 +3679,12 @@ const app = createApp({
             }
             await StorageDB.set(
               "ledger_backup_" + settings.currentBookId,
-              serializedData,
+              trimmedData,
             );
             hasShownStorageWarning = false;
           }
+        } finally {
+          isProcessingLocal.value = false; // [新增] 關閉非同步處理中狀態
         }
         if (syncCloud && settings.googleToken) syncWithGoogleDrive(false);
       };
@@ -4450,7 +4454,7 @@ const app = createApp({
       pinError,
       resetPin,
       syncStatus,
-      isSyncing,
+      isProcessingLocal,
       showAmounts,
       dashboardMonth,
       fxRate,
@@ -4754,6 +4758,50 @@ app.component("modal-reset", {
   template: "#tpl-modal-reset",
   props: ["show", "bookName"],
   mixins: [modalMixin],
+});
+
+// --- 註冊模組化子元件 ---
+const modalMixin = {
+  emits: ["close", "confirm", "update:modelValue"],
+  updated() {
+    if (this.show && window.lucide) lucide.createIcons();
+  }, // 確保 v-if 顯示時能正確渲染圖示
+};
+
+app.component("modal-new-book", {
+  template: "#tpl-modal-new-book",
+  props: ["show", "modelValue"],
+  mixins: [modalMixin],
+});
+
+app.component("modal-reset", {
+  template: "#tpl-modal-reset",
+  props: ["show", "bookName"],
+  mixins: [modalMixin],
+});
+
+// ==========================================
+// [新增] Base64 圖片延遲載入指令 (Lazy Loading)
+// ==========================================
+app.directive("lazy-base64", {
+  mounted(el, binding) {
+    el.setAttribute("data-src", binding.value || "");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          let dataSrc = el.getAttribute("data-src");
+          if (dataSrc) el.src = dataSrc;
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    ); // 提早 200px 載入，保持滑動順暢
+    observer.observe(el);
+  },
+  updated(el, binding) {
+    el.setAttribute("data-src", binding.value || "");
+    if (el.src) el.src = binding.value || ""; // 若已在畫面中，直接更新
+  },
 });
 
 app.mount("#app");

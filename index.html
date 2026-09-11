@@ -529,8 +529,26 @@
             </button>
           </div>
         </header>
+        <!-- [新增] 背景資料加密/處理中提示 (防呆遮罩) -->
+        <div
+          v-if="isProcessingLocal"
+          class="fixed bottom-20 left-1/2 -translate-x-1/2 bg-slate-800/90 dark:bg-slate-700/90 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 z-[9999] text-xs font-bold backdrop-blur-sm transition-opacity"
+        >
+          <svg
+            class="w-4 h-4 animate-spin text-blue-400"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+          <span>資料加密與存檔中...</span>
+        </div>
 
-        <!-- ================= 底部輕量導覽列 ================= -->
         <!-- ================= 底部輕量導覽列 (原生 SVG 內聯) ================= -->
         <nav
           class="fixed bottom-0 left-0 right-0 mx-auto w-full max-w-md bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex justify-between px-2 py-2 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] pb-[calc(env(safe-area-inset-bottom)+8px)] rounded-t-2xl"
@@ -2193,11 +2211,11 @@
                   借: {{ getDebitAccName(tx) }} / 貸: {{ getCreditAccName(tx) }}
                 </div>
 
-                <!-- [修改] 歷史明細縮圖呈現，替換 onclick 事件 -->
+                <!-- [修改] 歷史明細縮圖呈現 (改用 v-lazy-base64 釋放記憶體) -->
                 <div v-if="tx && tx.receipt_image" class="mt-2">
                   <img
-                    :src="tx.receipt_image"
-                    @click.stop="openImagePreview(tx.receipt_image)"
+                    v-lazy-base64="tx.receipt_image"
+                    onclick="window.open(this.src)"
                     class="h-14 w-14 object-cover rounded-lg border dark:border-slate-600 shadow-sm cursor-zoom-in"
                     title="點擊放大查看"
                   />
