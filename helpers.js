@@ -540,3 +540,84 @@ const CryptoUtils = {
     }
   },
 };
+
+// ==========================================
+// [升級] 輕量級原生 IndexedDB 封裝引擎
+// ==========================================
+const StorageDB = {
+  dbName: "LedgerPWADB",
+  storeName: "keyval",
+  async init() {
+    return new Promise((resolve, reject) => {
+      let req = indexedDB.open(this.dbName, 1);
+      req.onupgradeneeded = (e) => {
+        e.target.result.createObjectStore(this.storeName);
+      };
+      req.onsuccess = (e) => resolve(e.target.result);
+      req.onerror = () => reject("IndexedDB 初始化失敗");
+    });
+  },
+  async get(key) {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      let tx = db.transaction(this.storeName, "readonly");
+      let req = tx.objectStore(this.storeName).get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async set(key, val) {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      let tx = db.transaction(this.storeName, "readwrite");
+      tx.objectStore(this.storeName).put(val, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+  async remove(key) {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      let tx = db.transaction(this.storeName, "readwrite");
+      tx.objectStore(this.storeName).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+};
+
+// ==========================================
+// [升級] 前端圖片極致壓縮引擎 (轉 Base64)
+// ==========================================
+const compressImage = (
+  file,
+  maxWidth = 800,
+  maxHeight = 800,
+  quality = 0.6,
+) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        let w = img.width;
+        let h = img.height;
+        if (w > maxWidth || h > maxHeight) {
+          const ratio = Math.min(maxWidth / w, maxHeight / h);
+          w *= ratio;
+          h *= ratio;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+};

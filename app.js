@@ -326,8 +326,23 @@ const app = createApp({
       manualName: "",
       investSelectedSymbol: "",
       tags: [],
+      receiptImage: null,
     });
+    const isUploadingImage = ref(false);
 
+    const handleReceiptUpload = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      isUploadingImage.value = true;
+      try {
+        // 壓縮成最大 800px 且品質 60% 的輕量 JPEG
+        newTx.receiptImage = await compressImage(file, 800, 800, 0.6);
+      } catch (err) {
+        alert("⚠️ 圖片處理失敗，請嘗試其他照片。");
+      } finally {
+        isUploadingImage.value = false;
+      }
+    };
     const initStock = reactive({
       symbol: "",
       name: "",
@@ -1961,6 +1976,7 @@ const app = createApp({
         tags: extractedTags,
         debits: [],
         credits: [],
+        receipt_image: newTx.receiptImage || null, // <-- 新增此行將 Base64 寫入交易
       };
 
       if (entryMode.value === "expense") {
@@ -2176,6 +2192,7 @@ const app = createApp({
       data.transactions.unshift(txObj);
       newTx.amount = null;
       newTx.desc = "";
+      newTx.receiptImage = null;
       newTx.currency = "TWD";
       newTx.shares = null;
       newTx.price = null;
@@ -2204,7 +2221,10 @@ const app = createApp({
       if (settings.pinEnabled && settings.pinCode.length === 4) {
         oldDataStr = await CryptoUtils.encrypt(oldDataStr, settings.pinCode);
       }
-      localStorage.setItem("ledger_backup_" + oldId, oldDataStr);
+      await StorageDB.set(
+        "ledger_backup_" + settings.currentBookId,
+        serializedData,
+      );
 
       currentBookId.value = newId;
       settings.currentBookId = newId;
@@ -3613,7 +3633,7 @@ const app = createApp({
               }
             }, 150);
           }
-          localStorage.setItem(
+          await StorageDB.set(
             "ledger_backup_" + settings.currentBookId,
             serializedData,
           );
@@ -3641,9 +3661,9 @@ const app = createApp({
                 settings.pinCode,
               );
             }
-            localStorage.setItem(
+            await StorageDB.set(
               "ledger_backup_" + settings.currentBookId,
-              trimmedData,
+              serializedData,
             );
             hasShownStorageWarning = false;
           }
@@ -4298,9 +4318,18 @@ const app = createApp({
 
     const initData = async () => {
       try {
-        const backup = localStorage.getItem(
+        // [升級] 優先從 IndexedDB 讀取，若無則嘗試從舊版 LocalStorage 讀取並轉移
+        let backup = await StorageDB.get(
           "ledger_backup_" + currentBookId.value,
         );
+        if (!backup) {
+          backup = localStorage.getItem("ledger_backup_" + currentBookId.value);
+          if (backup) {
+            await StorageDB.set("ledger_backup_" + currentBookId.value, backup);
+            localStorage.removeItem("ledger_backup_" + currentBookId.value); // 轉移後銷毀舊資料釋放空間
+            console.log("資料庫已成功無縫升級至 IndexedDB");
+          }
+        }
         if (backup) {
           let decryptedData = backup;
           // [資安升級 Phase 3] 讀取時進行 AES 解密
@@ -4494,6 +4523,8 @@ const app = createApp({
       newBookName,
       data,
       newTx,
+      isUploadingImage,
+      handleReceiptUpload,
       txError,
       newTxBaseAmount,
       historyFilter,
