@@ -1,4 +1,4 @@
-const CACHE_NAME = "ledger-pwa-v9"; // 升級版本號以強制更新
+const CACHE_NAME = "ledger-pwa-v10"; // 升級版本號以強制更新
 // 移除所有外部 CDN (Tailwind, Vue 等)，只保留本地端自己的檔案
 const urlsToCache = [
   "./",
@@ -48,10 +48,12 @@ self.addEventListener("activate", (event) => {
 
 // 3. 攔截請求階段：Cache-First 策略
 self.addEventListener("fetch", (event) => {
-  // 對於 GitHub API 或證交所 API，直接放行不快取，確保抓到最新數據
+  // 對於 API 或是外部 CDN，直接放行不讓 Service Worker 攔截，完美避開 CORS 與 SRI 衝突
   if (
     event.request.url.includes("api.github.com") ||
-    event.request.url.includes("twse.com.tw")
+    event.request.url.includes("twse.com.tw") ||
+    event.request.url.includes("cdnjs.cloudflare.com") ||
+    event.request.url.includes("cdn.tailwindcss.com")
   ) {
     return;
   }
