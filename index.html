@@ -15,17 +15,6 @@
     frame-src https://accounts.google.com;
   ">
 
-  <!-- ================= 核心套件引入區 (全面改為本地實體檔案) ================= -->
-  <!-- Google APIs (必須由官方外部載入，受上方 CSP 嚴格保護) -->
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script src="https://apis.google.com/js/api.js" async defer></script>
-  
-  <!-- 本地化第三方庫 -->
-  <script src="./lib/html5-qrcode.min.js"></script>
-  <script src="./lib/tailwindcss.min.js"></script>
-  <script src="./lib/chart.min.js"></script>
-  <script src="./lib/vue.global.prod.min.js"></script>
-
   <title>Kadu｜卡度記帳</title>
   
   <!-- SVG 桌面圖示 -->
@@ -50,22 +39,18 @@
     });
   </script>
 
-<!-- ================= CDN 引入區 ================= -->
-  <!-- Google APIs -->
+  <!-- ================= 核心套件引入區 (全面改為本地實體檔案) ================= -->
+  <!-- Google APIs (必須由官方外部載入，受上方 CSP 嚴格保護) -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="https://apis.google.com/js/api.js" async defer></script>
   
-  <!-- HTML5 QR Code 掃描器 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-  
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Chart.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-  
-  <!-- Vue 3 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+  <!-- 本地化第三方庫 -->
+  <script src="./lib/html5-qrcode.min.js"></script>
+  <script src="./lib/tailwindcss.min.js"></script>
+  <script src="./lib/chart.min.js"></script>
+  <script src="./lib/vue.global.prod.min.js"></script>
+
+  <!-- 系統初始化設定 -->
   <script>
     tailwind.config = { darkMode: 'class' };
     if ('serviceWorker' in navigator) {
@@ -73,7 +58,6 @@
       window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js?v=' + Date.now()));
     }
   </script>
-  
 </head>
   <body
     class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 select-none"
