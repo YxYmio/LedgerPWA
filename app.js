@@ -1825,6 +1825,14 @@ const app = createApp({
         ? data.main_categories.Income
         : [],
     );
+
+    // [新增] 安全過濾收入子類別，隱藏系統自動生成的處分與股利科目
+    const filteredIncomeSubAccounts = computed(() => {
+      return getSubAccounts("Income", newTx.mainCategory).filter(
+        (a) => a && a.id !== "4201" && a.id !== "4202",
+      );
+    });
+
     const currentSettingCategories = computed(() =>
       data.main_categories && data.main_categories[settingCategoryMode.value]
         ? data.main_categories[settingCategoryMode.value]
@@ -4952,6 +4960,7 @@ const app = createApp({
       initData,
       expenseCategories,
       incomeCategories,
+      filteredIncomeSubAccounts,
       currentSettingCategories,
       migrateLegacyData,
     };
