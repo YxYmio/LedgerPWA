@@ -61,6 +61,7 @@ const app = createApp({
     const expenseChartInstance = shallowRef(null);
     const assetChartInstance = shallowRef(null);
     const netWorthChartInstance = shallowRef(null);
+    const projectChartInstance = shallowRef(null);
 
     // ------------------------------------------------------------------------
     // 3. 彈窗控制狀態 (Modals)
@@ -296,8 +297,41 @@ const app = createApp({
       custom_tags: [],
       split_projects: [],
       split_records: [],
+      quick_entries: [
+        {
+          id: "qe_1",
+          name: "烘焙材料",
+          amount: 350,
+          desc: "烘焙食材採買",
+          type: "expense",
+        },
+        {
+          id: "qe_2",
+          name: "客運通勤",
+          amount: 65,
+          desc: "交通花費",
+          type: "expense",
+        },
+        {
+          id: "qe_3",
+          name: "週末返家",
+          amount: 500,
+          desc: "交通花費",
+          type: "expense",
+        },
+      ],
     });
 
+    const applyQuickEntry = (entry) => {
+      if (!entry) return;
+      entryMode.value = entry.type || "expense";
+      newTx.amount = entry.amount || null;
+      newTx.desc = entry.desc || "";
+      newTx.date =
+        typeof getLocalISODate === "function"
+          ? getLocalISODate()
+          : new Date().toISOString().split("T")[0];
+    };
     // ------------------------------------------------------------------------
     // 5. 表單綁定狀態 (Forms Data)
     // ------------------------------------------------------------------------
@@ -3771,50 +3805,159 @@ const app = createApp({
               typeof cloudData === "object" &&
               (cloudData.accounts || cloudData.transactions)
             ) {
-              // --- 雲端防覆蓋比對機制 ---
-              let localTime = data.last_modified || 0;
-              let cloudTime = cloudData.last_modified || 0;
+              // ==========================================
+              // [全新] 無縫智慧合併 (Smart Merge) 機制
+              // ==========================================
+              const mergeArrayById = (localArr, cloudArr) => {
+                let map = new Map();
+                (cloudArr || []).forEach((item) => {
+                  if (item && item.id) map.set(item.id, item);
+                });
+                (localArr || []).forEach((item) => {
+                  if (item && item.id) {
+                    if (map.has(item.id)) {
+                      map.set(
+                        item.id,
+                        Object.assign({}, map.get(item.id), item),
+                      );
+                    } else {
+                      map.set(item.id, item);
+                    }
+                  }
+                });
+                return Array.from(map.values());
+              };
 
-              if (cloudTime > localTime) {
-                if (
-                  !confirm(
-                    "⚠️ 偵測到雲端有較新版本的帳本！\n(可能來自您的其他裝置)\n\n是否要【下載覆蓋】本機資料？\n(若選取消，將強制以本機資料覆蓋雲端)",
-                  )
-                ) {
-                  // 使用者選擇以本機為準，直接上傳
-                  await fetch(
-                    `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
-                    {
-                      method: "PATCH",
-                      headers: {
-                        Authorization: `Bearer ${settings.googleToken}`,
-                        "Content-Type": "application/json",
-                      },
-                      body: JSON.stringify(data),
-                    },
-                  );
-                  alert("☁️ 已強制以本機資料覆蓋雲端。");
-                  syncStatus.value = "ok";
-                  isSyncing.value = false;
-                  return;
-                }
+              const mergeStrArray = (localArr, cloudArr) => {
+                return Array.from(
+                  new Set([...(localArr || []), ...(cloudArr || [])]),
+                );
+              };
+
+              // 陣列深度合併
+              data.transactions = mergeArrayById(
+                data.transactions,
+                cloudData.transactions,
+              );
+              data.accounts = mergeArrayById(data.accounts, cloudData.accounts);
+              data.fixed_assets = mergeArrayById(
+                data.fixed_assets,
+                cloudData.fixed_assets,
+              );
+              data.investments = mergeArrayById(
+                data.investments,
+                cloudData.investments,
+              );
+              data.installments = mergeArrayById(
+                data.installments,
+                cloudData.installments,
+              );
+              data.loans = mergeArrayById(data.loans, cloudData.loans);
+              data.savings_goals = mergeArrayById(
+                data.savings_goals,
+                cloudData.savings_goals,
+              );
+              data.recurring = mergeArrayById(
+                data.recurring,
+                cloudData.recurring,
+              );
+              data.project_budgets = mergeArrayById(
+                data.project_budgets,
+                cloudData.project_budgets,
+              );
+              data.split_projects = mergeArrayById(
+                data.split_projects,
+                cloudData.split_projects,
+              );
+              data.split_records = mergeArrayById(
+                data.split_records,
+                cloudData.split_records,
+              );
+              if (cloudData.quick_entries)
+                data.quick_entries = mergeArrayById(
+                  data.quick_entries,
+                  cloudData.quick_entries,
+                );
+
+              // 標籤與分類的聯集合併
+              data.quick_tags = mergeStrArray(
+                data.quick_tags,
+                cloudData.quick_tags,
+              );
+              if (!data.main_categories)
+                data.main_categories = { Expense: [], Income: [] };
+              if (cloudData.main_categories) {
+                data.main_categories.Expense = mergeStrArray(
+                  data.main_categories.Expense,
+                  cloudData.main_categories.Expense,
+                );
+                data.main_categories.Income = mergeStrArray(
+                  data.main_categories.Income,
+                  cloudData.main_categories.Income,
+                );
               }
 
-              // 執行下載還原
-              resetData();
-              Object.assign(data, cloudData);
-              if (typeof setupDefaultData === "function")
+              // 設定物件淺拷貝合併
+              data.budgets = Object.assign(
+                {},
+                cloudData.budgets || {},
+                data.budgets || {},
+              );
+              data.smart_tags = Object.assign(
+                {},
+                cloudData.smart_tags || {},
+                data.smart_tags || {},
+              );
+              data.currencyRates = Object.assign(
+                {},
+                cloudData.currencyRates || {},
+                data.currencyRates || {},
+              );
+
+              // 嚴格依日期遞減排序明細
+              data.transactions.sort((a, b) => {
+                let d1 = a && a.date ? a.date : "";
+                let d2 = b && b.date ? b.date : "";
+                if (d1 !== d2) return d1 < d2 ? 1 : -1;
+                let id1 = a && a.id ? a.id : "";
+                let id2 = b && b.id ? b.id : "";
+                return id2.localeCompare(id1);
+              });
+
+              if (typeof setupDefaultData === "function") {
                 setupDefaultData(
                   data,
                   typeof DEFAULT_CATEGORIES !== "undefined"
                     ? DEFAULT_CATEGORIES
                     : {},
                 );
+              }
               runAutoTasks();
-              localStorage.setItem(
+
+              let mergedDataStr = JSON.stringify(data);
+              if (settings.pinEnabled && settings.pinCode.length === 4) {
+                mergedDataStr = await CryptoUtils.encrypt(
+                  mergedDataStr,
+                  settings.pinCode,
+                );
+              }
+              await StorageDB.set(
                 "ledger_backup_" + currentBookId.value,
-                JSON.stringify(data),
+                mergedDataStr,
               );
+
+              await fetch(
+                `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+                {
+                  method: "PATCH",
+                  headers: {
+                    Authorization: `Bearer ${settings.googleToken}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(data),
+                },
+              );
+
               if (expenseChartInstance.value) {
                 expenseChartInstance.value.destroy();
                 expenseChartInstance.value = null;
@@ -3828,9 +3971,11 @@ const app = createApp({
                 netWorthChartInstance.value = null;
               }
               updateCharts();
-              alert("✅ 雲端資料已成功下載並同步！");
+
+              if (isManual)
+                alert("✅ 多裝置資料已自動智慧合併，並同步至最新狀態！");
             } else {
-              alert("⚠️ 雲端資料無效，已保留本機資料防止覆蓋！");
+              if (isManual) alert("⚠️ 雲端資料無效，已保留本機資料防止覆蓋！");
             }
           } else {
             await fetch(
@@ -4311,6 +4456,16 @@ const app = createApp({
               histData,
             );
           }
+          if (typeof renderProjectChart === "function") {
+            let validProjects = (projectBudgetStats.value || []).filter(
+              (p) => p && p.spent > 0,
+            );
+            projectChartInstance.value = renderProjectChart(
+              projectChartInstance.value,
+              "projectChart",
+              validProjects,
+            );
+          }
         } catch (err) {
           console.warn("Chart Render Error:", err);
         }
@@ -4533,7 +4688,8 @@ const app = createApp({
       deleteGroupSplitRecord,
       shareGroupSettlement,
       writeGroupSettlementToLedger,
-
+      netWorthChartInstance,
+      projectChartInstance,
       activeRefundTx,
       refundData,
       activeReimburseTx,
@@ -4542,6 +4698,7 @@ const app = createApp({
       currentBookId,
       newBookName,
       data,
+      applyQuickEntry,
       newTx,
       isUploadingImage,
       handleReceiptUpload,
