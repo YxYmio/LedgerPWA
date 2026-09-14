@@ -425,6 +425,44 @@ const app = createApp({
       day: 1,
       account: "",
     });
+
+    const newQuickEntry = reactive({
+      name: "",
+      amount: null,
+      desc: "",
+      type: "expense",
+    });
+
+    const addQuickEntry = () => {
+      if (!newQuickEntry.name || !newQuickEntry.amount) {
+        return alert("請填妥範本名稱與預設金額！");
+      }
+      if (!data.quick_entries) data.quick_entries = [];
+      data.quick_entries.push({
+        id: "qe_" + Date.now(),
+        name: newQuickEntry.name,
+        amount: newQuickEntry.amount,
+        desc: newQuickEntry.desc,
+        type: newQuickEntry.type,
+      });
+      newQuickEntry.name = "";
+      newQuickEntry.amount = null;
+      newQuickEntry.desc = "";
+      newQuickEntry.type = "expense";
+      autoBackup(true, true);
+      alert("✅ 記帳範本建立成功！");
+    };
+
+    const deleteQuickEntry = (id) => {
+      if (!id) return;
+      if (confirm("確定刪除此記帳範本？")) {
+        data.quick_entries = (data.quick_entries || []).filter(
+          (q) => q && q.id !== id,
+        );
+        autoBackup(true, true);
+      }
+    };
+
     const initGoal = reactive({
       id: "",
       name: "",
@@ -4718,6 +4756,9 @@ const app = createApp({
       activeLoan,
       rateData,
       newRecurring,
+      newQuickEntry,
+      addQuickEntry,
+      deleteQuickEntry,
       initGoal,
       editGoal,
       activeGoal,
