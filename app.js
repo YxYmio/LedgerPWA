@@ -322,16 +322,6 @@ const app = createApp({
       ],
     });
 
-    const applyQuickEntry = (entry) => {
-      if (!entry) return;
-      entryMode.value = entry.type || "expense";
-      newTx.amount = entry.amount || null;
-      newTx.desc = entry.desc || "";
-      newTx.date =
-        typeof getLocalISODate === "function"
-          ? getLocalISODate()
-          : new Date().toISOString().split("T")[0];
-    };
     // ------------------------------------------------------------------------
     // 5. 表單綁定狀態 (Forms Data)
     // ------------------------------------------------------------------------
