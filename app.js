@@ -428,6 +428,12 @@ const app = createApp({
       toAcc: "", // [新增] 支援轉入帳戶
     });
 
+    const currentModeQuickEntries = computed(() => {
+      return (data.quick_entries || []).filter(
+        (q) => q && q.type === entryMode.value,
+      );
+    });
+
     const addQuickEntry = () => {
       if (!newQuickEntry.name || !newQuickEntry.amount) {
         return alert("請填妥範本名稱與預設金額！");
@@ -4780,6 +4786,7 @@ const app = createApp({
       rateData,
       newRecurring,
       newQuickEntry,
+      currentModeQuickEntries,
       addQuickEntry,
       deleteQuickEntry,
       initGoal,

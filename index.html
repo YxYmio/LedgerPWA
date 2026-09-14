@@ -985,12 +985,13 @@
           <div v-show="activeTab === 'entry'" class="space-y-4">
             <!-- 記帳模式切換頁籤 -->
             <!-- [修改] 快捷記帳範本區塊 (根據當前 entryMode 動態過濾顯示) -->
+            <!-- [修改] 快捷記帳範本區塊 (採用 Computed 安全過濾避免 Error 17) -->
             <div
-              v-if="(data.quick_entries || []).filter(q => q && q.type === entryMode).length > 0"
+              v-if="currentModeQuickEntries.length > 0"
               class="flex overflow-x-auto gap-2 pb-2 custom-scrollbar"
             >
               <button
-                v-for="qe in (data.quick_entries || []).filter(q => q && q.type === entryMode)"
+                v-for="qe in currentModeQuickEntries"
                 :key="qe && qe.id ? qe.id : ''"
                 @click="applyQuickEntry(qe)"
                 class="flex-shrink-0 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800 px-3 py-1.5 rounded-lg text-xs font-bold transition hover:bg-indigo-100 shadow-sm"
@@ -998,6 +999,7 @@
                 ⚡ {{ qe && qe.name ? qe.name : '' }}
               </button>
             </div>
+            
             <div
               class="flex overflow-x-auto bg-white dark:bg-slate-800 rounded-xl p-1.5 gap-1 custom-scrollbar shadow-sm border dark:border-slate-700"
             >
