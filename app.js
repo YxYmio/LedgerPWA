@@ -2399,7 +2399,11 @@ const app = createApp({
         netWorthChartInstance.value.destroy();
         netWorthChartInstance.value = null;
       }
-      if (["dashboard", "reports", "budget"].includes(activeTab.value))
+      if (
+        ["dashboard", "reports", "budget", "group_split"].includes(
+          activeTab.value,
+        )
+      )
         updateCharts();
 
       autoBackup(false);
@@ -4442,7 +4446,12 @@ const app = createApp({
     };
 
     const updateCharts = () => {
-      if (!["dashboard", "budget", "reports"].includes(activeTab.value)) return;
+      if (
+        !["dashboard", "budget", "reports", "group_split"].includes(
+          activeTab.value,
+        )
+      )
+        return;
       nextTick(() => {
         try {
           if (typeof renderExpenseChart === "function") {
@@ -4570,7 +4579,11 @@ const app = createApp({
       // 已全面改用原生 SVG，無須再依賴 Lucide CDN 實例化
     };
     watch(activeTab, () => {
-      if (["dashboard", "reports", "budget"].includes(activeTab.value))
+      if (
+        ["dashboard", "reports", "budget", "group_split"].includes(
+          activeTab.value,
+        )
+      )
         updateCharts();
       refreshIcons();
     });
@@ -4627,7 +4640,11 @@ const app = createApp({
       else setTimeout(initGoogleAuth, 2000);
       migrateLegacyData();
       runAutoTasks();
-      if (["dashboard", "reports", "budget"].includes(activeTab.value))
+      if (
+        ["dashboard", "reports", "budget", "group_split"].includes(
+          activeTab.value,
+        )
+      )
         updateCharts();
       refreshIcons();
 

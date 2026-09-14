@@ -2485,6 +2485,30 @@
                 </svg>
                 個人專案預算追蹤
               </h3>
+              <!-- [新增] 專案支出視覺化分析 -->
+              <div
+                class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700 mt-4"
+              >
+                <h3
+                  class="font-bold text-sm text-indigo-600 dark:text-indigo-400 mb-3 flex items-center gap-2"
+                >
+                  <svg
+                    class="w-4 h-4"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+                    <path d="M22 12A10 10 0 0 0 12 2v10z" />
+                  </svg>
+                  個人專案開銷佔比分析
+                </h3>
+                <div class="relative w-full h-48">
+                  <canvas id="projectChart"></canvas>
+                </div>
+              </div>
               <div class="space-y-3 mb-6">
                 <div
                   v-if="!projectBudgetStats || projectBudgetStats.length === 0"
@@ -2938,31 +2962,6 @@
                   :class="(budgetStats && budgetStats.totalSpent > budgetStats.totalLimit) ? 'bg-red-500' : 'bg-green-500'"
                   :style="{ width: Math.min(((budgetStats && budgetStats.totalSpent ? budgetStats.totalSpent : 0) / (budgetStats && budgetStats.totalLimit ? budgetStats.totalLimit : 1)) * 100, 100) + '%' }"
                 ></div>
-              </div>
-            </div>
-
-            <!-- [新增] 專案支出視覺化分析 -->
-            <div
-              class="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border dark:border-slate-700 mt-4"
-            >
-              <h3
-                class="font-bold text-sm text-indigo-600 dark:text-indigo-400 mb-3 flex items-center gap-2"
-              >
-                <svg
-                  class="w-4 h-4"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
-                  <path d="M22 12A10 10 0 0 0 12 2v10z" />
-                </svg>
-                個人專案開銷佔比分析
-              </h3>
-              <div class="relative w-full h-48">
-                <canvas id="projectChart"></canvas>
               </div>
             </div>
 
