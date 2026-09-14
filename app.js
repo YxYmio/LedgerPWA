@@ -224,6 +224,25 @@ const app = createApp({
     const showInstallmentModal = ref(false);
     const showProjectBudgetModal = ref(false);
 
+    // ==========================================
+    // [新增] 歷史明細 Action Sheet 狀態與邏輯
+    // ==========================================
+    const isActionSheetOpen = ref(false);
+    const activeActionTx = ref(null);
+
+    const openActionSheet = (tx) => {
+      if (!tx) return;
+      activeActionTx.value = tx;
+      isActionSheetOpen.value = true;
+    };
+
+    const closeActionSheet = () => {
+      isActionSheetOpen.value = false;
+      setTimeout(() => {
+        activeActionTx.value = null;
+      }, 300); // 等待下沉動畫結束再清空資料
+    };
+
     const showGroupSplitProjectModal = ref(false);
     const showGroupSplitRecordModal = ref(false);
     const showGroupSettleLedgerModal = ref(false);
@@ -4723,7 +4742,10 @@ const app = createApp({
       editTxModal,
       showInstallmentModal,
       showProjectBudgetModal,
-
+      isActionSheetOpen,
+      activeActionTx,
+      openActionSheet,
+      closeActionSheet,
       showGroupSplitProjectModal,
       showGroupSplitRecordModal,
       showGroupSettleLedgerModal,
