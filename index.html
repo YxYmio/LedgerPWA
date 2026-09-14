@@ -984,13 +984,13 @@
           <!-- ================= 2. 記帳 Tab (Entry) ================= -->
           <div v-show="activeTab === 'entry'" class="space-y-4">
             <!-- 記帳模式切換頁籤 -->
-            <!-- [新增] 快捷記帳範本區塊 -->
+            <!-- [修改] 快捷記帳範本區塊 (根據當前 entryMode 動態過濾顯示) -->
             <div
-              v-if="data.quick_entries && data.quick_entries.length > 0"
+              v-if="(data.quick_entries || []).filter(q => q && q.type === entryMode).length > 0"
               class="flex overflow-x-auto gap-2 pb-2 custom-scrollbar"
             >
               <button
-                v-for="qe in data.quick_entries"
+                v-for="qe in (data.quick_entries || []).filter(q => q && q.type === entryMode)"
                 :key="qe && qe.id ? qe.id : ''"
                 @click="applyQuickEntry(qe)"
                 class="flex-shrink-0 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800 px-3 py-1.5 rounded-lg text-xs font-bold transition hover:bg-indigo-100 shadow-sm"
@@ -4343,6 +4343,26 @@
                   class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white"
                 />
               </div>
+              <!-- [新增] 當選擇轉帳時，動態顯示帳戶綁定選項 -->
+              <div v-if="newQuickEntry.type === 'transfer'" class="flex gap-2 bg-purple-50 dark:bg-purple-900/20 p-2 rounded-lg border border-purple-100 dark:border-purple-800">
+                <select v-model="newQuickEntry.fromAcc" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white">
+                  <option value="" disabled>預設轉出帳戶</option>
+                  <option v-for="acc in paymentAccountsWithBalance" :key="acc && acc.id ? acc.id : ''" :value="acc && acc.id ? acc.id : ''">
+                    {{ acc && acc.icon ? acc.icon : '🏦' }} {{ acc && acc.name ? acc.name : '' }}
+                  </option>
+                </select>
+                <svg class="w-5 h-5 text-purple-500 font-bold flex-shrink-0 self-center" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                <select v-model="newQuickEntry.toAcc" class="flex-1 border p-2 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-white dark:text-white">
+                  <option value="" disabled>預設轉入帳戶</option>
+                  <option v-for="acc in paymentAccountsWithBalance" :key="acc && acc.id ? acc.id : ''" :value="acc && acc.id ? acc.id : ''">
+                    {{ acc && acc.icon ? acc.icon : '🏦' }} {{ acc && acc.name ? acc.name : '' }}
+                  </option>
+                </select>
+              </div>
+
+              <button
+                @click="addQuickEntry"
+...
               <button
                 @click="addQuickEntry"
                 class="w-full bg-amber-500 hover:bg-amber-600 transition text-white px-3 py-2 rounded-lg font-bold text-sm shadow-md mt-2 flex justify-center items-center gap-1"

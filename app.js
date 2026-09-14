@@ -300,9 +300,9 @@ const app = createApp({
       quick_entries: [
         {
           id: "qe_1",
-          name: "烘焙材料",
-          amount: 350,
-          desc: "烘焙食材採買",
+          name: "咖啡",
+          amount: 100,
+          desc: "買咖啡",
           type: "expense",
         },
         {
@@ -314,9 +314,9 @@ const app = createApp({
         },
         {
           id: "qe_3",
-          name: "週末返家",
-          amount: 500,
-          desc: "交通花費",
+          name: "房租",
+          amount: 20000,
+          desc: "房租費用",
           type: "expense",
         },
       ],
@@ -426,16 +426,28 @@ const app = createApp({
       account: "",
     });
 
+    // ==========================================
+    // 快捷記帳範本管理邏輯
+    // ==========================================
     const newQuickEntry = reactive({
       name: "",
       amount: null,
       desc: "",
       type: "expense",
+      fromAcc: "", // [新增] 支援轉出帳戶
+      toAcc: "", // [新增] 支援轉入帳戶
     });
 
     const addQuickEntry = () => {
       if (!newQuickEntry.name || !newQuickEntry.amount) {
         return alert("請填妥範本名稱與預設金額！");
+      }
+      // [新增] 轉帳模式防呆
+      if (
+        newQuickEntry.type === "transfer" &&
+        (!newQuickEntry.fromAcc || !newQuickEntry.toAcc)
+      ) {
+        return alert("請選擇轉出與轉入帳戶！");
       }
       if (!data.quick_entries) data.quick_entries = [];
       data.quick_entries.push({
@@ -444,11 +456,15 @@ const app = createApp({
         amount: newQuickEntry.amount,
         desc: newQuickEntry.desc,
         type: newQuickEntry.type,
+        fromAcc: newQuickEntry.fromAcc,
+        toAcc: newQuickEntry.toAcc,
       });
       newQuickEntry.name = "";
       newQuickEntry.amount = null;
       newQuickEntry.desc = "";
       newQuickEntry.type = "expense";
+      newQuickEntry.fromAcc = "";
+      newQuickEntry.toAcc = "";
       autoBackup(true, true);
       alert("✅ 記帳範本建立成功！");
     };
@@ -460,6 +476,23 @@ const app = createApp({
           (q) => q && q.id !== id,
         );
         autoBackup(true, true);
+      }
+    };
+
+    const applyQuickEntry = (entry) => {
+      if (!entry) return;
+      entryMode.value = entry.type || "expense";
+      newTx.amount = entry.amount || null;
+      newTx.desc = entry.desc || "";
+      newTx.date =
+        typeof getLocalISODate === "function"
+          ? getLocalISODate()
+          : new Date().toISOString().split("T")[0];
+
+      // [新增] 若為轉帳模式，精準帶入關聯帳戶
+      if (entry.type === "transfer") {
+        newTx.fromAcc = entry.fromAcc || "";
+        newTx.toAcc = entry.toAcc || "";
       }
     };
 
