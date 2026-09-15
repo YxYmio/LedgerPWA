@@ -120,3 +120,14 @@ body {
 .animate-slide-up {
   animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* ==========================================
+   [新增] 歷史明細左滑操作選單 (Swipe to Action)
+========================================== */
+.swipe-container {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.swipe-container::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Opera */
+}

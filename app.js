@@ -2615,9 +2615,18 @@ const app = createApp({
         tx.auto_generated
       )
         return alert("特殊狀態明細無法直接編輯。");
+
       editingTx.id = tx.id;
       editingTx.date = tx.date;
-      editingTx.desc = getTxDesc(tx);
+
+      // [修改] 將隱藏的標籤陣列重新組合回摘要文字框中，讓使用者可以編輯
+      let cleanDesc = getTxDesc(tx).replace(/#\S+/g, "").trim();
+      if (tx.tags && tx.tags.length > 0) {
+        cleanDesc +=
+          (cleanDesc ? " " : "") + tx.tags.map((t) => "#" + t).join(" ");
+      }
+      editingTx.desc = cleanDesc;
+
       editingTx.amount = getDebitAmount(tx);
       editingTx.scope = tx.scope || "personal";
       editingTx.debitAcc =
@@ -2631,7 +2640,15 @@ const app = createApp({
       let tx = data.transactions.find((t) => t && t.id === editingTx.id);
       if (!tx) return;
       tx.date = editingTx.date;
-      tx.desc = editingTx.desc;
+
+      // [修改] 儲存時重新解析摘要欄位中的標籤
+      let extractedTags = [];
+      let tagMatches = (editingTx.desc || "").match(/#\S+/g);
+      if (tagMatches) extractedTags = tagMatches.map((t) => t.substring(1));
+
+      tx.desc = (editingTx.desc || "").trim();
+      tx.tags = extractedTags;
+
       tx.scope = editingTx.scope;
       if (tx.debits && tx.debits.length === 1 && editingTx.debitAcc) {
         tx.debits[0].amount = editingTx.amount;
