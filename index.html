@@ -2263,13 +2263,18 @@
                   </div>
                 </div>
 
-                <!-- 右半部：金額與滑動提示 -->
-                <div class="flex flex-col items-end shrink-0">
+                <!-- 右半部：金額與操作入口 -->
+                <div
+                  class="flex flex-col items-end justify-center gap-1 shrink-0"
+                >
                   <div class="font-black text-lg" :class="getTxAmountColor(tx)">
                     ${{ formatNumber(getDebitAmount(tx)) }}
                   </div>
-                  <div
-                    class="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 flex items-center gap-1 font-bold"
+
+                  <!-- 手機版：保留左滑提示 (加碼支援點擊展開底部選單) -->
+                  <button
+                    @click.stop="openActionSheet(tx)"
+                    class="md:hidden text-[10px] text-slate-400 dark:text-slate-500 mt-1 flex items-center gap-1 font-bold p-1 -mr-1 rounded active:bg-slate-100 dark:active:bg-slate-700 transition"
                   >
                     <svg
                       class="w-3 h-3 animate-pulse text-blue-400"
@@ -2283,8 +2288,30 @@
                     >
                       <path d="m15 18-6-6 6-6" />
                     </svg>
-                    左滑操作
-                  </div>
+                    左滑/點擊
+                  </button>
+
+                  <!-- 電腦版/平板版：專屬滑鼠點擊操作按鈕 (透過 md:flex 響應式切換) -->
+                  <button
+                    @click.stop="openActionSheet(tx)"
+                    class="hidden md:flex text-[11px] text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 bg-slate-100 dark:bg-slate-700/50 hover:bg-blue-50 border dark:border-slate-600 px-2 py-1 rounded-lg transition items-center gap-1 mt-1 font-bold shadow-sm cursor-pointer"
+                  >
+                    <svg
+                      class="w-3.5 h-3.5"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="1" />
+                      <circle cx="12" cy="5" r="1" />
+                      <circle cx="12" cy="19" r="1" />
+                    </svg>
+                    操作
+                  </button>
                 </div>
               </div>
 
