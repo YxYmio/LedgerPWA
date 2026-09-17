@@ -16,6 +16,20 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
+    const deferredPrompt = ref(null);
+    const showInstallBanner = ref(false);
+
+    const installPWA = async () => {
+      if (deferredPrompt.value) {
+        deferredPrompt.value.prompt();
+        const { outcome } = await deferredPrompt.value.userChoice;
+        if (outcome === "accepted") {
+          showInstallBanner.value = false;
+        }
+        deferredPrompt.value = null;
+      }
+    };
+
     const activeTab = ref("dashboard");
     const isDrawerOpen = ref(false);
     const resetPin = () => {
@@ -1613,6 +1627,33 @@ const app = createApp({
       });
       sum += (totalInvMV - totalInvCost) * scopeRatio;
       return sum;
+    });
+
+    const portfolioStats = computed(() => {
+      let totalCost = 0;
+      let totalMV = 0;
+      (safeInvestments.value || []).forEach((inv) => {
+        if (inv && inv.shares > 0) {
+          totalCost += Number(inv.total_cost) || 0;
+          let rate = data.currencyRates[inv.currency || "TWD"] || 1;
+          totalMV +=
+            (Number(inv.shares) || 0) * (Number(inv.last_price) || 0) * rate;
+        }
+      });
+      // 取出帳本中所有的股利收入餘額 (4202) 作為累計配息
+      let totalDiv = calculateBalance("4202", "all");
+      let unrealized = totalMV - totalCost;
+      let totalReturn = unrealized + totalDiv; // 真實總獲利 = 價差 + 股息
+      let roi = totalCost > 0 ? (totalReturn / totalCost) * 100 : 0;
+
+      return {
+        totalCost,
+        totalMV,
+        totalDiv,
+        unrealized,
+        totalReturn,
+        roi,
+      };
     });
 
     const totalLiabilities = computed(() => {
@@ -4689,6 +4730,12 @@ const app = createApp({
 
     // 加入以下初始化邏輯：
     onMounted(() => {
+      window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault();
+        deferredPrompt.value = e;
+        showInstallBanner.value = true;
+      });
+
       // 1. 先載入本機設定檔 (確認是否有開啟 PIN 碼)
       loadSettings();
 
@@ -4915,6 +4962,7 @@ const app = createApp({
       liquidAccountsWithBalance,
       liabilityAccountsWithBalance,
       totalLiquidAssets,
+      portfolioStats,
       upcomingBillsTotal,
       cashflowWarning,
       totalAssets,
@@ -4932,6 +4980,8 @@ const app = createApp({
       dashboardBudgets,
       budgetStats,
       getAccName,
+      showInstallBanner,
+      installPWA,
       formatNumber: safeFormatNumber,
       getTxDesc,
       getDebitAccName,

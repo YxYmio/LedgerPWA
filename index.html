@@ -667,6 +667,44 @@
         </nav>
 
         <main class="p-4">
+          <!-- PWA 安裝提示橫幅 -->
+          <div
+            v-if="showInstallBanner"
+            class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-3 rounded-xl shadow-lg mb-4 flex items-center justify-between"
+          >
+            <div class="flex items-center gap-3">
+              <div class="bg-white/20 p-2 rounded-lg">
+                <svg
+                  class="w-5 h-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"
+                  />
+                  <path d="M9 10h6" />
+                  <path d="M12 7v6" />
+                </svg>
+              </div>
+              <div>
+                <div class="text-sm font-bold tracking-wider">取得最佳體驗</div>
+                <div class="text-[10px] text-blue-100">
+                  將卡度記帳安裝至桌面，享受秒開速度與全螢幕
+                </div>
+              </div>
+            </div>
+            <button
+              @click="installPWA"
+              class="bg-white text-indigo-600 font-bold px-3 py-1.5 rounded-lg text-xs shadow hover:bg-slate-100 transition whitespace-nowrap"
+            >
+              免費安裝
+            </button>
+          </div>
           <div
             v-if="(!settings || !settings.googleToken) && activeTab !== 'settings'"
             @click="changeTab('settings')"
@@ -2064,7 +2102,7 @@
           </div>
 
           <!-- ================= 3. 明細 Tab (History) ================= -->
-          <div v-show="activeTab === 'history'" class="space-y-4">
+          <div v-if="activeTab === 'history'" class="space-y-4">
             <div
               class="flex justify-between items-center border-b dark:border-slate-700 pb-2"
             >
@@ -2310,7 +2348,6 @@
                       <circle cx="12" cy="5" r="1" />
                       <circle cx="12" cy="19" r="1" />
                     </svg>
-                    操作
                   </button>
                 </div>
               </div>
@@ -2456,23 +2493,18 @@
               </div>
             </div>
 
-            <!-- 載入更多按鈕 (獨立於迴圈外) -->
+            <!-- 自動載入更多的偵測錨點 -->
             <div
               v-if="filteredTransactions.length > paginatedTransactions.length"
-              class="text-center pt-2 pb-6"
+              v-observe-visibility="loadMoreHistory"
+              class="h-10 flex items-center justify-center text-slate-400"
             >
-              <button
-                @click="loadMoreHistory"
-                class="bg-blue-50 text-blue-600 dark:bg-slate-800 dark:text-blue-400 font-bold px-6 py-2.5 rounded-full shadow-sm border border-blue-100 dark:border-slate-700 hover:bg-blue-100 transition text-sm"
-              >
-                載入更多明細 (還有 {{ filteredTransactions.length -
-                paginatedTransactions.length }} 筆)
-              </button>
+              <div class="spinner w-5 h-5 border-2 border-blue-500"></div>
             </div>
           </div>
 
           <!-- ================= 全新獨立：群組結算中心 Tab (Group Split) ================= -->
-          <div v-show="activeTab === 'group_split'" class="space-y-4">
+          <div v-if="activeTab === 'group_split'" class="space-y-4">
             <!-- 專案大廳 (Project Lobby) -->
             <div v-if="!activeSplitProjectId">
               <div
@@ -3078,7 +3110,7 @@
             </div>
           </div>
           <!-- ================= 4. 預算 Tab (Budget) ================= -->
-          <div v-show="activeTab === 'budget'" class="space-y-4">
+          <div v-if="activeTab === 'budget'" class="space-y-4">
             <div
               class="flex justify-between items-center border-b dark:border-slate-700 pb-2"
             >
@@ -3222,7 +3254,7 @@
           </div>
 
           <!-- ================= 4-5. 儲蓄目標 Tab (Savings) ================= -->
-          <div v-show="activeTab === 'savings'" class="space-y-4">
+          <div v-if="activeTab === 'savings'" class="space-y-4">
             <div
               class="flex justify-between items-center border-b dark:border-slate-700 pb-2"
             >
@@ -3622,38 +3654,113 @@
             </div>
 
             <div>
-              <div class="flex justify-between items-center mb-2 mt-4">
-                <h3
-                  class="text-sm font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1"
+              <div class="mt-5 mb-3">
+                <div class="flex justify-between items-end mb-2">
+                  <h3
+                    class="text-sm font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1"
+                  >
+                    <svg
+                      class="w-4 h-4"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
+                      <polyline points="16 7 22 7 22 13" />
+                    </svg>
+                    股票投資總覽
+                  </h3>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button
+                      @click="updateStockPrices"
+                      class="text-xs text-indigo-500 font-bold bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded border border-indigo-100 dark:border-indigo-800 shadow-sm flex items-center gap-1"
+                    >
+                      <svg
+                        class="w-3 h-3"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+                        />
+                        <path d="M3 3v5h5" />
+                      </svg>
+                      更新現價
+                    </button>
+                    <button
+                      @click="showInitialStockModal = true"
+                      class="text-xs text-orange-500 font-bold px-1"
+                    >
+                      + 期初建倉
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  class="bg-gradient-to-br from-slate-800 to-slate-900 dark:from-slate-900 dark:to-black rounded-xl p-4 text-white shadow-lg relative overflow-hidden"
                 >
-                  <svg
-                    class="w-4 h-4"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
+                  <div
+                    class="absolute top-0 right-0 w-24 h-24 bg-white opacity-5 rounded-full -mr-8 -mt-8"
+                  ></div>
+                  <div class="flex justify-between items-center mb-3">
+                    <div class="text-xs text-slate-300 font-bold">
+                      整體持有市值 (不含已處分)
+                    </div>
+                    <div class="text-xl font-black font-mono">
+                      ${{ formatNumber(portfolioStats ? portfolioStats.totalMV :
+                      0) }}
+                    </div>
+                  </div>
+                  <div
+                    class="grid grid-cols-2 gap-3 border-t border-slate-700 pt-3"
                   >
-                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
-                    <polyline points="16 7 22 7 22 13" />
-                  </svg>
-                  投資組合現值
-                </h3>
-                <div class="flex flex-wrap items-center gap-2">
-                  <button
-                    @click="updateStockPrices"
-                    class="text-xs text-indigo-500 font-bold bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded border border-indigo-100 dark:border-indigo-800 shadow-sm"
+                    <div>
+                      <div class="text-[10px] text-slate-400 mb-0.5">
+                        未實現價差
+                      </div>
+                      <div
+                        class="text-sm font-bold font-mono"
+                        :class="(portfolioStats && portfolioStats.unrealized >= 0) ? 'text-red-400' : 'text-green-400'"
+                      >
+                        {{ (portfolioStats && portfolioStats.unrealized >= 0) ?
+                        '+' : '' }}${{ formatNumber(portfolioStats ?
+                        portfolioStats.unrealized : 0) }}
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-[10px] text-slate-400 mb-0.5">
+                        歷史累計配息
+                      </div>
+                      <div class="text-sm font-bold font-mono text-yellow-400">
+                        +${{ formatNumber(portfolioStats ?
+                        portfolioStats.totalDiv : 0) }}
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="mt-3 bg-white/10 rounded-lg p-2 flex justify-between items-center backdrop-blur-sm border border-white/5"
                   >
-                    更新現價
-                  </button>
-                  <button
-                    @click="showInitialStockModal = true"
-                    class="text-xs text-orange-500 font-bold"
-                  >
-                    + 期初建倉
-                  </button>
+                    <span class="text-xs font-bold text-slate-200"
+                      >真實含息總報酬率 (ROI)</span
+                    >
+                    <span
+                      class="text-sm font-black font-mono"
+                      :class="(portfolioStats && portfolioStats.roi >= 0) ? 'text-red-400' : 'text-green-400'"
+                    >
+                      {{ (portfolioStats && portfolioStats.roi >= 0) ? '+' : ''
+                      }}{{ formatNumber(portfolioStats ? portfolioStats.roi : 0)
+                      }}%
+                    </span>
+                  </div>
                 </div>
               </div>
               <div class="space-y-2">
@@ -3795,7 +3902,7 @@
             </div>
           </div>
           <!-- ================= 6. 財務報表 Tab (Reports) ================= -->
-          <div v-show="activeTab === 'reports'" class="space-y-4">
+          <div v-if="activeTab === 'reports'" class="space-y-4">
             <div
               class="flex justify-between items-center border-b dark:border-slate-700 pb-2"
             >
@@ -4240,7 +4347,7 @@
           </div>
 
           <!-- ================= 全新獨立：週期性收支排程 Tab ================= -->
-          <div v-show="activeTab === 'recurring'" class="space-y-4">
+          <div v-if="activeTab === 'recurring'" class="space-y-4">
             <div
               class="flex justify-between items-center border-b dark:border-slate-700 pb-2 mb-4"
             >
@@ -4390,7 +4497,7 @@
           </div>
 
           <!-- ================= 全新獨立：記帳範本管理 Tab (Quick Entries) ================= -->
-          <div v-show="activeTab === 'quick_entries'" class="space-y-4">
+          <div v-if="activeTab === 'quick_entries'" class="space-y-4">
             <div
               class="flex justify-between items-center border-b dark:border-slate-700 pb-2 mb-4"
             >
@@ -4573,7 +4680,7 @@
           </div>
 
           <!-- ================= 全新獨立：分類與標籤 Tab ================= -->
-          <div v-show="activeTab === 'categories'" class="space-y-4">
+          <div v-if="activeTab === 'categories'" class="space-y-4">
             <div
               class="flex justify-between items-center border-b dark:border-slate-700 pb-2 mb-4"
             >
@@ -4837,7 +4944,7 @@
           </div>
 
           <!-- ================= 7. 設定 Tab (Settings) ================= -->
-          <div v-show="activeTab === 'settings'" class="space-y-6 pb-4">
+          <div v-if="activeTab === 'settings'" class="space-y-6 pb-4">
             <div
               class="flex justify-between items-center border-b dark:border-slate-700 pb-2 mb-4"
             >
