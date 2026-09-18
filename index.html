@@ -3677,7 +3677,7 @@
                   </h3>
                   <div class="flex flex-wrap items-center gap-2">
                     <button
-                      @click="updateStockPrices"
+                      @click="updateStockPrices()"
                       class="text-xs text-indigo-500 font-bold bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded border border-indigo-100 dark:border-indigo-800 shadow-sm flex items-center gap-1"
                     >
                       <svg
@@ -3717,8 +3717,7 @@
                       整體持有市值 (不含已處分)
                     </div>
                     <div class="text-xl font-black font-mono">
-                      ${{ formatNumber(portfolioStats ? portfolioStats.totalMV :
-                      0) }}
+                      ${{ formatNumber(portfolioStats ? portfolioStats.totalMV : 0) }}
                     </div>
                   </div>
                   <div
@@ -3732,9 +3731,7 @@
                         class="text-sm font-bold font-mono"
                         :class="(portfolioStats && portfolioStats.unrealized >= 0) ? 'text-red-400' : 'text-green-400'"
                       >
-                        {{ (portfolioStats && portfolioStats.unrealized >= 0) ?
-                        '+' : '' }}${{ formatNumber(portfolioStats ?
-                        portfolioStats.unrealized : 0) }}
+                        {{ (portfolioStats && portfolioStats.unrealized >= 0) ? '+' : '' }}${{ formatNumber(portfolioStats ? portfolioStats.unrealized : 0) }}
                       </div>
                     </div>
                     <div>
@@ -3742,8 +3739,7 @@
                         歷史累計配息
                       </div>
                       <div class="text-sm font-bold font-mono text-yellow-400">
-                        +${{ formatNumber(portfolioStats ?
-                        portfolioStats.totalDiv : 0) }}
+                        +${{ formatNumber(portfolioStats ? portfolioStats.totalDiv : 0) }}
                       </div>
                     </div>
                   </div>
@@ -3757,9 +3753,7 @@
                       class="text-sm font-black font-mono"
                       :class="(portfolioStats && portfolioStats.roi >= 0) ? 'text-red-400' : 'text-green-400'"
                     >
-                      {{ (portfolioStats && portfolioStats.roi >= 0) ? '+' : ''
-                      }}{{ formatNumber(portfolioStats ? portfolioStats.roi : 0)
-                      }}%
+                      {{ (portfolioStats && portfolioStats.roi >= 0) ? '+' : '' }}{{ formatNumber(portfolioStats ? portfolioStats.roi : 0) }}%
                     </span>
                   </div>
                 </div>

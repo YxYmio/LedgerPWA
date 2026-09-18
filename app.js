@@ -3856,6 +3856,68 @@ const app = createApp({
           loan.last_exec_month = curM;
         }
       });
+      // 獨立的貸款自動扣款引擎
+      (data.loans || []).forEach((loan) => {
+        if (
+          !loan ||
+          !loan.auto_deduct ||
+          !loan.monthly_payment ||
+          !loan.deduct_account_id
+        )
+          return;
+        let lastExec = loan.last_exec_month || "";
+
+        // 如果這個月還沒執行過，而且今天的日期已經大於等於設定的扣款日
+        if (lastExec !== curM && today >= loan.deduct_day) {
+          let cp = Math.abs(calculateBalance(loan.liability_acc_id, "all"));
+          if (cp <= 0) return;
+
+          let interest = Math.round(
+            cp * ((loan.interest_rate || 0) / 100 / 12),
+          );
+          let principal = Math.min(loan.monthly_payment - interest, cp);
+          let totalDeduct = principal + interest;
+
+          let txObj = {
+            id: "tx_loan_auto_" + Date.now() + Math.random(),
+            date: `${curM}-${String(loan.deduct_day).padStart(2, "0")}`,
+            scope: "personal",
+            desc: `[自動扣款] 貸款還款: ${loan.name}`,
+            debits: [
+              { account_id: loan.liability_acc_id, amount: principal },
+              { account_id: "5103", amount: interest },
+            ],
+            credits: [
+              { account_id: loan.deduct_account_id, amount: totalDeduct },
+            ],
+            auto_generated: true,
+            loan_id: loan.id,
+          };
+          data.transactions.unshift(txObj);
+          loan.last_exec_month = curM;
+        }
+      });
+
+      // ==========================================
+      // [新增] 每日收盤後背景自動更新股價機制
+      // ==========================================
+      let d_now = new Date();
+      let isAfterClose = d_now.getHours() >= 14; // 下午兩點後視為收盤
+      let periodStr = isAfterClose ? "after_close" : "before_close";
+      let currentStamp =
+        (typeof getLocalISODate === "function"
+          ? getLocalISODate()
+          : d_now.toISOString().split("T")[0]) +
+        "_" +
+        periodStr;
+      let lastStamp = localStorage.getItem("ledger_stock_auto_update_stamp");
+
+      // 如果目前是下午兩點後，且今天的收盤價還沒抓過，就在背景安靜抓取
+      if (isAfterClose && lastStamp !== currentStamp) {
+        setTimeout(() => {
+          updateStockPrices(true); // 傳入 true 啟動靜默更新模式，不干擾使用者操作
+        }, 5000); // 延遲 5 秒執行，確保主畫面已經順利渲染完畢
+      }
     };
 
     let backupTimeout = null; // 防抖計時器
@@ -4274,16 +4336,20 @@ const app = createApp({
       window.location.reload(true);
     };
 
-    const updateStockPrices = async () => {
+    const updateStockPrices = async (isSilent = false) => {
       let updatedCount = 0;
       let twdInvestmentsCount = data.investments.filter(
         (i) => i && i.currency !== "USD" && i.shares > 0,
       ).length;
-      if (twdInvestmentsCount === 0) return alert("目前無持股需要更新");
 
-      // --- 4 小時 API 限流保護機制 ---
+      if (twdInvestmentsCount === 0) {
+        if (!isSilent) alert("目前無持股需要更新");
+        return;
+      }
+
       const lastUpdate = localStorage.getItem("ledger_stock_last_update");
       if (lastUpdate && Date.now() - Number(lastUpdate) < 4 * 60 * 60 * 1000) {
+        if (isSilent) return; // 靜默背景更新時直接略過，不干擾使用者
         let hours = (4 - (Date.now() - Number(lastUpdate)) / 3600000).toFixed(
           1,
         );
@@ -4292,7 +4358,7 @@ const app = createApp({
             `⏱️ 為防 API 遭阻擋，系統已啟動 4 小時快取保護。\n距離下次開放自動更新還需約 ${hours} 小時。\n\n要跳過自動連線，直接進入「手動更新模式」嗎？`,
           )
         ) {
-          return; // 使用者選擇維持目前快取
+          return;
         } else {
           showManualStockModal.value = true;
           return;
@@ -4300,7 +4366,7 @@ const app = createApp({
       }
 
       const loadingScreen = document.getElementById("native-loading");
-      if (loadingScreen) {
+      if (!isSilent && loadingScreen) {
         loadingScreen.style.display = "flex";
         const title = loadingScreen.querySelector("h2");
         if (title) title.innerText = "股價更新中...";
@@ -4391,22 +4457,37 @@ const app = createApp({
           localStorage.setItem(
             "ledger_stock_last_update",
             Date.now().toString(),
-          ); // 更新成功，寫入時間戳
-          alert("✅ 股價自動更新完成！");
-          autoBackup();
+          );
+
+          // 紀錄最後一次成功自動更新的「日期_時段」
+          let d = new Date();
+          let period = d.getHours() >= 14 ? "after_close" : "before_close";
+          localStorage.setItem(
+            "ledger_stock_auto_update_stamp",
+            (typeof getLocalISODate === "function"
+              ? getLocalISODate()
+              : new Date().toISOString().split("T")[0]) +
+              "_" +
+              period,
+          );
+
+          if (!isSilent) alert("✅ 股價自動更新完成！");
+          autoBackup(true, true);
           updateCharts();
         } else {
-          alert(
-            "⚠️ 外部 API 遇上 429 限流或連線逾時，已為您無縫降級至「手動更新模式」。\n(已自動更新 " +
-              updatedCount +
-              "/" +
-              twdInvestmentsCount +
-              " 檔)",
-          );
-          showManualStockModal.value = true;
+          if (!isSilent) {
+            alert(
+              "⚠️ 外部 API 遇上 429 限流或連線逾時，已為您無縫降級至「手動更新模式」。\n(已自動更新 " +
+                updatedCount +
+                "/" +
+                twdInvestmentsCount +
+                " 檔)",
+            );
+            showManualStockModal.value = true;
+          }
         }
       } finally {
-        if (loadingScreen) {
+        if (!isSilent && loadingScreen) {
           loadingScreen.style.display = "none";
           const title = loadingScreen.querySelector("h2");
           if (title) title.innerText = "系統啟動中";
