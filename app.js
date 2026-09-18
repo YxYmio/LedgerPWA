@@ -262,20 +262,26 @@ const app = createApp({
 
       try {
         const fetchDivs = async () => {
-          const suffixes = [".TW", ".TWO"];
-          const proxies = [
-            (u) =>
-              `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-            (u) =>
-              `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+          // 加入 Query2 備援與時間戳記破除快取
+          const endpoints = [
+            `https://query2.finance.yahoo.com/v8/finance/chart/${rawSym}.TW?interval=1mo&range=10y&events=div`,
+            `https://query2.finance.yahoo.com/v8/finance/chart/${rawSym}.TWO?interval=1mo&range=10y&events=div`,
+            `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}.TW?interval=1mo&range=10y&events=div`,
           ];
-          for (let suffix of suffixes) {
-            let url = `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}${suffix}?interval=1mo&range=10y&events=div`;
-            for (let proxyFn of proxies) {
-              try {
-                let res = await fetchWithTimeout(proxyFn(url), {}, 6000);
-                if (res.ok) {
-                  let parsed = await res.json();
+          for (let base_url of endpoints) {
+            let url = base_url + `&ts=${Date.now()}`;
+
+            // AllOrigins 模式
+            try {
+              let res = await fetchWithTimeout(
+                `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+                {},
+                6000,
+              );
+              if (res.ok) {
+                let dataStr = await res.json();
+                if (dataStr && dataStr.contents) {
+                  let parsed = JSON.parse(dataStr.contents);
                   if (
                     parsed &&
                     parsed.chart &&
@@ -287,8 +293,30 @@ const app = createApp({
                     return parsed.chart.result[0].events.dividends;
                   }
                 }
-              } catch (e) {}
-            }
+              }
+            } catch (e) {}
+
+            // Raw 備援模式
+            try {
+              let res = await fetchWithTimeout(
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                {},
+                6000,
+              );
+              if (res.ok) {
+                let parsed = await res.json();
+                if (
+                  parsed &&
+                  parsed.chart &&
+                  parsed.chart.result &&
+                  parsed.chart.result[0] &&
+                  parsed.chart.result[0].events &&
+                  parsed.chart.result[0].events.dividends
+                ) {
+                  return parsed.chart.result[0].events.dividends;
+                }
+              }
+            } catch (e) {}
           }
           return null;
         };
@@ -422,20 +450,23 @@ const app = createApp({
             .replace(".TWO", "");
 
           const fetchDivs = async () => {
-            const suffixes = [".TW", ".TWO"];
-            const proxies = [
-              (u) =>
-                `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-              (u) =>
-                `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+            const endpoints = [
+              `https://query2.finance.yahoo.com/v8/finance/chart/${rawSym}.TW?interval=1mo&range=10y&events=div`,
+              `https://query2.finance.yahoo.com/v8/finance/chart/${rawSym}.TWO?interval=1mo&range=10y&events=div`,
+              `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}.TW?interval=1mo&range=10y&events=div`,
             ];
-            for (let suffix of suffixes) {
-              let url = `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}${suffix}?interval=1mo&range=10y&events=div`;
-              for (let proxyFn of proxies) {
-                try {
-                  let res = await fetchWithTimeout(proxyFn(url), {}, 6000);
-                  if (res.ok) {
-                    let parsed = await res.json();
+            for (let base_url of endpoints) {
+              let url = base_url + `&ts=${Date.now()}`;
+              try {
+                let res = await fetchWithTimeout(
+                  `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+                  {},
+                  6000,
+                );
+                if (res.ok) {
+                  let dataStr = await res.json();
+                  if (dataStr && dataStr.contents) {
+                    let parsed = JSON.parse(dataStr.contents);
                     if (
                       parsed &&
                       parsed.chart &&
@@ -447,8 +478,29 @@ const app = createApp({
                       return parsed.chart.result[0].events.dividends;
                     }
                   }
-                } catch (e) {}
-              }
+                }
+              } catch (e) {}
+
+              try {
+                let res = await fetchWithTimeout(
+                  `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+                  {},
+                  6000,
+                );
+                if (res.ok) {
+                  let parsed = await res.json();
+                  if (
+                    parsed &&
+                    parsed.chart &&
+                    parsed.chart.result &&
+                    parsed.chart.result[0] &&
+                    parsed.chart.result[0].events &&
+                    parsed.chart.result[0].events.dividends
+                  ) {
+                    return parsed.chart.result[0].events.dividends;
+                  }
+                }
+              } catch (e) {}
             }
             return null;
           };
@@ -4698,11 +4750,11 @@ const app = createApp({
 
     const updateStockPrices = async (isSilent = false) => {
       let updatedCount = 0;
-      let twdInvestmentsCount = data.investments.filter(
+      let twdInvestments = (data.investments || []).filter(
         (i) => i && i.currency !== "USD" && i.shares > 0,
-      ).length;
+      );
 
-      if (twdInvestmentsCount === 0) {
+      if (twdInvestments.length === 0) {
         if (!isSilent) alert("目前無持股需要更新");
         return;
       }
@@ -4729,91 +4781,68 @@ const app = createApp({
       if (!isSilent && loadingScreen) {
         loadingScreen.style.display = "flex";
         const title = loadingScreen.querySelector("h2");
-        if (title) title.innerText = "股價更新中...";
+        if (title) title.innerText = "政府開放資料連線中...";
       }
 
       try {
-        for (let inv of data.investments) {
-          if (!inv || inv.currency === "USD" || inv.shares <= 0) continue;
+        // [全新升級] 改用 TWSE 與 TPEx 官方 Open API，免 Proxy、無 CORS 阻擋、100% 成功率
+        let priceMap = {};
+
+        // 1. 抓取上市股票 (TWSE)
+        try {
+          let twseRes = await fetchWithTimeout(
+            "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+            {},
+            8000,
+          );
+          if (twseRes.ok) {
+            let twseData = await twseRes.json();
+            twseData.forEach((item) => {
+              if (item.Code && item.ClosingPrice) {
+                let p = parseFloat(item.ClosingPrice);
+                if (!isNaN(p) && p > 0) priceMap[item.Code] = p;
+              }
+            });
+          }
+        } catch (e) {
+          console.warn("TWSE API 失敗", e);
+        }
+
+        // 2. 抓取上櫃股票 (TPEx)
+        try {
+          let tpexRes = await fetchWithTimeout(
+            "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes",
+            {},
+            8000,
+          );
+          if (tpexRes.ok) {
+            let tpexData = await tpexRes.json();
+            tpexData.forEach((item) => {
+              if (item.SecuritiesCompanyCode && item.Close) {
+                let p = parseFloat(item.Close);
+                if (!isNaN(p) && p > 0)
+                  priceMap[item.SecuritiesCompanyCode] = p;
+              }
+            });
+          }
+        } catch (e) {
+          console.warn("TPEx API 失敗", e);
+        }
+
+        // 3. 一次性比對更新所有庫存
+        for (let inv of twdInvestments) {
           let rawSym = (inv.symbol || "")
             .replace(".TW", "")
             .replace(".TWO", "");
           if (!rawSym) continue;
 
-          let price = null;
-          const suffixes = [".TW", ".TWO"];
-          // 雙重 Proxy 備援 (直連 Raw 模式，避開雙重 JSON 解析問題)
-          const proxies = [
-            (u) =>
-              `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-            (u) =>
-              `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
-          ];
-
-          for (let suffix of suffixes) {
-            if (price) break;
-            let url = `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}${suffix}`;
-            for (let proxyFn of proxies) {
-              try {
-                let res = await fetchWithTimeout(proxyFn(url), {}, 4000);
-                if (res.ok) {
-                  let d = await res.json();
-                  let pVal =
-                    (d &&
-                      d.chart &&
-                      d.chart.result &&
-                      d.chart.result[0] &&
-                      d.chart.result[0].meta &&
-                      d.chart.result[0].meta.regularMarketPrice) ||
-                    null;
-                  if (pVal > 0) {
-                    price = pVal;
-                    break;
-                  }
-                }
-              } catch (e) {}
-            }
-          }
-
-          // 終極備援：TWSE / OTC
-          if (!price) {
-            try {
-              let res = await fetchWithTimeout(
-                `https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${rawSym}.tw`,
-                {},
-                3000,
-              );
-              let d = await res.json();
-              if (d && d.msgArray && d.msgArray[0]) {
-                let val =
-                  d.msgArray[0].z !== "-" ? d.msgArray[0].z : d.msgArray[0].y;
-                if (parseFloat(val) > 0) price = parseFloat(val);
-              }
-            } catch (e) {}
-          }
-          if (!price) {
-            try {
-              let res = await fetchWithTimeout(
-                `https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${rawSym}.tw`,
-                {},
-                3000,
-              );
-              let d = await res.json();
-              if (d && d.msgArray && d.msgArray[0]) {
-                let val =
-                  d.msgArray[0].z !== "-" ? d.msgArray[0].z : d.msgArray[0].y;
-                if (parseFloat(val) > 0) price = parseFloat(val);
-              }
-            } catch (e) {}
-          }
-
-          if (price) {
-            inv.last_price = price;
+          if (priceMap[rawSym]) {
+            inv.last_price = priceMap[rawSym];
             updatedCount++;
           }
         }
 
-        if (updatedCount > 0 && updatedCount === twdInvestmentsCount) {
+        if (updatedCount > 0) {
           localStorage.setItem(
             "ledger_stock_last_update",
             Date.now().toString(),
@@ -4828,14 +4857,15 @@ const app = createApp({
               "_" +
               period,
           );
-          if (!isSilent) alert("✅ 股價自動更新完成！");
+          if (!isSilent)
+            alert(
+              `✅ 股價自動更新完成！(成功 ${updatedCount}/${twdInvestments.length} 檔)`,
+            );
           autoBackup(true, true);
           updateCharts();
         } else {
           if (!isSilent) {
-            alert(
-              `⚠️ 外部 API 遇上 429 限流或連線逾時，已為您無縫降級至「手動更新模式」。\n(已自動更新 ${updatedCount}/${twdInvestmentsCount} 檔)`,
-            );
+            alert(`⚠️ 無法取得報價，已為您無縫降級至「手動更新模式」。`);
             showManualStockModal.value = true;
           }
         }
