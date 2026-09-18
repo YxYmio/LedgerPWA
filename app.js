@@ -232,6 +232,155 @@ const app = createApp({
     const showAddGoalModal = ref(false);
     const showUpdateGoalModal = ref(false);
     const showManualStockModal = ref(false);
+
+    // ==========================================
+    // [全新模組] 歷史除權息智能追溯 (Yahoo Finance API)
+    // ==========================================
+    const showDividendSyncModal = ref(false);
+    const divSyncTarget = ref(null);
+    const divSyncLoading = ref(false);
+    const divSyncResult = ref(null);
+    const divSyncLogs = ref([]);
+
+    const openDividendSyncModal = (inv) => {
+      if (!inv) return;
+      divSyncTarget.value = inv;
+      divSyncResult.value = null;
+      divSyncLogs.value = [];
+      showDividendSyncModal.value = true;
+    };
+
+    const fetchAndCalculateDividends = async () => {
+      if (!divSyncTarget.value) return;
+      divSyncLoading.value = true;
+      divSyncLogs.value = [];
+      divSyncResult.value = null;
+
+      let sym = (divSyncTarget.value.symbol || "").replace(".TW", "");
+
+      try {
+        // 透過 AllOrigins Proxy 請求 Yahoo Finance 歷史股息資料 (過去 10 年)
+        let url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW?interval=1mo&range=10y&events=div`;
+        let res = await fetchWithTimeout(
+          `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+          {},
+          8000,
+        );
+        let dataStr = await res.json();
+        let parsed = JSON.parse(dataStr.contents);
+
+        let dividends = {};
+        if (
+          parsed &&
+          parsed.chart &&
+          parsed.chart.result &&
+          parsed.chart.result[0] &&
+          parsed.chart.result[0].events &&
+          parsed.chart.result[0].events.dividends
+        ) {
+          dividends = parsed.chart.result[0].events.dividends;
+        }
+
+        let expectedTotal = 0;
+        let logs = [];
+
+        // 確保依照時間順序計算
+        let divKeys = Object.keys(dividends).sort((a, b) => a - b);
+
+        divKeys.forEach((timestamp) => {
+          let divObj = dividends[timestamp];
+          let d = new Date(divObj.date * 1000);
+          let divDateStr =
+            d.getFullYear() +
+            "-" +
+            String(d.getMonth() + 1).padStart(2, "0") +
+            "-" +
+            String(d.getDate()).padStart(2, "0");
+
+          // 回推：在這個除息日「當下」，使用者擁有多少股數？
+          let sharesAtDate = 0;
+          (data.transactions || []).forEach((tx) => {
+            if (
+              tx &&
+              tx.invest_symbol === divSyncTarget.value.symbol &&
+              tx.date <= divDateStr
+            ) {
+              if (
+                tx.invest_action === "buy" ||
+                tx.invest_action === "init" ||
+                tx.invest_action === "stock_dividend"
+              ) {
+                sharesAtDate += Number(tx.invest_shares) || 0;
+              } else if (tx.invest_action === "sell") {
+                sharesAtDate -= Number(tx.invest_shares) || 0;
+              }
+            }
+          });
+
+          // 若除息時持有股數大於 0，則精算該次股利
+          if (sharesAtDate > 0) {
+            let earned = Math.round(sharesAtDate * divObj.amount);
+            expectedTotal += earned;
+            logs.push({
+              date: divDateStr,
+              perShare: divObj.amount,
+              shares: sharesAtDate,
+              earned: earned,
+            });
+          }
+        });
+
+        // 計算目前帳本中「已經記錄」的股息總額 + 既有的 base_dividend
+        let recordedTotal = 0;
+        (data.transactions || []).forEach((tx) => {
+          if (
+            tx &&
+            tx.invest_action === "dividend" &&
+            tx.invest_symbol === divSyncTarget.value.symbol &&
+            !tx.is_refunded &&
+            !tx.is_refund
+          ) {
+            (tx.credits || []).forEach((c) => {
+              if (c && c.account_id === "4202")
+                recordedTotal += Number(c.amount) || 0;
+            });
+          }
+        });
+        recordedTotal += Number(divSyncTarget.value.base_dividend) || 0;
+
+        let suggestedAdd = expectedTotal - recordedTotal;
+
+        divSyncLogs.value = logs.reverse(); // 將最新的紀錄放最上面
+        divSyncResult.value = {
+          expected: expectedTotal,
+          recorded: recordedTotal,
+          suggested: suggestedAdd > 0 ? suggestedAdd : 0,
+        };
+      } catch (err) {
+        alert("無法獲取歷史除息資料。可能是 API 限制或該標的無配息紀錄。");
+      } finally {
+        divSyncLoading.value = false;
+      }
+    };
+
+    const confirmDividendSync = () => {
+      if (!divSyncTarget.value || !divSyncResult.value) return;
+      let addAmount = Number(divSyncResult.value.suggested) || 0;
+      if (addAmount <= 0) {
+        alert("無須補登！您的股息紀錄已是最新，或已超過系統試算值。");
+        return;
+      }
+      // 安全地一鍵灌入基期股利，不產生任何假明細干擾帳本
+      divSyncTarget.value.base_dividend =
+        (Number(divSyncTarget.value.base_dividend) || 0) + addAmount;
+      showDividendSyncModal.value = false;
+      autoBackup(true, true);
+      updateCharts();
+      alert(
+        `✅ 成功補登歷史股息 $${typeof formatNumber === "function" ? formatNumber(addAmount) : addAmount} 至基期餘額中！`,
+      );
+    };
+    // ==========================================
     const showRefundModal = ref(false);
     const showReimburseModal = ref(false);
     const editTxModal = ref(false);
@@ -4995,6 +5144,14 @@ const app = createApp({
       showAddGoalModal,
       showUpdateGoalModal,
       showManualStockModal,
+      showDividendSyncModal,
+      divSyncTarget,
+      divSyncLoading,
+      divSyncResult,
+      divSyncLogs,
+      openDividendSyncModal,
+      fetchAndCalculateDividends,
+      confirmDividendSync,
       showRefundModal,
       showReimburseModal,
       editTxModal,
