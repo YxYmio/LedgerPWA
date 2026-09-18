@@ -3660,16 +3660,7 @@
                   <h3
                     class="text-sm font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1"
                   >
-                    <svg
-                      class="w-4 h-4"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    >
+                    <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <polyline points="22 7 13.5 15.5 8.5 10.5 2 17" />
                       <polyline points="16 7 22 7 22 13" />
                     </svg>
@@ -3678,137 +3669,86 @@
                   <div class="flex flex-wrap items-center gap-2">
                     <button
                       @click="updateStockPrices()"
-                      class="text-xs text-indigo-500 font-bold bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded border border-indigo-100 dark:border-indigo-800 shadow-sm flex items-center gap-1"
+                      class="text-xs text-indigo-500 font-bold bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded border border-indigo-100 dark:border-indigo-800 shadow-sm flex items-center gap-1 transition hover:bg-indigo-100"
                     >
-                      <svg
-                        class="w-3 h-3"
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path
-                          d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
-                        />
-                        <path d="M3 3v5h5" />
-                      </svg>
+                      <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                       更新現價
                     </button>
                     <button
                       @click="showInitialStockModal = true"
-                      class="text-xs text-orange-500 font-bold px-1"
+                      class="text-xs text-orange-500 font-bold px-1 transition hover:text-orange-600"
                     >
                       + 期初建倉
                     </button>
-                    <div class="flex flex-wrap items-center gap-2">
-                    <!-- [新增] 一鍵全盤追溯按鈕 -->
+                    <!-- 一鍵全盤追溯按鈕 -->
                     <button
                       @click="runBatchDividendSync()"
                       :disabled="isBatchSyncing"
-                      class="text-xs text-pink-600 font-bold bg-pink-50 dark:bg-pink-900/30 px-2 py-1 rounded border border-pink-100 dark:border-pink-800 shadow-sm flex items-center gap-1 disabled:opacity-50 transition"
+                      class="text-xs text-pink-600 font-bold bg-pink-50 dark:bg-pink-900/30 px-2 py-1 rounded border border-pink-100 dark:border-pink-800 shadow-sm flex items-center gap-1 disabled:opacity-50 transition hover:bg-pink-100"
                     >
                       <svg v-if="isBatchSyncing" class="w-3 h-3 animate-spin" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                       <svg v-else class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                       {{ isBatchSyncing ? batchSyncProgress : '一鍵全盤追溯' }}
                     </button>
-                    
-                    <button
-                      @click="updateStockPrices()"
-                      class="text-xs text-indigo-500 font-bold bg-indigo-50 dark:bg-indigo-900/30 px-2 py-1 rounded border border-indigo-100 dark:border-indigo-800 shadow-sm flex items-center gap-1"
-                    >
                   </div>
                 </div>
 
                 <div
                   class="bg-gradient-to-br from-slate-800 to-slate-900 dark:from-slate-900 dark:to-black rounded-xl p-4 text-white shadow-lg relative overflow-hidden"
                 >
-                  <div
-                    class="absolute top-0 right-0 w-24 h-24 bg-white opacity-5 rounded-full -mr-8 -mt-8"
-                  ></div>
+                  <div class="absolute top-0 right-0 w-24 h-24 bg-white opacity-5 rounded-full -mr-8 -mt-8"></div>
                   <div class="flex justify-between items-center mb-3">
-                    <div class="text-xs text-slate-300 font-bold">
-                      整體持有市值 (不含已處分)
-                    </div>
-                    <div class="text-xl font-black font-mono">
-                      ${{ formatNumber(portfolioStats ? portfolioStats.totalMV : 0) }}
-                    </div>
+                    <div class="text-xs text-slate-300 font-bold">整體持有市值 (不含已處分)</div>
+                    <div class="text-xl font-black font-mono">${{ typeof formatNumber === 'function' ? formatNumber(portfolioStats ? portfolioStats.totalMV : 0) : 0 }}</div>
                   </div>
-                  <div
-                    class="grid grid-cols-2 gap-3 border-t border-slate-700 pt-3"
-                  >
+                  <div class="grid grid-cols-2 gap-3 border-t border-slate-700 pt-3">
                     <div>
-                      <div class="text-[10px] text-slate-400 mb-0.5">
-                        未實現價差
-                      </div>
-                      <div
-                        class="text-sm font-bold font-mono"
-                        :class="(portfolioStats && portfolioStats.unrealized >= 0) ? 'text-red-400' : 'text-green-400'"
-                      >
-                        {{ (portfolioStats && portfolioStats.unrealized >= 0) ? '+' : '' }}${{ formatNumber(portfolioStats ? portfolioStats.unrealized : 0) }}
+                      <div class="text-[10px] text-slate-400 mb-0.5">未實現價差</div>
+                      <div class="text-sm font-bold font-mono" :class="(portfolioStats && portfolioStats.unrealized >= 0) ? 'text-red-400' : 'text-green-400'">
+                        {{ (portfolioStats && portfolioStats.unrealized >= 0) ? '+' : '' }}${typeof formatNumber === 'function' ? formatNumber(portfolioStats.unrealized) : portfolioStats.unrealized}
                       </div>
                     </div>
                     <div>
-                      <div class="text-[10px] text-slate-400 mb-0.5">
-                        歷史累計配息
-                      </div>
+                      <div class="text-[10px] text-slate-400 mb-0.5">歷史累計配息</div>
                       <div class="text-sm font-bold font-mono text-yellow-400">
-                        +${{ formatNumber(portfolioStats ? portfolioStats.totalDiv : 0) }}
+                        +${typeof formatNumber === 'function' ? formatNumber(portfolioStats.totalDiv) : portfolioStats.totalDiv}
                       </div>
                     </div>
                   </div>
-                  <div
-                    class="mt-3 bg-white/10 rounded-lg p-2 flex justify-between items-center backdrop-blur-sm border border-white/5"
-                  >
-                    <span class="text-xs font-bold text-slate-200"
-                      >真實含息總報酬率 (ROI)</span
-                    >
-                    <span
-                      class="text-sm font-black font-mono"
-                      :class="(portfolioStats && portfolioStats.roi >= 0) ? 'text-red-400' : 'text-green-400'"
-                    >
-                      {{ (portfolioStats && portfolioStats.roi >= 0) ? '+' : '' }}{{ formatNumber(portfolioStats ? portfolioStats.roi : 0) }}%
+                  <div class="mt-3 bg-white/10 rounded-lg p-2 flex justify-between items-center backdrop-blur-sm border border-white/5">
+                    <span class="text-xs font-bold text-slate-200">真實含息總報酬率 (ROI)</span>
+                    <span class="text-sm font-black font-mono" :class="(portfolioStats && portfolioStats.roi >= 0) ? 'text-red-400' : 'text-green-400'">
+                      {{ (portfolioStats && portfolioStats.roi >= 0) ? '+' : '' }}{{ typeof formatNumber === 'function' ? formatNumber(portfolioStats.roi) : portfolioStats.roi }}%
                     </span>
                   </div>
                 </div>
               </div>
               
               <div class="space-y-2">
-                <div
-                  v-if="!enrichedInvestments || enrichedInvestments.length === 0"
-                  class="text-center text-slate-400 text-xs py-3 border border-dashed rounded-lg dark:border-slate-700"
-                >
+                <div v-if="!enrichedInvestments || enrichedInvestments.length === 0" class="text-center text-slate-400 text-xs py-3 border border-dashed rounded-lg dark:border-slate-700">
                   無庫存標的
                 </div>
-                <div
-                  v-for="inv in enrichedInvestments"
-                  :key="inv && inv.symbol ? inv.symbol : ''"
-                  @click="filterByAccount({name: (inv.name || inv.symbol)})"
-                  class="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm cursor-pointer hover:border-blue-300 transition relative overflow-hidden"
-                >
+                <div v-for="inv in enrichedInvestments" :key="inv && inv.symbol ? inv.symbol : ''" @click="filterByAccount({name: (inv.name || inv.symbol)})" class="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm cursor-pointer hover:border-blue-300 transition relative overflow-hidden">
                   <div class="absolute left-0 top-0 bottom-0 w-1" :class="(inv.roi >= 0) ? 'bg-red-400' : 'bg-green-500'"></div>
 
                   <div class="flex justify-between items-start mb-1 pl-2">
                     <div>
-                    <div class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1">
-                      {{ (inv && inv.name) ? inv.name : (inv && inv.symbol ? inv.symbol : '') }}
-                      <span class="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 px-1.5 py-0.5 rounded">{{ inv && inv.symbol ? inv.symbol : '' }}</span>
-                      
-                      <!-- [新增] 追溯股息按鈕 -->
-                      <button @click.stop="openDividendSyncModal(inv)" class="ml-1 text-[10px] bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded hover:bg-indigo-100 transition shadow-sm font-bold flex items-center gap-0.5">
-                        <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
-                        智能追溯
-                      </button>
-                    </div>
+                      <div class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1">
+                        {{ (inv && inv.name) ? inv.name : (inv && inv.symbol ? inv.symbol : '') }}
+                        <span class="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 px-1.5 py-0.5 rounded">{{ inv && inv.symbol ? inv.symbol : '' }}</span>
+                        <!-- 個股單獨智能追溯按鈕 -->
+                        <button @click.stop="openDividendSyncModal(inv)" class="ml-1 text-[10px] bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 px-1.5 py-0.5 rounded hover:bg-indigo-100 transition shadow-sm font-bold flex items-center gap-0.5">
+                          <svg class="w-3 h-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                          智能追溯
+                        </button>
+                      </div>
                       <div class="text-[10px] text-slate-500 mt-0.5">
-                        {{ formatNumber(inv.shares) }} 股 | 均價 ${{ formatNumber(inv.shares > 0 ? inv.total_cost / inv.shares : 0) }}
+                        {{ typeof formatNumber === 'function' ? formatNumber(inv.shares) : inv.shares }} 股 | 均價 ${{ typeof formatNumber === 'function' ? formatNumber(inv.shares > 0 ? inv.total_cost / inv.shares : 0) : 0 }}
                       </div>
                     </div>
                     <div class="text-right">
                       <div class="font-mono font-black text-slate-800 dark:text-white text-base">
-                        ${{ formatNumber(inv.marketValue) }}
+                        ${{ typeof formatNumber === 'function' ? formatNumber(inv.marketValue) : inv.marketValue }}
                       </div>
                     </div>
                   </div>
@@ -3817,19 +3757,19 @@
                     <div class="flex flex-col">
                       <span class="text-[10px] text-slate-400">未實現價差</span>
                       <span class="font-mono font-bold" :class="inv.unrealized >= 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'">
-                        {{ inv.unrealized >= 0 ? '+' : '' }}${{ formatNumber(inv.unrealized) }}
+                        {{ inv.unrealized >= 0 ? '+' : '' }}${{ typeof formatNumber === 'function' ? formatNumber(inv.unrealized) : inv.unrealized }}
                       </span>
                     </div>
                     <div class="flex flex-col items-center border-l border-r dark:border-slate-700 px-3">
                       <span class="text-[10px] text-slate-400">歷史配息</span>
                       <span class="font-mono font-bold text-yellow-600 dark:text-yellow-500">
-                        +${{ formatNumber(inv.totalDiv) }}
+                        +${{ typeof formatNumber === 'function' ? formatNumber(inv.totalDiv) : inv.totalDiv }}
                       </span>
                     </div>
                     <div class="flex flex-col items-end">
                       <span class="text-[10px] text-slate-400 font-bold">含息總報酬率</span>
                       <span class="font-mono font-black text-sm tracking-wide" :class="inv.roi >= 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'">
-                        {{ inv.roi >= 0 ? '+' : '' }}{{ formatNumber(inv.roi) }}%
+                        {{ inv.roi >= 0 ? '+' : '' }}{{ typeof formatNumber === 'function' ? formatNumber(inv.roi) : inv.roi }}%
                       </span>
                     </div>
                   </div>
