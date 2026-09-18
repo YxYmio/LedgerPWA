@@ -1512,7 +1512,8 @@ const app = createApp({
           let unrealized = marketValue - totalCost;
 
           // 計算該檔股票的歷史累計配息 (相容舊資料摘要比對與新資料的 symbol 綁定)
-          let totalDiv = 0;
+          // [新增] 加上結轉後固化的基期股利 base_dividend
+          let totalDiv = Number(inv.base_dividend) || 0;
           let sym = inv.symbol || "";
           let sName = (inv.name || "").replace(/^\[.*?\]\s*/, "");
           (data.transactions || []).forEach((tx) => {
@@ -1683,8 +1684,13 @@ const app = createApp({
             (Number(inv.shares) || 0) * (Number(inv.last_price) || 0) * rate;
         }
       });
-      // 取出帳本中所有的股利收入餘額 (4202) 作為累計配息
-      let totalDiv = calculateBalance("4202", "all");
+      // 取出帳本中所有的股利收入餘額 (4202) 並加上各檔股票的基期股利
+      let totalBaseDiv = 0;
+      (safeInvestments.value || []).forEach((inv) => {
+        if (inv) totalBaseDiv += Number(inv.base_dividend) || 0;
+      });
+      let totalDiv = calculateBalance("4202", "all") + totalBaseDiv;
+
       let unrealized = totalMV - totalCost;
       let totalReturn = unrealized + totalDiv; // 真實總獲利 = 價差 + 股息
       let roi = totalCost > 0 ? (totalReturn / totalCost) * 100 : 0;
@@ -2569,6 +2575,44 @@ const app = createApp({
         alert("該日期前沒有任何明細可結轉！");
         return;
       }
+
+      // [新增] 結轉前攔截歷史配息，固化至對應股票物件的 base_dividend
+      oldTxs.forEach((tx) => {
+        if (!tx || tx.is_refunded || tx.is_refund) return;
+
+        let hasDividend = false;
+        let divAmount = 0;
+        (tx.credits || []).forEach((c) => {
+          if (c && c.account_id === "4202") {
+            hasDividend = true;
+            divAmount += Number(c.amount) || 0;
+          }
+        });
+
+        if (hasDividend && divAmount > 0) {
+          let targetInv = null;
+          if (tx.invest_symbol) {
+            targetInv = (data.investments || []).find(
+              (i) => i && i.symbol === tx.invest_symbol,
+            );
+          } else {
+            targetInv = (data.investments || []).find((i) => {
+              let sName = (i.name || "").replace(/^\[.*?\]\s*/, "");
+              return (
+                i &&
+                i.symbol &&
+                ((tx.desc && tx.desc.includes(i.symbol)) ||
+                  (tx.desc && sName && tx.desc.includes(sName)))
+              );
+            });
+          }
+
+          if (targetInv) {
+            targetInv.base_dividend =
+              (Number(targetInv.base_dividend) || 0) + divAmount;
+          }
+        }
+      });
 
       let rolloverDebits = [];
       let rolloverCredits = [];
