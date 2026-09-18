@@ -555,6 +555,10 @@ const app = createApp({
       }
     };
     const initStock = reactive({
+      date:
+        typeof getLocalISODate === "function"
+          ? getLocalISODate()
+          : new Date().toISOString().split("T")[0],
       symbol: "",
       name: "",
       shares: null,
@@ -3521,9 +3525,14 @@ const app = createApp({
           currency: "TWD",
         });
       }
+      let finalDate =
+        initStock.date ||
+        (typeof getLocalISODate === "function"
+          ? getLocalISODate()
+          : new Date().toISOString().split("T")[0]);
       data.transactions.unshift({
         id: "tx_init_" + Date.now(),
-        date: getLocalISODate(),
+        date: finalDate,
         scope: "personal",
         desc: `期初建倉 ${initStock.name || initStock.symbol} ${s}股`,
         debits: [{ account_id: "1103", amount: c }],
@@ -3534,6 +3543,10 @@ const app = createApp({
         invest_cost_value: c,
       });
       showInitialStockModal.value = false;
+      initStock.date =
+        typeof getLocalISODate === "function"
+          ? getLocalISODate()
+          : new Date().toISOString().split("T")[0];
       initStock.symbol = "";
       initStock.name = "";
       initStock.shares = null;
