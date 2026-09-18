@@ -1500,7 +1500,50 @@ const app = createApp({
     const safeLoans = computed(() => data.loans || []);
     const safeRecurring = computed(() => data.recurring || []);
     const safeSavingsGoals = computed(() => data.savings_goals || []);
+    const enrichedInvestments = computed(() => {
+      return (safeInvestments.value || [])
+        .filter((i) => i && i.shares > 0)
+        .map((inv) => {
+          let totalCost = Number(inv.total_cost) || 0;
+          let shares = Number(inv.shares) || 0;
+          let rate = data.currencyRates[inv.currency || "TWD"] || 1;
+          let currentPrice = Number(inv.last_price) || 0;
+          let marketValue = shares * currentPrice * rate;
+          let unrealized = marketValue - totalCost;
 
+          // 計算該檔股票的歷史累計配息 (相容舊資料摘要比對與新資料的 symbol 綁定)
+          let totalDiv = 0;
+          let sym = inv.symbol || "";
+          let sName = (inv.name || "").replace(/^\[.*?\]\s*/, "");
+          (data.transactions || []).forEach((tx) => {
+            if (!tx || tx.is_refunded || tx.is_refund) return;
+            let isMatch =
+              tx.invest_symbol === sym ||
+              (tx.desc &&
+                (tx.desc.includes(sym) || (sName && tx.desc.includes(sName))));
+            if (isMatch && tx.credits) {
+              tx.credits.forEach((c) => {
+                if (c && c.account_id === "4202") {
+                  totalDiv += Number(c.amount) || 0;
+                }
+              });
+            }
+          });
+
+          let totalReturn = unrealized + totalDiv;
+          let roi = totalCost > 0 ? (totalReturn / totalCost) * 100 : 0;
+
+          return {
+            ...inv,
+            marketValue,
+            unrealized,
+            totalDiv,
+            totalReturn,
+            roi,
+          };
+        })
+        .sort((a, b) => b.marketValue - a.marketValue); // 依市值從大到小排序，讓主力持股置頂
+    });
     const currentHoldings = computed(() =>
       safeInvestments.value
         .filter((i) => i && i.shares > 0)
@@ -2245,8 +2288,13 @@ const app = createApp({
             newTx.investDividendSymbol === "manual"
               ? newTx.manualName
               : newTx.stockName;
+          let finalSym =
+            newTx.investDividendSymbol === "manual"
+              ? newTx.manualSymbol
+              : newTx.investDividendSymbol;
           if (!newTx.amount || !newTx.paymentAcc)
             return (txError.value = "請確認配息標的、入帳帳戶與金額");
+
           txObj.debits.push({
             account_id: newTx.paymentAcc,
             amount: newTx.amount,
@@ -2254,6 +2302,10 @@ const app = createApp({
           txObj.credits.push({ account_id: "4202", amount: newTx.amount });
           txObj.desc = finalName ? `領取配息: ${finalName}` : "領取股利/配息";
           if (newTx.desc) txObj.desc += ` (${newTx.desc})`;
+
+          // [新增] 嚴謹紀錄投資標的代號，以利後續單檔 ROI 精算
+          txObj.invest_action = "dividend";
+          if (finalSym) txObj.invest_symbol = finalSym;
         } else if (newTx.investAction === "stock_dividend") {
           // --- 新增：配股專用邏輯 ---
           if (!newTx.symbol || !newTx.shares)
@@ -4952,6 +5004,7 @@ const app = createApp({
       safeLoans,
       safeRecurring,
       safeSavingsGoals,
+      enrichedInvestments,
       currentHoldings,
       historicalHoldings,
       calculateBalance,
