@@ -256,67 +256,44 @@ const app = createApp({
       divSyncLogs.value = [];
       divSyncResult.value = null;
 
-      // 乾淨的原始代號，去除所有的後綴
       let rawSym = (divSyncTarget.value.symbol || "")
         .replace(".TW", "")
         .replace(".TWO", "");
 
       try {
-        // 獨立抓取邏輯：支援雙重 Proxy 與 上市(.TW) / 上櫃(.TWO) 備援
-        const fetchDivs = async (suffix) => {
-          let url = `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}${suffix}?interval=1mo&range=10y&events=div`;
-          try {
-            let res = await fetchWithTimeout(
-              `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-              {},
-              6000,
-            );
-            if (res.ok) {
-              let dataStr = await res.json();
-              let parsed = JSON.parse(dataStr.contents);
-              // 嚴格安全取值，避免 undefined 報錯
-              if (
-                parsed &&
-                parsed.chart &&
-                parsed.chart.result &&
-                parsed.chart.result[0] &&
-                parsed.chart.result[0].events &&
-                parsed.chart.result[0].events.dividends
-              ) {
-                return parsed.chart.result[0].events.dividends;
-              }
+        const fetchDivs = async () => {
+          const suffixes = [".TW", ".TWO"];
+          const proxies = [
+            (u) =>
+              `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+            (u) =>
+              `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+          ];
+          for (let suffix of suffixes) {
+            let url = `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}${suffix}?interval=1mo&range=10y&events=div`;
+            for (let proxyFn of proxies) {
+              try {
+                let res = await fetchWithTimeout(proxyFn(url), {}, 6000);
+                if (res.ok) {
+                  let parsed = await res.json();
+                  if (
+                    parsed &&
+                    parsed.chart &&
+                    parsed.chart.result &&
+                    parsed.chart.result[0] &&
+                    parsed.chart.result[0].events &&
+                    parsed.chart.result[0].events.dividends
+                  ) {
+                    return parsed.chart.result[0].events.dividends;
+                  }
+                }
+              } catch (e) {}
             }
-          } catch (e) {}
-
-          try {
-            let res2 = await fetchWithTimeout(
-              `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-              {},
-              6000,
-            );
-            if (res2.ok) {
-              let parsed2 = await res2.json();
-              if (
-                parsed2 &&
-                parsed2.chart &&
-                parsed2.chart.result &&
-                parsed2.chart.result[0] &&
-                parsed2.chart.result[0].events &&
-                parsed2.chart.result[0].events.dividends
-              ) {
-                return parsed2.chart.result[0].events.dividends;
-              }
-            }
-          } catch (e2) {}
+          }
           return null;
         };
 
-        // 1. 先嘗試上市 (.TW)
-        let dividends = await fetchDivs(".TW");
-        // 2. 若無資料，嘗試上櫃 (.TWO)
-        if (!dividends || Object.keys(dividends).length === 0) {
-          dividends = await fetchDivs(".TWO");
-        }
+        let dividends = await fetchDivs();
         if (!dividends) dividends = {};
 
         let expectedTotal = 0;
@@ -444,57 +421,39 @@ const app = createApp({
             .replace(".TW", "")
             .replace(".TWO", "");
 
-          const fetchDivs = async (suffix) => {
-            let url = `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}${suffix}?interval=1mo&range=10y&events=div`;
-            try {
-              let res = await fetchWithTimeout(
-                `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-                {},
-                6000,
-              );
-              if (res.ok) {
-                let dataStr = await res.json();
-                let parsed = JSON.parse(dataStr.contents);
-                if (
-                  parsed &&
-                  parsed.chart &&
-                  parsed.chart.result &&
-                  parsed.chart.result[0] &&
-                  parsed.chart.result[0].events &&
-                  parsed.chart.result[0].events.dividends
-                ) {
-                  return parsed.chart.result[0].events.dividends;
-                }
+          const fetchDivs = async () => {
+            const suffixes = [".TW", ".TWO"];
+            const proxies = [
+              (u) =>
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+              (u) =>
+                `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+            ];
+            for (let suffix of suffixes) {
+              let url = `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}${suffix}?interval=1mo&range=10y&events=div`;
+              for (let proxyFn of proxies) {
+                try {
+                  let res = await fetchWithTimeout(proxyFn(url), {}, 6000);
+                  if (res.ok) {
+                    let parsed = await res.json();
+                    if (
+                      parsed &&
+                      parsed.chart &&
+                      parsed.chart.result &&
+                      parsed.chart.result[0] &&
+                      parsed.chart.result[0].events &&
+                      parsed.chart.result[0].events.dividends
+                    ) {
+                      return parsed.chart.result[0].events.dividends;
+                    }
+                  }
+                } catch (e) {}
               }
-            } catch (e) {}
-
-            try {
-              let res2 = await fetchWithTimeout(
-                `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
-                {},
-                6000,
-              );
-              if (res2.ok) {
-                let parsed2 = await res2.json();
-                if (
-                  parsed2 &&
-                  parsed2.chart &&
-                  parsed2.chart.result &&
-                  parsed2.chart.result[0] &&
-                  parsed2.chart.result[0].events &&
-                  parsed2.chart.result[0].events.dividends
-                ) {
-                  return parsed2.chart.result[0].events.dividends;
-                }
-              }
-            } catch (e2) {}
+            }
             return null;
           };
 
-          let dividends = await fetchDivs(".TW");
-          if (!dividends || Object.keys(dividends).length === 0) {
-            dividends = await fetchDivs(".TWO");
-          }
+          let dividends = await fetchDivs();
           if (!dividends) dividends = {};
 
           let expectedTotal = 0;
@@ -555,11 +514,8 @@ const app = createApp({
             updatedCount++;
             totalSuggested += suggestedAdd;
           }
-        } catch (e) {
-          console.warn(`追溯 ${inv.symbol} 失敗:`, e);
-        }
+        } catch (e) {}
 
-        // 強制延遲 2 秒，安全避開 API 限流防護機制
         if (i < targets.length - 1) {
           await new Promise((r) => setTimeout(r, 2000));
         }
@@ -4753,13 +4709,13 @@ const app = createApp({
 
       const lastUpdate = localStorage.getItem("ledger_stock_last_update");
       if (lastUpdate && Date.now() - Number(lastUpdate) < 4 * 60 * 60 * 1000) {
-        if (isSilent) return; // 靜默背景更新時直接略過，不干擾使用者
+        if (isSilent) return;
         let hours = (4 - (Date.now() - Number(lastUpdate)) / 3600000).toFixed(
           1,
         );
         if (
           !confirm(
-            `⏱️ 為防 API 遭阻擋，系統已啟動 4 小時快取保護。\n距離下次開放自動更新還需約 ${hours} 小時。\n\n要跳過自動連線，直接進入「手動更新模式」嗎？`,
+            `⏱️ 為防 API 遭阻擋，系統已啟動 4 小時快取保護。\n距離下次開放還需約 ${hours} 小時。\n\n要跳過自動連線，直接進入「手動更新模式」嗎？`,
           )
         ) {
           return;
@@ -4779,77 +4735,77 @@ const app = createApp({
       try {
         for (let inv of data.investments) {
           if (!inv || inv.currency === "USD" || inv.shares <= 0) continue;
-          let sym = (inv.symbol || "").replace(".TW", "");
-          if (!sym) continue;
+          let rawSym = (inv.symbol || "")
+            .replace(".TW", "")
+            .replace(".TWO", "");
+          if (!rawSym) continue;
 
           let price = null;
-          const fetchPrice = async (url, extractFn) => {
+          const suffixes = [".TW", ".TWO"];
+          // 雙重 Proxy 備援 (直連 Raw 模式，避開雙重 JSON 解析問題)
+          const proxies = [
+            (u) =>
+              `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+            (u) =>
+              `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+          ];
+
+          for (let suffix of suffixes) {
+            if (price) break;
+            let url = `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}${suffix}`;
+            for (let proxyFn of proxies) {
+              try {
+                let res = await fetchWithTimeout(proxyFn(url), {}, 4000);
+                if (res.ok) {
+                  let d = await res.json();
+                  let pVal =
+                    (d &&
+                      d.chart &&
+                      d.chart.result &&
+                      d.chart.result[0] &&
+                      d.chart.result[0].meta &&
+                      d.chart.result[0].meta.regularMarketPrice) ||
+                    null;
+                  if (pVal > 0) {
+                    price = pVal;
+                    break;
+                  }
+                }
+              } catch (e) {}
+            }
+          }
+
+          // 終極備援：TWSE / OTC
+          if (!price) {
             try {
-              let res = await fetchWithTimeout(url, {}, 3500);
-              if (res.ok) {
-                let d = await res.json();
-                let p = extractFn(d);
-                if (p > 0 && p < 100000) return p;
+              let res = await fetchWithTimeout(
+                `https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${rawSym}.tw`,
+                {},
+                3000,
+              );
+              let d = await res.json();
+              if (d && d.msgArray && d.msgArray[0]) {
+                let val =
+                  d.msgArray[0].z !== "-" ? d.msgArray[0].z : d.msgArray[0].y;
+                if (parseFloat(val) > 0) price = parseFloat(val);
               }
             } catch (e) {}
-            return null;
-          };
-
-          price = await fetchPrice(
-            `https://corsproxy.io/?url=https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW`,
-            (d) =>
-              (d &&
-                d.chart &&
-                d.chart.result &&
-                d.chart.result[0] &&
-                d.chart.result[0].meta &&
-                d.chart.result[0].meta.regularMarketPrice) ||
-              null,
-          );
-          if (!price)
-            price = await fetchPrice(
-              `https://api.allorigins.win/get?url=${encodeURIComponent("https://query1.finance.yahoo.com/v8/finance/chart/" + sym + ".TW")}`,
-              (d) => {
-                try {
-                  let parsed = JSON.parse(d.contents);
-                  return (
-                    (parsed &&
-                      parsed.chart &&
-                      parsed.chart.result &&
-                      parsed.chart.result[0] &&
-                      parsed.chart.result[0].meta &&
-                      parsed.chart.result[0].meta.regularMarketPrice) ||
-                    null
-                  );
-                } catch (e) {
-                  return null;
-                }
-              },
-            );
-          if (!price)
-            price = await fetchPrice(
-              `https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=tse_${sym}.tw`,
-              (d) =>
-                d && d.msgArray && d.msgArray[0]
-                  ? parseFloat(
-                      d.msgArray[0].z !== "-"
-                        ? d.msgArray[0].z
-                        : d.msgArray[0].y,
-                    )
-                  : null,
-            );
-          if (!price)
-            price = await fetchPrice(
-              `https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${sym}.tw`,
-              (d) =>
-                d && d.msgArray && d.msgArray[0]
-                  ? parseFloat(
-                      d.msgArray[0].z !== "-"
-                        ? d.msgArray[0].z
-                        : d.msgArray[0].y,
-                    )
-                  : null,
-            );
+          }
+          if (!price) {
+            try {
+              let res = await fetchWithTimeout(
+                `https://api.allorigins.win/raw?url=https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=otc_${rawSym}.tw`,
+                {},
+                3000,
+              );
+              let d = await res.json();
+              if (d && d.msgArray && d.msgArray[0]) {
+                let val =
+                  d.msgArray[0].z !== "-" ? d.msgArray[0].z : d.msgArray[0].y;
+                if (parseFloat(val) > 0) price = parseFloat(val);
+              }
+            } catch (e) {}
+          }
 
           if (price) {
             inv.last_price = price;
@@ -4862,8 +4818,6 @@ const app = createApp({
             "ledger_stock_last_update",
             Date.now().toString(),
           );
-
-          // 紀錄最後一次成功自動更新的「日期_時段」
           let d = new Date();
           let period = d.getHours() >= 14 ? "after_close" : "before_close";
           localStorage.setItem(
@@ -4874,18 +4828,13 @@ const app = createApp({
               "_" +
               period,
           );
-
           if (!isSilent) alert("✅ 股價自動更新完成！");
           autoBackup(true, true);
           updateCharts();
         } else {
           if (!isSilent) {
             alert(
-              "⚠️ 外部 API 遇上 429 限流或連線逾時，已為您無縫降級至「手動更新模式」。\n(已自動更新 " +
-                updatedCount +
-                "/" +
-                twdInvestmentsCount +
-                " 檔)",
+              `⚠️ 外部 API 遇上 429 限流或連線逾時，已為您無縫降級至「手動更新模式」。\n(已自動更新 ${updatedCount}/${twdInvestmentsCount} 檔)`,
             );
             showManualStockModal.value = true;
           }
@@ -4893,8 +4842,6 @@ const app = createApp({
       } finally {
         if (!isSilent && loadingScreen) {
           loadingScreen.style.display = "none";
-          const title = loadingScreen.querySelector("h2");
-          if (title) title.innerText = "系統啟動中";
         }
       }
     };
