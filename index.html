@@ -3653,7 +3653,7 @@
               </div>
             </div>
 
-            <!-- 投資組合區塊 (已修復閉合) -->
+            <!-- 投資組合與個股卡片區塊 -->
             <div>
               <div class="mt-5 mb-3">
                 <div class="flex justify-between items-end mb-2">
@@ -3733,7 +3733,7 @@
                         :class="(portfolioStats && portfolioStats.unrealized >= 0) ? 'text-red-400' : 'text-green-400'"
                       >
                         {{ (portfolioStats && portfolioStats.unrealized >= 0) ?
-                        '+' : '' }}${ { formatNumber(portfolioStats ?
+                        '+' : '' }}${{ formatNumber(portfolioStats ?
                         portfolioStats.unrealized : 0) }}
                       </div>
                     </div>
@@ -3764,6 +3764,7 @@
                   </div>
                 </div>
               </div>
+              
               <div class="space-y-2">
                 <div
                   v-if="!enrichedInvestments || enrichedInvestments.length === 0"
@@ -3777,73 +3778,42 @@
                   @click="filterByAccount({name: (inv.name || inv.symbol)})"
                   class="bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 shadow-sm cursor-pointer hover:border-blue-300 transition relative overflow-hidden"
                 >
-                  <!-- 側邊動態色帶 (台股紅漲綠跌邏輯) -->
-                  <div
-                    class="absolute left-0 top-0 bottom-0 w-1"
-                    :class="(inv.roi >= 0) ? 'bg-red-400' : 'bg-green-500'"
-                  ></div>
+                  <div class="absolute left-0 top-0 bottom-0 w-1" :class="(inv.roi >= 0) ? 'bg-red-400' : 'bg-green-500'"></div>
 
                   <div class="flex justify-between items-start mb-1 pl-2">
                     <div>
-                      <div
-                        class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1"
-                      >
-                        {{ (inv && inv.name) ? inv.name : (inv && inv.symbol ?
-                        inv.symbol : '') }}
-                        <span
-                          class="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 px-1.5 py-0.5 rounded"
-                          >{{ inv && inv.symbol ? inv.symbol : '' }}</span
-                        >
+                      <div class="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1">
+                        {{ (inv && inv.name) ? inv.name : (inv && inv.symbol ? inv.symbol : '') }}
+                        <span class="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 px-1.5 py-0.5 rounded">{{ inv && inv.symbol ? inv.symbol : '' }}</span>
                       </div>
                       <div class="text-[10px] text-slate-500 mt-0.5">
-                        {{ formatNumber(inv.shares) }} 股 | 均價 ${{
-                        formatNumber(inv.shares > 0 ? inv.total_cost /
-                        inv.shares : 0) }}
+                        {{ formatNumber(inv.shares) }} 股 | 均價 ${{ formatNumber(inv.shares > 0 ? inv.total_cost / inv.shares : 0) }}
                       </div>
                     </div>
                     <div class="text-right">
-                      <div
-                        class="font-mono font-black text-slate-800 dark:text-white text-base"
-                      >
+                      <div class="font-mono font-black text-slate-800 dark:text-white text-base">
                         ${{ formatNumber(inv.marketValue) }}
                       </div>
                     </div>
                   </div>
-
-                  <!-- 細節數據區：價差、股利、含息總報酬 -->
-                  <div
-                    class="flex justify-between items-center text-xs mt-2 pt-2 border-t dark:border-slate-700 pl-2"
-                  >
+                  
+                  <div class="flex justify-between items-center text-xs mt-2 pt-2 border-t dark:border-slate-700 pl-2">
                     <div class="flex flex-col">
                       <span class="text-[10px] text-slate-400">未實現價差</span>
-                      <span
-                        class="font-mono font-bold"
-                        :class="inv.unrealized >= 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'"
-                      >
-                        {{ inv.unrealized >= 0 ? '+' : '' }}${{
-                        formatNumber(inv.unrealized) }}
+                      <span class="font-mono font-bold" :class="inv.unrealized >= 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'">
+                        {{ inv.unrealized >= 0 ? '+' : '' }}${{ formatNumber(inv.unrealized) }}
                       </span>
                     </div>
-                    <div
-                      class="flex flex-col items-center border-l border-r dark:border-slate-700 px-3"
-                    >
+                    <div class="flex flex-col items-center border-l border-r dark:border-slate-700 px-3">
                       <span class="text-[10px] text-slate-400">歷史配息</span>
-                      <span
-                        class="font-mono font-bold text-yellow-600 dark:text-yellow-500"
-                      >
+                      <span class="font-mono font-bold text-yellow-600 dark:text-yellow-500">
                         +${{ formatNumber(inv.totalDiv) }}
                       </span>
                     </div>
                     <div class="flex flex-col items-end">
-                      <span class="text-[10px] text-slate-400 font-bold"
-                        >含息總報酬率</span
-                      >
-                      <span
-                        class="font-mono font-black text-sm tracking-wide"
-                        :class="inv.roi >= 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'"
-                      >
-                        {{ inv.roi >= 0 ? '+' : '' }}{{ formatNumber(inv.roi)
-                        }}%
+                      <span class="text-[10px] text-slate-400 font-bold">含息總報酬率</span>
+                      <span class="font-mono font-black text-sm tracking-wide" :class="inv.roi >= 0 ? 'text-red-500' : 'text-green-600 dark:text-green-400'">
+                        {{ inv.roi >= 0 ? '+' : '' }}{{ formatNumber(inv.roi) }}%
                       </span>
                     </div>
                   </div>
