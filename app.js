@@ -256,35 +256,71 @@ const app = createApp({
       divSyncLogs.value = [];
       divSyncResult.value = null;
 
-      let sym = (divSyncTarget.value.symbol || "").replace(".TW", "");
+      // 乾淨的原始代號，去除所有的後綴
+      let rawSym = (divSyncTarget.value.symbol || "")
+        .replace(".TW", "")
+        .replace(".TWO", "");
 
       try {
-        // 透過 AllOrigins Proxy 請求 Yahoo Finance 歷史股息資料 (過去 10 年)
-        let url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}.TW?interval=1mo&range=10y&events=div`;
-        let res = await fetchWithTimeout(
-          `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-          {},
-          8000,
-        );
-        let dataStr = await res.json();
-        let parsed = JSON.parse(dataStr.contents);
+        // 獨立抓取邏輯：支援雙重 Proxy 與 上市(.TW) / 上櫃(.TWO) 備援
+        const fetchDivs = async (suffix) => {
+          let url = `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}${suffix}?interval=1mo&range=10y&events=div`;
+          try {
+            let res = await fetchWithTimeout(
+              `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+              {},
+              6000,
+            );
+            if (res.ok) {
+              let dataStr = await res.json();
+              let parsed = JSON.parse(dataStr.contents);
+              // 嚴格安全取值，避免 undefined 報錯
+              if (
+                parsed &&
+                parsed.chart &&
+                parsed.chart.result &&
+                parsed.chart.result[0] &&
+                parsed.chart.result[0].events &&
+                parsed.chart.result[0].events.dividends
+              ) {
+                return parsed.chart.result[0].events.dividends;
+              }
+            }
+          } catch (e) {}
 
-        let dividends = {};
-        if (
-          parsed &&
-          parsed.chart &&
-          parsed.chart.result &&
-          parsed.chart.result[0] &&
-          parsed.chart.result[0].events &&
-          parsed.chart.result[0].events.dividends
-        ) {
-          dividends = parsed.chart.result[0].events.dividends;
+          try {
+            let res2 = await fetchWithTimeout(
+              `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+              {},
+              6000,
+            );
+            if (res2.ok) {
+              let parsed2 = await res2.json();
+              if (
+                parsed2 &&
+                parsed2.chart &&
+                parsed2.chart.result &&
+                parsed2.chart.result[0] &&
+                parsed2.chart.result[0].events &&
+                parsed2.chart.result[0].events.dividends
+              ) {
+                return parsed2.chart.result[0].events.dividends;
+              }
+            }
+          } catch (e2) {}
+          return null;
+        };
+
+        // 1. 先嘗試上市 (.TW)
+        let dividends = await fetchDivs(".TW");
+        // 2. 若無資料，嘗試上櫃 (.TWO)
+        if (!dividends || Object.keys(dividends).length === 0) {
+          dividends = await fetchDivs(".TWO");
         }
+        if (!dividends) dividends = {};
 
         let expectedTotal = 0;
         let logs = [];
-
-        // 確保依照時間順序計算
         let divKeys = Object.keys(dividends).sort((a, b) => a - b);
 
         divKeys.forEach((timestamp) => {
@@ -297,7 +333,6 @@ const app = createApp({
             "-" +
             String(d.getDate()).padStart(2, "0");
 
-          // 回推：在這個除息日「當下」，使用者擁有多少股數？
           let sharesAtDate = 0;
           (data.transactions || []).forEach((tx) => {
             if (
@@ -317,7 +352,6 @@ const app = createApp({
             }
           });
 
-          // 若除息時持有股數大於 0，則精算該次股利
           if (sharesAtDate > 0) {
             let earned = Math.round(sharesAtDate * divObj.amount);
             expectedTotal += earned;
@@ -330,7 +364,6 @@ const app = createApp({
           }
         });
 
-        // 計算目前帳本中「已經記錄」的股息總額 + 既有的 base_dividend
         let recordedTotal = 0;
         (data.transactions || []).forEach((tx) => {
           if (
@@ -350,7 +383,7 @@ const app = createApp({
 
         let suggestedAdd = expectedTotal - recordedTotal;
 
-        divSyncLogs.value = logs.reverse(); // 將最新的紀錄放最上面
+        divSyncLogs.value = logs.reverse();
         divSyncResult.value = {
           expected: expectedTotal,
           recorded: recordedTotal,
@@ -379,6 +412,171 @@ const app = createApp({
       alert(
         `✅ 成功補登歷史股息 $${typeof formatNumber === "function" ? formatNumber(addAmount) : addAmount} 至基期餘額中！`,
       );
+    };
+    // ==========================================
+    // 一鍵全盤歷史股息追溯 (批次處理防 Ban 引擎)
+    // ==========================================
+    const isBatchSyncing = ref(false);
+    const batchSyncProgress = ref("");
+
+    const runBatchDividendSync = async () => {
+      if (
+        !confirm(
+          "即將為所有庫存標的執行歷史配息智能追溯。\n為避免 API 阻擋，系統將逐一排隊抓取，預計需要幾十秒，請保持網頁開啟。",
+        )
+      )
+        return;
+
+      isBatchSyncing.value = true;
+      let updatedCount = 0;
+      let totalSuggested = 0;
+
+      let targets = (data.investments || []).filter(
+        (i) => i && i.shares > 0 && i.currency !== "USD",
+      );
+
+      for (let i = 0; i < targets.length; i++) {
+        let inv = targets[i];
+        batchSyncProgress.value = `(${i + 1}/${targets.length}) 正在精算 ${inv.name || inv.symbol}...`;
+
+        try {
+          let rawSym = (inv.symbol || "")
+            .replace(".TW", "")
+            .replace(".TWO", "");
+
+          const fetchDivs = async (suffix) => {
+            let url = `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}${suffix}?interval=1mo&range=10y&events=div`;
+            try {
+              let res = await fetchWithTimeout(
+                `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+                {},
+                6000,
+              );
+              if (res.ok) {
+                let dataStr = await res.json();
+                let parsed = JSON.parse(dataStr.contents);
+                if (
+                  parsed &&
+                  parsed.chart &&
+                  parsed.chart.result &&
+                  parsed.chart.result[0] &&
+                  parsed.chart.result[0].events &&
+                  parsed.chart.result[0].events.dividends
+                ) {
+                  return parsed.chart.result[0].events.dividends;
+                }
+              }
+            } catch (e) {}
+
+            try {
+              let res2 = await fetchWithTimeout(
+                `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+                {},
+                6000,
+              );
+              if (res2.ok) {
+                let parsed2 = await res2.json();
+                if (
+                  parsed2 &&
+                  parsed2.chart &&
+                  parsed2.chart.result &&
+                  parsed2.chart.result[0] &&
+                  parsed2.chart.result[0].events &&
+                  parsed2.chart.result[0].events.dividends
+                ) {
+                  return parsed2.chart.result[0].events.dividends;
+                }
+              }
+            } catch (e2) {}
+            return null;
+          };
+
+          let dividends = await fetchDivs(".TW");
+          if (!dividends || Object.keys(dividends).length === 0) {
+            dividends = await fetchDivs(".TWO");
+          }
+          if (!dividends) dividends = {};
+
+          let expectedTotal = 0;
+          let divKeys = Object.keys(dividends).sort((a, b) => a - b);
+
+          divKeys.forEach((timestamp) => {
+            let divObj = dividends[timestamp];
+            let d = new Date(divObj.date * 1000);
+            let divDateStr =
+              d.getFullYear() +
+              "-" +
+              String(d.getMonth() + 1).padStart(2, "0") +
+              "-" +
+              String(d.getDate()).padStart(2, "0");
+
+            let sharesAtDate = 0;
+            (data.transactions || []).forEach((tx) => {
+              if (
+                tx &&
+                tx.invest_symbol === inv.symbol &&
+                tx.date <= divDateStr
+              ) {
+                if (
+                  tx.invest_action === "buy" ||
+                  tx.invest_action === "init" ||
+                  tx.invest_action === "stock_dividend"
+                ) {
+                  sharesAtDate += Number(tx.invest_shares) || 0;
+                } else if (tx.invest_action === "sell") {
+                  sharesAtDate -= Number(tx.invest_shares) || 0;
+                }
+              }
+            });
+            if (sharesAtDate > 0)
+              expectedTotal += Math.round(sharesAtDate * divObj.amount);
+          });
+
+          let recordedTotal = 0;
+          (data.transactions || []).forEach((tx) => {
+            if (
+              tx &&
+              tx.invest_action === "dividend" &&
+              tx.invest_symbol === inv.symbol &&
+              !tx.is_refunded &&
+              !tx.is_refund
+            ) {
+              (tx.credits || []).forEach((c) => {
+                if (c && c.account_id === "4202")
+                  recordedTotal += Number(c.amount) || 0;
+              });
+            }
+          });
+          recordedTotal += Number(inv.base_dividend) || 0;
+
+          let suggestedAdd = expectedTotal - recordedTotal;
+          if (suggestedAdd > 0) {
+            inv.base_dividend = (Number(inv.base_dividend) || 0) + suggestedAdd;
+            updatedCount++;
+            totalSuggested += suggestedAdd;
+          }
+        } catch (e) {
+          console.warn(`追溯 ${inv.symbol} 失敗:`, e);
+        }
+
+        // 強制延遲 2 秒，安全避開 API 限流防護機制
+        if (i < targets.length - 1) {
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+
+      isBatchSyncing.value = false;
+      batchSyncProgress.value = "";
+
+      if (updatedCount > 0) {
+        autoBackup(true, true);
+        updateCharts();
+        alert(
+          `✅ 全盤追溯完成！共校正 ${updatedCount} 檔標的，總計自動補登 $${typeof formatNumber === "function" ? formatNumber(totalSuggested) : totalSuggested} 歷史配息。`,
+        );
+      } else {
+        alert("✅ 全盤追溯完成！您的所有標的股息紀錄皆為最新，無須補登。");
+      }
     };
     // ==========================================
     const showRefundModal = ref(false);
@@ -5165,6 +5363,9 @@ const app = createApp({
       openDividendSyncModal,
       fetchAndCalculateDividends,
       confirmDividendSync,
+      isBatchSyncing,
+      batchSyncProgress,
+      runBatchDividendSync,
       showRefundModal,
       showReimburseModal,
       editTxModal,
