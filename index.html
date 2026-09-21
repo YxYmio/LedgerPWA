@@ -7729,6 +7729,8 @@
           </div>
         </div>
 
+        
+
         <!-- 新手引導彈窗 (第一次使用) -->
         <div
           v-if="showOnboardingModal"
@@ -8676,223 +8678,62 @@
             </div>
           </div>
         </div>
-        <!-- 常見 Q&A 彈窗 -->
+        <!-- 常見 Q&A 與功能教學彈窗 (已修復深色模式與背景點擊關閉) -->
         <div
           v-if="showQAModal"
-          class="fixed inset-0 bg-black/60 z-[99999] flex flex-col items-center justify-center p-4 backdrop-blur-sm"
+          @click.self="showQAModal = false"
+          class="fixed inset-0 bg-black/80 z-[99999] flex flex-col items-center justify-center p-4 backdrop-blur-sm"
         >
-          <div
-            class="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl flex flex-col max-h-[85vh] border border-teal-200 dark:border-slate-700"
-          >
-            <div
-              class="flex justify-between items-center mb-4 border-b dark:border-slate-700 pb-3 shrink-0"
-            >
-              <h3
-                class="text-xl font-bold flex items-center gap-2 text-teal-600 dark:text-teal-400"
-              >
-                <svg
-                  class="w-5 h-5"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path
-                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
-                  />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" y1="13" x2="8" y2="13" />
-                  <line x1="16" y1="17" x2="8" y2="17" />
-                  <polyline points="10 9 9 9 8 9" />
-                </svg>
-                系統使用指南 Q&A
-              </h3>
-              <button
-                @click="showQAModal = false"
-                class="p-1 text-slate-400 hover:text-slate-600 transition"
-              >
-                <svg
-                  class="w-5 h-5"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M18 6 6 18" />
-                  <path d="m6 6 12 12" />
-                </svg>
+          <div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl relative max-h-[85vh] flex flex-col border border-teal-200 dark:border-slate-700">
+            
+            <h3 class="text-xl font-bold mb-4 border-b dark:border-slate-700 pb-3 flex items-center gap-2 text-teal-600 dark:text-teal-400 shrink-0">
+              <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              系統協助與說明 QA
+            </h3>
+            
+            <!-- 右上角絕對定位關閉按鈕 -->
+            <button @click="showQAModal = false" class="absolute top-5 right-5 text-slate-400 hover:text-slate-600 dark:hover:text-white transition bg-slate-100 dark:bg-slate-700 p-1.5 rounded-full shadow-sm z-10">
+              <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+              </svg>
+            </button>
+
+            <!-- 內容區：已加上 dark:text-slate-300 避免黑字混入黑底 -->
+            <div class="overflow-y-auto custom-scrollbar pr-2 space-y-4 text-sm text-slate-700 dark:text-slate-300">
+              <div class="bg-slate-50 dark:bg-slate-900 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm">
+                <div class="font-bold text-teal-600 dark:text-teal-400 mb-1 flex items-center gap-1.5">
+                  <span class="bg-teal-100 dark:bg-teal-900/50 px-1.5 rounded">1</span>如何進行公款代墊與報銷？
+                </div>
+                <p class="leading-relaxed">記帳時勾選「公款代墊」，該筆金額會自動歸入「應收款項」。當收到還款時，在明細列表找到該筆紀錄，點擊「報銷」按鈕，即可沖銷應收款項並讓資金回到您的存款帳戶中。</p>
+              </div>
+
+              <div class="bg-slate-50 dark:bg-slate-900 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm">
+                <div class="font-bold text-teal-600 dark:text-teal-400 mb-1 flex items-center gap-1.5">
+                  <span class="bg-teal-100 dark:bg-teal-900/50 px-1.5 rounded">2</span>歷史除息智能追溯是什麼？
+                </div>
+                <p class="leading-relaxed">在「資產與貸款」的股票總覽中，點擊個股旁的「智能追溯」按鈕，系統會自動比對您過去的持股變化與 Yahoo Finance 的配息紀錄，一鍵幫您把漏記的歷史股息補齊！</p>
+              </div>
+
+              <div class="bg-slate-50 dark:bg-slate-900 p-3.5 rounded-xl border dark:border-slate-700 shadow-sm">
+                <div class="font-bold text-teal-600 dark:text-teal-400 mb-1 flex items-center gap-1.5">
+                  <span class="bg-teal-100 dark:bg-teal-900/50 px-1.5 rounded">3</span>如何分享群組結算結果？
+                </div>
+                <p class="leading-relaxed">在專案與分帳中心，進入您的群組專案後，點擊右上角的「分享」按鈕，系統會自動生成最佳化的轉帳還款路徑與專屬網址，讓您可以一鍵發送至 LINE 或其他通訊軟體。</p>
+              </div>
+            </div>
+
+            <div class="mt-5 pt-4 border-t dark:border-slate-700 shrink-0">
+              <button @click="showQAModal = false" class="w-full bg-teal-600 hover:bg-teal-700 text-white p-3.5 rounded-xl font-bold transition shadow-lg tracking-widest">
+                我了解了，關閉說明
               </button>
             </div>
-
-            <!-- Q&A 內容捲動區 -->
-            <div class="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-1">
-              <!-- 1. 複式記帳概念 (加上醒目的專屬樣式) -->
-              <div
-                class="bg-indigo-50 dark:bg-indigo-900/30 p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-800"
-              >
-                <div
-                  class="font-bold text-sm text-indigo-800 dark:text-indigo-300 mb-1 flex items-start gap-1.5"
-                >
-                  <span class="text-indigo-600 dark:text-indigo-400 font-black"
-                    >Q.</span
-                  >什麼是「複式記帳」？跟一般流水帳有什麼不同？
-                </div>
-                <div
-                  class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed pl-5 space-y-2"
-                >
-                  <p>
-                    傳統流水帳只記「花了多少錢」，容易造成帳戶餘額對不上的窘境。本系統採用專業會計的<strong
-                      >「複式記帳法 (Double-Entry)」</strong
-                    >，每一筆交易都會同時追蹤<strong>「資金來源」</strong>與<strong>「資金去向」</strong>。
-                  </p>
-                  <div
-                    class="bg-white dark:bg-slate-800 p-2.5 rounded-lg border dark:border-slate-700 mt-1"
-                  >
-                    <strong>💡 舉例來說：</strong><br />
-                    週末去吃赤富士日式燒肉花了 1,500 元，系統會同時記錄：<br />
-                    1.
-                    <span class="text-red-500 font-bold">支出增加</span>
-                    (資金去向：飲食花費了 1,500)<br />
-                    2.
-                    <span class="text-blue-600 dark:text-blue-400 font-bold"
-                      >資產減少</span
-                    >
-                    (資金來源：從現金或信用卡扣除 1,500)
-                  </div>
-                  <p>
-                    這種記法能確保「有借必有貸，借貸必相等」，幫助您自動產出精準的資產負債表與真實淨資產！
-                  </p>
-                </div>
-              </div>
-
-              <!-- 2. 信用卡記帳 -->
-              <div
-                class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700"
-              >
-                <div
-                  class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"
-                >
-                  <span class="text-teal-600">Q.</span
-                  >信用卡帳單繳費時，該怎麼記帳？
-                </div>
-                <div class="text-xs text-slate-500 leading-relaxed pl-5">
-                  刷卡消費時系統已經記過「支出」並增加「信用卡負債」了。因此，繳清卡費時請使用<strong>「轉帳」模式</strong>，將資金從「銀行活存
-                  (轉出)」轉至「信用卡
-                  (轉入)」。這樣只會沖銷您的負債餘額，不會被重複計算成支出！
-                </div>
-              </div>
-
-              <!-- 3. 公私帳切換 -->
-              <div
-                class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700"
-              >
-                <div
-                  class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"
-                >
-                  <span class="text-teal-600">Q.</span
-                  >記帳時的「個人」與「家庭」歸屬有什麼差別？
-                </div>
-                <div class="text-xs text-slate-500 leading-relaxed pl-5">
-                  這是用來完美切分公私帳的功能。當您在總覽儀表板或歷史明細上方切換視角時，系統會動態重新計算，只單獨顯示該歸屬範圍內的淨資產、收支結構與剩餘預算。
-                </div>
-              </div>
-
-              <!-- 4. 掃描器 -->
-              <div
-                class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700"
-              >
-                <div
-                  class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"
-                >
-                  <span class="text-teal-600">Q.</span>電子發票 QR Code
-                  掃描器能抓到什麼資訊？
-                </div>
-                <div class="text-xs text-slate-500 leading-relaxed pl-5">
-                  將手機鏡頭對準實體電子發票<strong>「左側」</strong>的 QR
-                  Code，系統能瞬間為您帶入「消費日期、總金額與發票號碼」，大幅減少手動輸入的時間與打錯字的風險。
-                </div>
-              </div>
-
-              <!-- 5. 雲端同步 -->
-              <div
-                class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700"
-              >
-                <div
-                  class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"
-                >
-                  <span class="text-teal-600">Q.</span
-                  >雲端同步如何運作？資料存在哪裡？
-                </div>
-                <div class="text-xs text-slate-500 leading-relaxed pl-5">
-                  本系統是純前端架構
-                  (無後端資料庫)，資料預設存在您的「瀏覽器本機快取」。啟用
-                  Google Drive 同步後，系統會在背景產生一份隱藏的 JSON
-                  檔案存在您個人的雲端硬碟中。絕對保護您的資料隱私。
-                </div>
-              </div>
-
-              <!-- 6. 結轉瘦身 -->
-              <div
-                class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700"
-              >
-                <div
-                  class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"
-                >
-                  <span class="text-teal-600">Q.</span
-                  >如何避免手機或電腦容量被塞滿？
-                </div>
-                <div class="text-xs text-slate-500 leading-relaxed pl-5">
-                  您可以至「設定」底部執行【會計結轉與瘦身精靈】。它會幫您將指定日期前的所有歷史明細合併為一筆「期初金額」，並刪除舊資料來釋放空間，同時完美保留您的當前總資產與各帳戶餘額。
-                </div>
-              </div>
-
-              <!-- 7. 股票配息與配股 -->
-              <div
-                class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700"
-              >
-                <div
-                  class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"
-                >
-                  <span class="text-teal-600">Q.</span
-                  >「領配息」和「領配股」有什麼差別？
-                </div>
-                <div class="text-xs text-slate-500 leading-relaxed pl-5">
-                  「配息 (現金股利)」會增加你的實體資金帳戶餘額；而「配股
-                  (股票股利)」是備忘錄明細，不會動到現金，但系統會自動幫您增加庫存股數，並重新攤平該股票的「每股平均成本」。
-                </div>
-              </div>
-
-              <!-- 8. 忘記密碼 -->
-              <div
-                class="bg-slate-50 dark:bg-slate-900/50 p-3.5 rounded-xl border dark:border-slate-700"
-              >
-                <div
-                  class="font-bold text-sm text-slate-800 dark:text-slate-200 mb-1 flex items-start gap-1.5"
-                >
-                  <span class="text-teal-600">Q.</span>如果不小心忘記 PIN
-                  碼密碼怎麼辦？
-                </div>
-                <div class="text-xs text-slate-500 leading-relaxed pl-5">
-                  基於安全防護，密碼無法被找回。若您忘記密碼，只能在解鎖畫面點選「強制重置」清除所有本機資料。如果您有綁定
-                  Google Drive，重置後重新登入即可一鍵還原雲端備份。
-                </div>
-              </div>
-            </div>
-
-            <div class="pt-4 border-t dark:border-slate-700 mt-4 shrink-0">
-              <button
-                @click="showQAModal = false"
-                class="w-full bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold transition"
-              >
-                了解，關閉視窗
-              </button>
-            </div>
+          </div>
+          
+          <!-- 底部背景關閉觸發區 -->
+          <div @click="showQAModal = false" class="mt-4 text-slate-400 text-sm font-bold tracking-widest cursor-pointer hover:text-white transition">
+            點擊背景關閉
           </div>
         </div>
         <!-- [新增] 收據/明細照片全螢幕預覽彈窗 -->

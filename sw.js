@@ -1,4 +1,4 @@
-const CACHE_NAME = "ledger-pwa-v18"; // 升級版本號以強制更新
+const CACHE_NAME = "ledger-pwa-v19"; // 升級版本號以強制更新
 
 // 將本地化的第三方套件全數納入離線快取名單
 const urlsToCache = [
@@ -47,7 +47,7 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// 3. 攔截請求階段：改為 Network-First (網路優先) 策略
+// 3. 攔截請求階段：改為 Stale-While-Revalidate (快取優先，背景更新) 策略
 self.addEventListener("fetch", (event) => {
   // 將所有外部 API 請求完全放行，不進行快取攔截
   if (
@@ -58,24 +58,29 @@ self.addEventListener("fetch", (event) => {
     event.request.url.includes("corsproxy.io") ||
     event.request.url.includes("twse.com.tw") ||
     event.request.url.includes("tpex.org.tw") ||
-    event.request.url.includes("yahoo.com")
+    event.request.url.includes("yahoo.com") ||
+    event.request.url.startsWith("chrome-extension")
   ) {
     return;
   }
 
-  // 網路優先策略：先嘗試從網路抓取最新檔案
+  // 快取優先 (Cache-First) 策略：先從本地快取秒速載入，同時在背景偷偷抓最新版備用
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        // 若網路請求成功，順便把最新的檔案塞進快取裡，確保留下最新備份
-        return caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, networkResponse.clone());
+    caches.match(event.request).then((cachedResponse) => {
+      // 定義去網路抓取最新檔案的 Promise
+      const fetchPromise = fetch(event.request)
+        .then((networkResponse) => {
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, networkResponse.clone());
+          });
           return networkResponse;
+        })
+        .catch(() => {
+          console.warn("Service Worker: 網路離線，僅使用快取");
         });
-      })
-      .catch(() => {
-        // 若網路斷線或伺服器無回應，則退回使用本地端快取 (離線模式)
-        return caches.match(event.request);
-      }),
+
+      // 如果快取有檔案就立刻回傳 (秒開)，否則等待網路請求
+      return cachedResponse || fetchPromise;
+    }),
   );
 });
