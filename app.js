@@ -408,9 +408,17 @@ const app = createApp({
         alert("無須補登！您的股息紀錄已是最新，或已超過系統試算值。");
         return;
       }
-      // 安全地一鍵灌入基期股利，不產生任何假明細干擾帳本
-      divSyncTarget.value.base_dividend =
-        (Number(divSyncTarget.value.base_dividend) || 0) + addAmount;
+
+      // [修正] 因為 divSyncTarget 拿到的是 computed 渲染用的拷貝分身，
+      // 必須透過 symbol 找回 data.investments 裡面的「真實本體」，對本體進行修改！
+      let realInv = data.investments.find(
+        (i) => i && i.symbol === divSyncTarget.value.symbol,
+      );
+      if (realInv) {
+        realInv.base_dividend =
+          (Number(realInv.base_dividend) || 0) + addAmount;
+      }
+
       showDividendSyncModal.value = false;
       autoBackup(true, true);
       updateCharts();
