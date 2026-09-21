@@ -1,4 +1,4 @@
-const CACHE_NAME = "ledger-pwa-v19"; // 升級版本號以強制更新
+const CACHE_NAME = "ledger-pwa-v20"; // 升級版本號以強制更新
 
 // 將本地化的第三方套件全數納入離線快取名單
 const urlsToCache = [
@@ -47,9 +47,9 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// 3. 攔截請求階段：改為 Stale-While-Revalidate (快取優先，背景更新) 策略
+// 3. 攔截請求階段：Stale-While-Revalidate (快取優先，背景更新)
 self.addEventListener("fetch", (event) => {
-  // 將所有外部 API 請求完全放行，不進行快取攔截
+  // 外部 API 直接放行
   if (
     event.request.url.includes("googleapis.com") ||
     event.request.url.includes("accounts.google.com") ||
@@ -64,22 +64,22 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // 快取優先 (Cache-First) 策略：先從本地快取秒速載入，同時在背景偷偷抓最新版備用
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      // 定義去網路抓取最新檔案的 Promise
       const fetchPromise = fetch(event.request)
         .then((networkResponse) => {
+          // [修復] 收到回應的第一時間，馬上 Clone，避免 body is already used 錯誤
+          const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, networkResponse.clone());
+            cache.put(event.request, responseToCache);
           });
           return networkResponse;
         })
         .catch(() => {
-          console.warn("Service Worker: 網路離線，僅使用快取");
+          // 離線時靜默失敗
         });
 
-      // 如果快取有檔案就立刻回傳 (秒開)，否則等待網路請求
+      // 如果有快取就立刻回傳（秒開），沒有的話才等網路
       return cachedResponse || fetchPromise;
     }),
   );

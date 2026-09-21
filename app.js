@@ -2628,35 +2628,47 @@ const app = createApp({
         txObj.credits.push({ account_id: newTx.fromAcc, amount: baseAmt });
         if (txObj.desc === "無摘要") txObj.desc = "轉帳";
       } else if (entryMode.value === "invest") {
-        } else if (newTx.investAction === "dividend") {
-          let finalName = newTx.investDividendSymbol === "manual" ? newTx.manualName : newTx.stockName;
-          let finalSym = newTx.investDividendSymbol === "manual" ? newTx.manualSymbol : newTx.investDividendSymbol;
-          
+        // [修復] 將投資區塊的子判斷式改為正常的 if/else，移除錯亂的結尾大括號
+        if (newTx.investAction === "dividend") {
+          let finalName =
+            newTx.investDividendSymbol === "manual"
+              ? newTx.manualName
+              : newTx.stockName;
+          let finalSym =
+            newTx.investDividendSymbol === "manual"
+              ? newTx.manualSymbol
+              : newTx.investDividendSymbol;
+
           let grossAmt = Number(newTx.amount) || 0;
           let feeAmt = Number(newTx.fee) || 0;
           let netAmt = grossAmt - feeAmt;
 
           if (netAmt <= 0 || !newTx.paymentAcc)
-            return (txError.value = "請確認配息標的、入帳帳戶，且實收淨額必須大於 0");
+            return (txError.value =
+              "請確認配息標的、入帳帳戶，且實收淨額必須大於 0");
 
-          // 智慧尋找手續費科目 (比對名稱包含 '手續費' 或 '匯費' 的支出類別)
-          let feeAcc = (data.accounts || []).find(a => a && a.type === 'Expense' && (a.name.includes('手續費') || a.name.includes('匯費')));
+          // 智慧尋找手續費科目
+          let feeAcc = (data.accounts || []).find(
+            (a) =>
+              a &&
+              a.type === "Expense" &&
+              (a.name.includes("手續費") || a.name.includes("匯費")),
+          );
 
           if (feeAmt > 0 && feeAcc) {
-            // 雙軌認列：總額認列收入，淨額入銀行，差額入費用
             txObj.debits.push({ account_id: newTx.paymentAcc, amount: netAmt });
             txObj.debits.push({ account_id: feeAcc.id, amount: feeAmt });
             txObj.credits.push({ account_id: "4202", amount: grossAmt });
-            txObj.desc = finalName ? `領取配息: ${finalName} (總額$${grossAmt},扣匯費$${feeAmt})` : `領取配息 (總額$${grossAmt},扣匯費$${feeAmt})`;
+            txObj.desc = finalName
+              ? `領取配息: ${finalName} (總額$${grossAmt},扣匯費$${feeAmt})`
+              : `領取配息 (總額$${grossAmt},扣匯費$${feeAmt})`;
           } else {
-            // 無手續費科目或無手續費時：直接以淨額入帳
             txObj.debits.push({ account_id: newTx.paymentAcc, amount: netAmt });
             txObj.credits.push({ account_id: "4202", amount: netAmt });
             txObj.desc = finalName ? `領取配息: ${finalName}` : "領取股利/配息";
             if (feeAmt > 0) txObj.desc += ` (已扣除匯費$${feeAmt})`;
           }
 
-          // 補上使用者自訂摘要
           if (finalDesc && finalDesc !== "無摘要") {
             txObj.desc += ` - ${finalDesc}`;
           }
@@ -2664,8 +2676,7 @@ const app = createApp({
           txObj.invest_action = "dividend";
           if (finalSym) txObj.invest_symbol = finalSym;
         } else if (newTx.investAction === "stock_dividend") {
-        } else if (newTx.investAction === "stock_dividend") {
-          // --- 新增：配股專用邏輯 ---
+          // --- 配股專用邏輯 ---
           if (!newTx.symbol || !newTx.shares)
             return (txError.value = "請確認配股標的與股數");
           let inv = (data.investments || []).find(
@@ -2675,11 +2686,10 @@ const app = createApp({
           txObj.invest_action = "stock_dividend";
           txObj.invest_symbol = newTx.symbol;
           txObj.invest_shares = newTx.shares;
-          txObj.invest_cost_value = 0; // 配股為無償取得，不增加總成本
+          txObj.invest_cost_value = 0;
 
           if (inv) {
             inv.shares += newTx.shares;
-            // 持有股數增加，總成本不變，藉此攤平平均單價
             if (inv.shares > 0) inv.last_price = inv.total_cost / inv.shares;
           } else {
             data.investments.push({
@@ -2693,6 +2703,7 @@ const app = createApp({
             });
           }
         } else {
+          // --- 買賣邏輯 ---
           if (
             !newTx.symbol ||
             !newTx.shares ||
