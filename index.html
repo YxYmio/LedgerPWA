@@ -7,15 +7,15 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
 
-    <!-- [資安升級 終極版] Content-Security-Policy (CSP) 內容安全策略 -->
-    <!-- 嚴格拔除 cdnjs 與 tailwindcss 外部連線，僅信任本機腳本與 Google 官方 API -->
+<!-- [資安升級 終極版] Content-Security-Policy (CSP) 內容安全策略 -->
+    <!-- 嚴格拔除 cdnjs 與 tailwindcss 外部連線，僅信任本機腳本與 Google 官方 API、股市政府開放 API -->
     <meta
       http-equiv="Content-Security-Policy"
       content="
     default-src 'self'; 
     script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com; 
     style-src 'self' 'unsafe-inline'; 
-    connect-src 'self' https://www.googleapis.com https://accounts.google.com https://api.exchangerate-api.com https://api.allorigins.win https://corsproxy.io; 
+    connect-src 'self' https://www.googleapis.com https://accounts.google.com https://api.exchangerate-api.com https://api.allorigins.win https://corsproxy.io https://openapi.twse.com.tw https://www.tpex.org.tw; 
     img-src 'self' data: https:; 
     frame-src https://accounts.google.com;
   "
