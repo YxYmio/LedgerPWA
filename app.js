@@ -2624,29 +2624,42 @@ const app = createApp({
         txObj.credits.push({ account_id: newTx.fromAcc, amount: baseAmt });
         if (txObj.desc === "無摘要") txObj.desc = "轉帳";
       } else if (entryMode.value === "invest") {
-        if (newTx.investAction === "dividend") {
-          let finalName =
-            newTx.investDividendSymbol === "manual"
-              ? newTx.manualName
-              : newTx.stockName;
-          let finalSym =
-            newTx.investDividendSymbol === "manual"
-              ? newTx.manualSymbol
-              : newTx.investDividendSymbol;
-          if (!newTx.amount || !newTx.paymentAcc)
-            return (txError.value = "請確認配息標的、入帳帳戶與金額");
+        } else if (newTx.investAction === "dividend") {
+          let finalName = newTx.investDividendSymbol === "manual" ? newTx.manualName : newTx.stockName;
+          let finalSym = newTx.investDividendSymbol === "manual" ? newTx.manualSymbol : newTx.investDividendSymbol;
+          
+          let grossAmt = Number(newTx.amount) || 0;
+          let feeAmt = Number(newTx.fee) || 0;
+          let netAmt = grossAmt - feeAmt;
 
-          txObj.debits.push({
-            account_id: newTx.paymentAcc,
-            amount: newTx.amount,
-          });
-          txObj.credits.push({ account_id: "4202", amount: newTx.amount });
-          txObj.desc = finalName ? `領取配息: ${finalName}` : "領取股利/配息";
-          if (newTx.desc) txObj.desc += ` (${newTx.desc})`;
+          if (netAmt <= 0 || !newTx.paymentAcc)
+            return (txError.value = "請確認配息標的、入帳帳戶，且實收淨額必須大於 0");
 
-          // [新增] 嚴謹紀錄投資標的代號，以利後續單檔 ROI 精算
+          // 智慧尋找手續費科目 (比對名稱包含 '手續費' 或 '匯費' 的支出類別)
+          let feeAcc = (data.accounts || []).find(a => a && a.type === 'Expense' && (a.name.includes('手續費') || a.name.includes('匯費')));
+
+          if (feeAmt > 0 && feeAcc) {
+            // 雙軌認列：總額認列收入，淨額入銀行，差額入費用
+            txObj.debits.push({ account_id: newTx.paymentAcc, amount: netAmt });
+            txObj.debits.push({ account_id: feeAcc.id, amount: feeAmt });
+            txObj.credits.push({ account_id: "4202", amount: grossAmt });
+            txObj.desc = finalName ? `領取配息: ${finalName} (總額$${grossAmt},扣匯費$${feeAmt})` : `領取配息 (總額$${grossAmt},扣匯費$${feeAmt})`;
+          } else {
+            // 無手續費科目或無手續費時：直接以淨額入帳
+            txObj.debits.push({ account_id: newTx.paymentAcc, amount: netAmt });
+            txObj.credits.push({ account_id: "4202", amount: netAmt });
+            txObj.desc = finalName ? `領取配息: ${finalName}` : "領取股利/配息";
+            if (feeAmt > 0) txObj.desc += ` (已扣除匯費$${feeAmt})`;
+          }
+
+          // 補上使用者自訂摘要
+          if (finalDesc && finalDesc !== "無摘要") {
+            txObj.desc += ` - ${finalDesc}`;
+          }
+
           txObj.invest_action = "dividend";
           if (finalSym) txObj.invest_symbol = finalSym;
+        } else if (newTx.investAction === "stock_dividend") {
         } else if (newTx.investAction === "stock_dividend") {
           // --- 新增：配股專用邏輯 ---
           if (!newTx.symbol || !newTx.shares)
