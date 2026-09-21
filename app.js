@@ -608,6 +608,10 @@ const app = createApp({
     const openImagePreview = (url) => {
       if (url) previewImageUrl.value = url;
     };
+    // [新增] 關閉圖片預覽的函式
+    const closeImagePreview = () => {
+      previewImageUrl.value = "";
+    };
     // --- 全新：常見 Q&A 彈窗狀態 ---
     const showQAModal = ref(false);
 
@@ -5351,6 +5355,7 @@ const app = createApp({
       hasDownloadedBackup,
       previewImageUrl,
       openImagePreview,
+      closeImagePreview,
       openRolloverModal,
       downloadBackupForRollover,
       executeRollover,

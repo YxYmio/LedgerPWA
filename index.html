@@ -2312,7 +2312,7 @@
                   <div v-if="tx && tx.receipt_image" class="mt-2">
                     <img
                       v-lazy-base64="tx.receipt_image"
-                      onclick="window.open(this.src)"
+                      @click="openImagePreview(tx.receipt_image)"
                       class="h-14 w-14 object-cover rounded-lg border dark:border-slate-600 shadow-sm cursor-zoom-in"
                       title="點擊放大查看"
                     />
@@ -9055,6 +9055,24 @@
             >
               確定清空
             </button>
+          </div>
+        </div>
+        <!-- [新增/修復] 全螢幕圖片預覽彈窗 -->
+        <div v-if="previewImageUrl" class="fixed inset-0 z-[999999] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-sm" @click="closeImagePreview">
+          <!-- 關閉按鈕 -->
+          <button @click.stop="closeImagePreview" class="absolute top-6 right-6 text-white/60 hover:text-white p-3 rounded-full bg-white/10 hover:bg-white/20 transition cursor-pointer z-50">
+            <svg class="w-8 h-8" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+          
+          <!-- 圖片本體 (阻擋點擊事件冒泡，避免點圖片本身也被關閉) -->
+          <img :src="previewImageUrl" class="max-w-full max-h-[85vh] rounded-lg shadow-2xl object-contain relative z-40" @click.stop />
+          
+          <!-- 底部提示 -->
+          <div class="absolute bottom-8 text-white/50 text-sm font-bold tracking-widest pointer-events-none">
+            點擊背景關閉
           </div>
         </div>
       </div>
