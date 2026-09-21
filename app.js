@@ -262,7 +262,6 @@ const app = createApp({
 
       try {
         const fetchDivs = async () => {
-          // 加入 Query2 備援與時間戳記破除快取
           const endpoints = [
             `https://query2.finance.yahoo.com/v8/finance/chart/${rawSym}.TW?interval=1mo&range=10y&events=div`,
             `https://query2.finance.yahoo.com/v8/finance/chart/${rawSym}.TWO?interval=1mo&range=10y&events=div`,
@@ -270,18 +269,18 @@ const app = createApp({
           ];
           for (let base_url of endpoints) {
             let url = base_url + `&ts=${Date.now()}`;
-
-            // AllOrigins 模式
-            try {
-              let res = await fetchWithTimeout(
-                `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-                {},
-                6000,
-              );
-              if (res.ok) {
-                let dataStr = await res.json();
-                if (dataStr && dataStr.contents) {
-                  let parsed = JSON.parse(dataStr.contents);
+            const proxies = [
+              (u) =>
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+              (u) =>
+                `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+              (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+            ];
+            for (let proxyFn of proxies) {
+              try {
+                let res = await fetchWithTimeout(proxyFn(url), {}, 6000);
+                if (res.ok) {
+                  let parsed = await res.json();
                   if (
                     parsed &&
                     parsed.chart &&
@@ -293,35 +292,17 @@ const app = createApp({
                     return parsed.chart.result[0].events.dividends;
                   }
                 }
-              }
-            } catch (e) {}
-
-            // Raw 備援模式
-            try {
-              let res = await fetchWithTimeout(
-                `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-                {},
-                6000,
-              );
-              if (res.ok) {
-                let parsed = await res.json();
-                if (
-                  parsed &&
-                  parsed.chart &&
-                  parsed.chart.result &&
-                  parsed.chart.result[0] &&
-                  parsed.chart.result[0].events &&
-                  parsed.chart.result[0].events.dividends
-                ) {
-                  return parsed.chart.result[0].events.dividends;
-                }
-              }
-            } catch (e) {}
+              } catch (e) {}
+            }
           }
           return null;
         };
 
         let dividends = await fetchDivs();
+
+        // [關鍵修復] 如果完全抓不到資料，代表被阻擋或代號錯誤，丟出錯誤中斷！
+        if (dividends === null) throw new Error("API_BLOCKED");
+
         if (!dividends) dividends = {};
 
         let expectedTotal = 0;
@@ -395,7 +376,11 @@ const app = createApp({
           suggested: suggestedAdd > 0 ? suggestedAdd : 0,
         };
       } catch (err) {
-        alert("無法獲取歷史除息資料。可能是 API 限制或該標的無配息紀錄。");
+        if (err.message === "API_BLOCKED") {
+          alert("⚠️ 遭到外部伺服器連線阻擋 (HTTP 429)，請稍後再試。");
+        } else {
+          alert("⚠️ 無法獲取歷史除息資料。可能是剛上市無配息，或代號有誤。");
+        }
       } finally {
         divSyncLoading.value = false;
       }
@@ -461,20 +446,21 @@ const app = createApp({
             const endpoints = [
               `https://query2.finance.yahoo.com/v8/finance/chart/${rawSym}.TW?interval=1mo&range=10y&events=div`,
               `https://query2.finance.yahoo.com/v8/finance/chart/${rawSym}.TWO?interval=1mo&range=10y&events=div`,
-              `https://query1.finance.yahoo.com/v8/finance/chart/${rawSym}.TW?interval=1mo&range=10y&events=div`,
             ];
             for (let base_url of endpoints) {
               let url = base_url + `&ts=${Date.now()}`;
-              try {
-                let res = await fetchWithTimeout(
-                  `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-                  {},
-                  6000,
-                );
-                if (res.ok) {
-                  let dataStr = await res.json();
-                  if (dataStr && dataStr.contents) {
-                    let parsed = JSON.parse(dataStr.contents);
+              const proxies = [
+                (u) =>
+                  `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+                (u) =>
+                  `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+                (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+              ];
+              for (let proxyFn of proxies) {
+                try {
+                  let res = await fetchWithTimeout(proxyFn(url), {}, 6000);
+                  if (res.ok) {
+                    let parsed = await res.json();
                     if (
                       parsed &&
                       parsed.chart &&
@@ -486,34 +472,17 @@ const app = createApp({
                       return parsed.chart.result[0].events.dividends;
                     }
                   }
-                }
-              } catch (e) {}
-
-              try {
-                let res = await fetchWithTimeout(
-                  `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-                  {},
-                  6000,
-                );
-                if (res.ok) {
-                  let parsed = await res.json();
-                  if (
-                    parsed &&
-                    parsed.chart &&
-                    parsed.chart.result &&
-                    parsed.chart.result[0] &&
-                    parsed.chart.result[0].events &&
-                    parsed.chart.result[0].events.dividends
-                  ) {
-                    return parsed.chart.result[0].events.dividends;
-                  }
-                }
-              } catch (e) {}
+                } catch (e) {}
+              }
             }
             return null;
           };
 
           let dividends = await fetchDivs();
+
+          // [關鍵修復] 如果連線失敗，拋出錯誤，避免誤算為 0 股利
+          if (dividends === null) throw new Error("API_BLOCKED");
+
           if (!dividends) dividends = {};
 
           let expectedTotal = 0;
@@ -574,7 +543,12 @@ const app = createApp({
             updatedCount++;
             totalSuggested += suggestedAdd;
           }
-        } catch (e) {}
+        } catch (e) {
+          console.warn(`追溯 ${inv.symbol} 失敗:`, e);
+          if (e.message === "API_BLOCKED") {
+            batchSyncProgress.value = `(${i + 1}/${targets.length}) ${inv.symbol} 遭限流阻擋...`;
+          }
+        }
 
         if (i < targets.length - 1) {
           await new Promise((r) => setTimeout(r, 2000));
@@ -591,7 +565,9 @@ const app = createApp({
           `✅ 全盤追溯完成！共校正 ${updatedCount} 檔標的，總計自動補登 $${typeof formatNumber === "function" ? formatNumber(totalSuggested) : totalSuggested} 歷史配息。`,
         );
       } else {
-        alert("✅ 全盤追溯完成！您的所有標的股息紀錄皆為最新，無須補登。");
+        alert(
+          "✅ 全盤掃描完成！沒有新增可補登的紀錄，或因 API 限流略過部分標的。",
+        );
       }
     };
     // ==========================================
@@ -1867,51 +1843,6 @@ const app = createApp({
     const safeLoans = computed(() => data.loans || []);
     const safeRecurring = computed(() => data.recurring || []);
     const safeSavingsGoals = computed(() => data.savings_goals || []);
-    const enrichedInvestments = computed(() => {
-      return (safeInvestments.value || [])
-        .filter((i) => i && i.shares > 0)
-        .map((inv) => {
-          let totalCost = Number(inv.total_cost) || 0;
-          let shares = Number(inv.shares) || 0;
-          let rate = data.currencyRates[inv.currency || "TWD"] || 1;
-          let currentPrice = Number(inv.last_price) || 0;
-          let marketValue = shares * currentPrice * rate;
-          let unrealized = marketValue - totalCost;
-
-          // 計算該檔股票的歷史累計配息 (相容舊資料摘要比對與新資料的 symbol 綁定)
-          // [新增] 加上結轉後固化的基期股利 base_dividend
-          let totalDiv = Number(inv.base_dividend) || 0;
-          let sym = inv.symbol || "";
-          let sName = (inv.name || "").replace(/^\[.*?\]\s*/, "");
-          (data.transactions || []).forEach((tx) => {
-            if (!tx || tx.is_refunded || tx.is_refund) return;
-            let isMatch =
-              tx.invest_symbol === sym ||
-              (tx.desc &&
-                (tx.desc.includes(sym) || (sName && tx.desc.includes(sName))));
-            if (isMatch && tx.credits) {
-              tx.credits.forEach((c) => {
-                if (c && c.account_id === "4202") {
-                  totalDiv += Number(c.amount) || 0;
-                }
-              });
-            }
-          });
-
-          let totalReturn = unrealized + totalDiv;
-          let roi = totalCost > 0 ? (totalReturn / totalCost) * 100 : 0;
-
-          return {
-            ...inv,
-            marketValue,
-            unrealized,
-            totalDiv,
-            totalReturn,
-            roi,
-          };
-        })
-        .sort((a, b) => b.marketValue - a.marketValue); // 依市值從大到小排序，讓主力持股置頂
-    });
     const currentHoldings = computed(() =>
       safeInvestments.value
         .filter((i) => i && i.shares > 0)
@@ -2040,36 +1971,73 @@ const app = createApp({
       return sum;
     });
 
+    const enrichedInvestments = computed(() => {
+      return (safeInvestments.value || [])
+        .filter((i) => i && i.shares > 0)
+        .map((inv) => {
+          let totalCost = Number(inv.total_cost) || 0;
+          let shares = Number(inv.shares) || 0;
+          let rate = data.currencyRates[inv.currency || "TWD"] || 1;
+          let currentPrice = Number(inv.last_price) || 0;
+          let marketValue = shares * currentPrice * rate;
+          let unrealized = marketValue - totalCost;
+
+          // [核心修復] 確保 base_dividend 被正確讀取與加總
+          let totalDiv = Number(inv.base_dividend) || 0;
+          let sym = inv.symbol || "";
+          let sName = (inv.name || "").replace(/^\[.*?\]\s*/, "");
+          (data.transactions || []).forEach((tx) => {
+            if (!tx || tx.is_refunded || tx.is_refund) return;
+            let isMatch =
+              tx.invest_symbol === sym ||
+              (tx.desc &&
+                (tx.desc.includes(sym) || (sName && tx.desc.includes(sName))));
+            if (isMatch && tx.credits) {
+              tx.credits.forEach((c) => {
+                if (c && c.account_id === "4202") {
+                  totalDiv += Number(c.amount) || 0;
+                }
+              });
+            }
+          });
+
+          let totalReturn = unrealized + totalDiv;
+          let roi = totalCost > 0 ? (totalReturn / totalCost) * 100 : 0;
+
+          return {
+            ...inv,
+            marketValue,
+            unrealized,
+            totalDiv,
+            totalReturn,
+            roi,
+          };
+        })
+        .sort((a, b) => b.marketValue - a.marketValue);
+    });
+
     const portfolioStats = computed(() => {
       let totalCost = 0;
       let totalMV = 0;
+      let totalBaseDiv = 0; // [新增] 計算所有股票的基期股利總額
+
       (safeInvestments.value || []).forEach((inv) => {
         if (inv && inv.shares > 0) {
           totalCost += Number(inv.total_cost) || 0;
           let rate = data.currencyRates[inv.currency || "TWD"] || 1;
           totalMV +=
             (Number(inv.shares) || 0) * (Number(inv.last_price) || 0) * rate;
+          totalBaseDiv += Number(inv.base_dividend) || 0; // 加總至全域
         }
       });
-      // 取出帳本中所有的股利收入餘額 (4202) 並加上各檔股票的基期股利
-      let totalBaseDiv = 0;
-      (safeInvestments.value || []).forEach((inv) => {
-        if (inv) totalBaseDiv += Number(inv.base_dividend) || 0;
-      });
-      let totalDiv = calculateBalance("4202", "all") + totalBaseDiv;
 
+      // 取出帳本中所有的股利收入餘額 (4202) 並加上所有股票的基期股利
+      let totalDiv = calculateBalance("4202", "all") + totalBaseDiv;
       let unrealized = totalMV - totalCost;
-      let totalReturn = unrealized + totalDiv; // 真實總獲利 = 價差 + 股息
+      let totalReturn = unrealized + totalDiv;
       let roi = totalCost > 0 ? (totalReturn / totalCost) * 100 : 0;
 
-      return {
-        totalCost,
-        totalMV,
-        totalDiv,
-        unrealized,
-        totalReturn,
-        roi,
-      };
+      return { totalCost, totalMV, totalDiv, unrealized, totalReturn, roi };
     });
 
     const totalLiabilities = computed(() => {
