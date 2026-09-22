@@ -7,6 +7,7 @@ const {
   watch,
   nextTick,
   shallowRef,
+  toRaw, // 新增此行，用於極速拷貝資料給 Worker
 } = Vue;
 
 const app = createApp({
@@ -16,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.1"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.2"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -2470,35 +2471,95 @@ const app = createApp({
       { immediate: true },
     );
 
-    const bsData = computed(() => {
-      if (typeof calculateBalanceSheet !== "function") return null;
-      return calculateBalanceSheet(
-        data.accounts,
-        data.transactions,
-        data.investments,
-        data.currencyRates,
-        reportEndDate.value,
-      );
-    });
+    // ==========================================
+    // [第二階段優化] 報表 Web Worker 背景非同步運算
+    // ==========================================
+    const bsData = ref(null);
+    const isData = ref(null);
+    const cfData = ref(null);
+    const isReportCalculating = ref(false);
+    let reportWorker = null;
+    let reportReqId = 0;
 
-    const isData = computed(() => {
-      if (typeof calculateIncomeStatement !== "function") return null;
-      return calculateIncomeStatement(
-        data.accounts,
-        data.transactions,
-        reportStartDate.value,
-        reportEndDate.value,
-      );
-    });
+    // 初始化 Worker
+    if (window.Worker) {
+      reportWorker = new Worker("./worker.js");
+      reportWorker.onmessage = (e) => {
+        const { type, reqType, data: result } = e.data;
+        if (type === "SUCCESS") {
+          if (reqType === "CALC_BALANCE_SHEET") bsData.value = result;
+          else if (reqType === "CALC_INCOME_STATEMENT") isData.value = result;
+          else if (reqType === "CALC_CASH_FLOW") cfData.value = result;
+        }
+        isReportCalculating.value = false;
+      };
+    }
 
-    const cfData = computed(() => {
-      if (typeof calculateCashFlow !== "function") return null;
-      return calculateCashFlow(
-        data.accounts,
-        data.transactions,
-        reportStartDate.value,
-        reportEndDate.value,
-      );
+    // 觸發報表更新邏輯 (防抖處理)
+    const updateReportsBg = () => {
+      if (!reportWorker) return;
+      isReportCalculating.value = true;
+      reportReqId++;
+
+      let basePayload = {
+        accounts: toRaw(data.accounts),
+        transactions: toRaw(data.transactions),
+      };
+
+      if (reportView.value === "balance") {
+        reportWorker.postMessage({
+          type: "CALC_BALANCE_SHEET",
+          reqId: reportReqId,
+          payload: {
+            ...basePayload,
+            investments: toRaw(data.investments),
+            currencyRates: toRaw(data.currencyRates),
+            endDate: reportEndDate.value,
+          },
+        });
+      } else if (reportView.value === "income") {
+        reportWorker.postMessage({
+          type: "CALC_INCOME_STATEMENT",
+          reqId: reportReqId,
+          payload: {
+            ...basePayload,
+            startDate: reportStartDate.value,
+            endDate: reportEndDate.value,
+          },
+        });
+      } else if (reportView.value === "cashflow") {
+        reportWorker.postMessage({
+          type: "CALC_CASH_FLOW",
+          reqId: reportReqId,
+          payload: {
+            ...basePayload,
+            startDate: reportStartDate.value,
+            endDate: reportEndDate.value,
+          },
+        });
+      }
+    };
+
+    // 智慧依賴監聽：只在報表頁面，且資料變更時才觸發背景精算
+    watch(
+      [
+        () => data.transactions,
+        () => data.accounts,
+        reportView,
+        reportStartDate,
+        reportEndDate,
+      ],
+      () => {
+        if (activeTab.value === "reports") {
+          clearTimeout(window.reportDebounce);
+          window.reportDebounce = setTimeout(updateReportsBg, 250);
+        }
+      },
+      { deep: true },
+    );
+
+    watch(activeTab, (newTab) => {
+      if (newTab === "reports") updateReportsBg();
     });
 
     const submitTransaction = () => {
@@ -5307,6 +5368,7 @@ const app = createApp({
       isAppReady,
       swVersion,
       activeTab,
+      isReportCalculating,
       isDrawerOpen,
       entryMode,
       dashboardScope,
