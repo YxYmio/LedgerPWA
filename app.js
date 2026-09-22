@@ -4208,7 +4208,7 @@ const app = createApp({
         autoBackup(true, true);
       }
     };
-    
+
     // ==========================================
     // [Phase 4] PWA 本機推播提醒核心邏輯
     // ==========================================
@@ -4235,6 +4235,7 @@ const app = createApp({
     const runAutoTasks = () => {
       let curM = getLocalISODate().substring(0, 7);
       let today = new Date().getDate();
+
       // 固定資產折舊 (支援補齊歷史未折舊月份)
       (data.fixed_assets || []).forEach((fa) => {
         if (!fa || fa.is_disposed) return;
@@ -4247,7 +4248,6 @@ const app = createApp({
           let processCount = 0;
 
           while (true) {
-            // 每回合推進一個月
             loopM++;
             if (loopM > 12) {
               loopM = 1;
@@ -4255,17 +4255,17 @@ const app = createApp({
             }
             let targetM = `${loopY}-${String(loopM).padStart(2, "0")}`;
 
-            if (targetM > curM) break; // 已達到或超越當前月份，停止補齊
+            if (targetM > curM) break;
 
             let currentAccDep = getFAAccDep(fa);
             if (currentAccDep + fa.monthly_depreciation > fa.original_cost) {
               fa.last_depreciation_date = targetM + "-01";
-              continue; // 已經折舊完畢，只推進日期不產生明細
+              continue;
             }
 
             data.transactions.unshift({
               id: "tx_dep_" + Date.now() + Math.random(),
-              date: `${targetM}-01`, // 紀錄為該月的 1 號
+              date: `${targetM}-01`,
               desc: `${fa.name} 自動折舊`,
               scope: "family",
               auto_generated: true,
@@ -4286,10 +4286,12 @@ const app = createApp({
             fa.last_depreciation_date = `${targetM}-01`;
             processCount++;
 
-            if (processCount > 600) break; // 防呆機制，最多補齊 50 年避免無窮迴圈
+            if (processCount > 600) break;
           }
         }
       });
+
+      // 分期付款排程
       (data.installments || []).forEach((inst) => {
         if (!inst || !inst.next_month) return;
         while (inst.paid_periods < inst.periods && inst.next_month <= curM) {
@@ -4319,6 +4321,8 @@ const app = createApp({
           inst.next_month = `${y}-${String(m).padStart(2, "0")}`;
         }
       });
+
+      // 週期性收支排程
       (data.recurring || []).forEach((rec) => {
         if (!rec || !rec.amount) return;
         let lastExec = rec.last_exec_month || "";
@@ -4354,50 +4358,8 @@ const app = createApp({
           data.transactions.unshift(txObj);
           rec.last_exec_month = curM;
         }
-      }); // <-- 修正：確保週期排程在這裡正確關閉！
-
-      // 獨立的貸款自動扣款引擎
-      (data.loans || []).forEach((loan) => {
-        if (
-          !loan ||
-          !loan.auto_deduct ||
-          !loan.monthly_payment ||
-          !loan.deduct_account_id
-        )
-          return;
-        let lastExec = loan.last_exec_month || "";
-
-        // 如果這個月還沒執行過，而且今天的日期已經大於等於設定的扣款日
-        if (lastExec !== curM && today >= loan.deduct_day) {
-          // 動態精算當下剩餘本金與利息
-          let cp = Math.abs(calculateBalance(loan.liability_acc_id, "all"));
-          if (cp <= 0) return; // 已經還清就不再扣款
-
-          let interest = Math.round(
-            cp * ((loan.interest_rate || 0) / 100 / 12),
-          );
-          let principal = Math.min(loan.monthly_payment - interest, cp); // 本金最多只能還到剩下 0
-          let totalDeduct = principal + interest;
-
-          let txObj = {
-            id: "tx_loan_auto_" + Date.now() + Math.random(),
-            date: `${curM}-${String(loan.deduct_day).padStart(2, "0")}`,
-            scope: "personal",
-            desc: `[自動扣款] 貸款還款: ${loan.name}`,
-            debits: [
-              { account_id: loan.liability_acc_id, amount: principal },
-              { account_id: "5103", amount: interest },
-            ],
-            credits: [
-              { account_id: loan.deduct_account_id, amount: totalDeduct },
-            ],
-            auto_generated: true,
-            loan_id: loan.id,
-          };
-          data.transactions.unshift(txObj);
-          loan.last_exec_month = curM;
-        }
       });
+
       // 獨立的貸款自動扣款引擎
       (data.loans || []).forEach((loan) => {
         if (
@@ -4409,7 +4371,6 @@ const app = createApp({
           return;
         let lastExec = loan.last_exec_month || "";
 
-        // 如果這個月還沒執行過，而且今天的日期已經大於等於設定的扣款日
         if (lastExec !== curM && today >= loan.deduct_day) {
           let cp = Math.abs(calculateBalance(loan.liability_acc_id, "all"));
           if (cp <= 0) return;
@@ -4440,11 +4401,9 @@ const app = createApp({
         }
       });
 
-      // ==========================================
       // [新增] 每日收盤後背景自動更新股價機制
-      // ==========================================
       let d_now = new Date();
-      let isAfterClose = d_now.getHours() >= 14; // 下午兩點後視為收盤
+      let isAfterClose = d_now.getHours() >= 14;
       let periodStr = isAfterClose ? "after_close" : "before_close";
       let currentStamp =
         (typeof getLocalISODate === "function"
@@ -4454,21 +4413,25 @@ const app = createApp({
         periodStr;
       let lastStamp = localStorage.getItem("ledger_stock_auto_update_stamp");
 
-      // 如果目前是下午兩點後，且今天的收盤價還沒抓過，就在背景安靜抓取
       if (isAfterClose && lastStamp !== currentStamp) {
         setTimeout(() => {
-          updateStockPrices(true); // 傳入 true 啟動靜默更新模式，不干擾使用者操作
-        }, 5000); // 延遲 5 秒執行，確保主畫面已經順利渲染完畢
-        // [新增] 每日未記帳推播提醒 (需在 runAutoTasks 函式結尾處)
+          updateStockPrices(true);
+        }, 5000);
+      } // <== 這就是上一版遺漏的關鍵大括號！
+
+      // [Phase 4] 每日未記帳推播提醒
       if (settings.notificationsEnabled && showDailyReminder.value) {
-        let todayStr = typeof getLocalISODate === "function" ? getLocalISODate() : new Date().toISOString().split("T")[0];
-        if (localStorage.getItem('ledger_last_notified') !== todayStr) {
+        let todayStr =
+          typeof getLocalISODate === "function"
+            ? getLocalISODate()
+            : new Date().toISOString().split("T")[0];
+        if (localStorage.getItem("ledger_last_notified") !== todayStr) {
           if (Notification.permission === "granted") {
             new Notification("Kadu｜卡度記帳", {
               body: "您今天還沒記帳喔！花個 10 秒鐘記錄一下吧 💰",
-              icon: "./logo.png"
+              icon: "./logo.png",
             });
-            localStorage.setItem('ledger_last_notified', todayStr);
+            localStorage.setItem("ledger_last_notified", todayStr);
           }
         }
       }
@@ -5821,17 +5784,20 @@ app.directive("lazy-base64", {
 // ==========================================
 app.directive("intersect", {
   mounted(el, binding) {
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting) {
-        binding.value();
-      }
-    }, { rootMargin: "200px" });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          binding.value();
+        }
+      },
+      { rootMargin: "200px" },
+    );
     observer.observe(el);
     el._observe = observer;
   },
   unmounted(el) {
     if (el._observe) el._observe.disconnect();
-  }
+  },
 });
 
 app.mount("#app");
