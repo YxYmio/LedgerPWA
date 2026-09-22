@@ -2232,11 +2232,12 @@
               查無符合條件的明細
             </div>
 
-            <!-- [全新] 歷史明細容器：支援左滑原生物理選單 (Swipe to Action) -->
+            <!-- [全新] 歷史明細容器：支援原生虛擬列表與物理選單 -->
             <div
               v-for="tx in paginatedTransactions"
               :key="tx && tx.id ? tx.id : ''"
               class="swipe-container mb-3 flex overflow-x-auto snap-x snap-mandatory rounded-xl border dark:border-slate-700 shadow-sm bg-slate-50 dark:bg-slate-900 transition-all hover:border-blue-300"
+              style="content-visibility: auto; contain-intrinsic-size: auto 100px;"
               :class="{'opacity-60': tx && (tx.is_refunded || tx.is_refund || tx.is_reimbursed)}"
             >
               <!-- 1. 前景明細卡片 (100% 寬度，強制貼齊起點) -->
@@ -2514,7 +2515,7 @@
             <!-- 自動載入更多的偵測錨點 -->
             <div
               v-if="filteredTransactions.length > paginatedTransactions.length"
-              v-observe-visibility="loadMoreHistory"
+              v-intersect="loadMoreHistory"
               class="h-10 flex items-center justify-center text-slate-400"
             >
               <div class="spinner w-5 h-5 border-2 border-blue-500"></div>
@@ -5362,7 +5363,22 @@
                   class="w-5 h-5 accent-blue-600 cursor-pointer"
                 />
               </div>
-
+              <!-- 本機推播提醒設定 (Phase 4) -->
+              <div
+                class="flex items-center justify-between border p-3.5 rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 mb-4 shadow-sm"
+                :class="settings.notificationsEnabled ? 'border-emerald-300' : ''"
+              >
+                <div class="flex flex-col">
+                  <span class="font-bold text-sm text-slate-700 dark:text-slate-300">每日記帳推播提醒</span>
+                  <span class="text-[10px] text-slate-400 mt-0.5">系統將在您未記帳的日子主動發送通知</span>
+                </div>
+                <input
+                  type="checkbox"
+                  v-model="settings.notificationsEnabled"
+                  @change="toggleNotifications"
+                  class="w-5 h-5 accent-emerald-600 cursor-pointer"
+                />
+              </div>
               <!-- [修改] 匯出入按鈕區塊 (加入 CSV 按鈕) -->
               <div class="grid grid-cols-2 gap-2 mb-4">
                 <button

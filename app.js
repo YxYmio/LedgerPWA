@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.3"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.4"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -648,6 +648,7 @@ const app = createApp({
       fileId: "",
       pinEnabled: false,
       pinCode: "0000",
+      notificationsEnabled: false,
       currentBookId: "default",
       booksIndex: [{ id: "default", name: "日常帳本" }],
       billingStartDay: 1,
@@ -4207,6 +4208,29 @@ const app = createApp({
         autoBackup(true, true);
       }
     };
+    
+    // ==========================================
+    // [Phase 4] PWA 本機推播提醒核心邏輯
+    // ==========================================
+    const toggleNotifications = async () => {
+      if (!("Notification" in window)) {
+        alert("⚠️ 您的設備或瀏覽器不支援系統推播通知。");
+        settings.notificationsEnabled = false;
+        return;
+      }
+      if (settings.notificationsEnabled) {
+        const permission = await Notification.requestPermission();
+        if (permission === "granted") {
+          alert("✅ 每日記帳推播提醒已開啟！");
+          saveSettings(false);
+        } else {
+          alert("⚠️ 推播權限遭拒，請至瀏覽器設定中手動允許。");
+          settings.notificationsEnabled = false;
+        }
+      } else {
+        saveSettings(false);
+      }
+    };
 
     const runAutoTasks = () => {
       let curM = getLocalISODate().substring(0, 7);
@@ -4435,6 +4459,18 @@ const app = createApp({
         setTimeout(() => {
           updateStockPrices(true); // 傳入 true 啟動靜默更新模式，不干擾使用者操作
         }, 5000); // 延遲 5 秒執行，確保主畫面已經順利渲染完畢
+        // [新增] 每日未記帳推播提醒 (需在 runAutoTasks 函式結尾處)
+      if (settings.notificationsEnabled && showDailyReminder.value) {
+        let todayStr = typeof getLocalISODate === "function" ? getLocalISODate() : new Date().toISOString().split("T")[0];
+        if (localStorage.getItem('ledger_last_notified') !== todayStr) {
+          if (Notification.permission === "granted") {
+            new Notification("Kadu｜卡度記帳", {
+              body: "您今天還沒記帳喔！花個 10 秒鐘記錄一下吧 💰",
+              icon: "./logo.png"
+            });
+            localStorage.setItem('ledger_last_notified', todayStr);
+          }
+        }
       }
     };
 
@@ -5526,6 +5562,7 @@ const app = createApp({
       currentBookId,
       newBookName,
       data,
+      toggleNotifications,
       applyQuickEntry,
       newTx,
       isUploadingImage,
@@ -5777,6 +5814,24 @@ app.directive("lazy-base64", {
     );
     observer.observe(el);
   },
+});
+
+// ==========================================
+// [Phase 4] 無限滾動觸發指令 (Intersection Observer)
+// ==========================================
+app.directive("intersect", {
+  mounted(el, binding) {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        binding.value();
+      }
+    }, { rootMargin: "200px" });
+    observer.observe(el);
+    el._observe = observer;
+  },
+  unmounted(el) {
+    if (el._observe) el._observe.disconnect();
+  }
 });
 
 app.mount("#app");
