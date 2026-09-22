@@ -16,6 +16,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
+    const swVersion = ref("v21"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -5293,6 +5294,7 @@ const app = createApp({
     // --- 嚴格確保所有新增狀態與方法 100% 匯出 ---
     return {
       isAppReady,
+      swVersion,
       activeTab,
       isDrawerOpen,
       entryMode,

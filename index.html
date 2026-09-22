@@ -5539,7 +5539,13 @@
                 </svg>
               </button>
             </section>
+          <!-- [新增] 系統版本號顯示區塊 -->
+            <div class="text-center text-xs text-slate-400 dark:text-slate-500 mt-8 mb-2 font-mono font-bold tracking-widest">
+              Core v{{ data.version }} | SW Version {{ swVersion || '未載入' }}
+            </div>
+
           </div>
+
         </main>
 
         <!-- ================= 8. 彈窗區塊 (Modals) ================= -->
