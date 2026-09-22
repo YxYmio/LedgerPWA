@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.2"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.3"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -658,6 +658,7 @@ const app = createApp({
 
     const data = reactive({
       version: "6.4.0",
+      deleted_ids: [],
       currencyRates: { TWD: 1, USD: 32.5, JPY: 0.22 },
       budgets: {},
       recurring: [],
@@ -1075,6 +1076,7 @@ const app = createApp({
         (r) => r.project_id !== id,
       );
       if (activeSplitProjectId.value === id) activeSplitProjectId.value = "";
+      trackDeletion(id);
       autoBackup(true, true);
     };
 
@@ -1625,6 +1627,7 @@ const app = createApp({
         return;
       }
       if (confirm("確定要永久刪除此帳戶嗎？此操作無法復原。")) {
+        trackDeletion(id); // [新增] 將帳戶 ID 寫入墓碑
         data.accounts = data.accounts.filter((a) => a && a.id !== id);
         showEditAccountModal.value = false;
         autoBackup(true, true);
@@ -1697,6 +1700,7 @@ const app = createApp({
     };
 
     const resetData = () => {
+      data.deleted_ids = [];
       data.transactions = [];
       data.accounts = [];
       data.fixed_assets = [];
@@ -3343,6 +3347,54 @@ const app = createApp({
       alert("✅ 報銷沖銷成功！");
     };
 
+    // ==========================================
+    // [第三階段] Tombstone 刪除追蹤器
+    // ==========================================
+    const trackDeletion = (id) => {
+      if (!id) return;
+      if (!data.deleted_ids) data.deleted_ids = [];
+      if (!data.deleted_ids.includes(id)) {
+        data.deleted_ids.push(id);
+        // 限制最多保留近 2000 筆刪除紀錄，避免陣列無限膨脹
+        if (data.deleted_ids.length > 2000) data.deleted_ids.shift();
+      }
+    };
+
+    const deleteTransaction = (id) => {
+      if (!confirm("確定刪除？此操作將連動還原相關庫存或排程狀態（若有）。"))
+        return;
+      let idx = data.transactions.findIndex((t) => t && t.id === id);
+      if (idx === -1) return;
+      let tx = data.transactions[idx];
+
+      trackDeletion(id); // [新增] 將此明細 ID 寫入墓碑
+
+      if (tx && tx.auto_generated && tx.asset_id) {
+// ... 中間保持原有的還原邏輯不變 ...
+
+      if (tx && tx.loan_init_id) {
+        trackDeletion(tx.loan_init_id); // [新增] 追蹤連帶刪除的貸款 ID
+        data.loans = data.loans.filter((l) => l && l.id !== tx.loan_init_id);
+        if (tx.loan_account_id) {
+          trackDeletion(tx.loan_account_id); // [新增] 追蹤連帶刪除的帳戶 ID
+          data.accounts = data.accounts.filter(
+            (a) => a && a.id !== tx.loan_account_id,
+          );
+        }
+      }
+      if (tx && tx.fa_init_id) {
+        trackDeletion(tx.fa_init_id); // [新增] 追蹤連帶刪除的資產 ID
+        data.fixed_assets = data.fixed_assets.filter(
+          (fa) => fa && fa.id !== tx.fa_init_id,
+        );
+      }
+
+// ... 保持原有邏輯 ...
+      data.transactions.splice(idx, 1);
+      autoBackup(true, true);
+      updateCharts();
+    };
+
     const deleteTransaction = (id) => {
       if (!confirm("確定刪除？此操作將連動還原相關庫存或排程狀態（若有）。"))
         return;
@@ -4081,6 +4133,7 @@ const app = createApp({
     };
     const deleteGoal = (id) => {
       if (!confirm("確定刪除此儲蓄目標？")) return;
+      trackDeletion(id);
       data.savings_goals = data.savings_goals.filter((g) => g && g.id !== id);
       autoBackup(true, true);
     };
@@ -4567,10 +4620,16 @@ const app = createApp({
               // ==========================================
               // [全新] 無縫智慧合併 (Smart Merge) 機制
               // ==========================================
+              // ==========================================
+              // [全新] 無縫智慧合併 (Smart Merge) 機制 (含 Tombstone 防呆)
+              // ==========================================
               const mergeArrayById = (localArr, cloudArr) => {
                 let map = new Map();
                 (cloudArr || []).forEach((item) => {
-                  if (item && item.id) map.set(item.id, item);
+                  // [核心防覆蓋] 若雲端資料的 ID 存在於本機的刪除墓碑中，直接丟棄不予合併
+                  if (item && item.id && !(data.deleted_ids || []).includes(item.id)) {
+                    map.set(item.id, item);
+                  }
                 });
                 (localArr || []).forEach((item) => {
                   if (item && item.id) {
@@ -4592,6 +4651,12 @@ const app = createApp({
                   new Set([...(localArr || []), ...(cloudArr || [])]),
                 );
               };
+
+              // [新增] 合併刪除墓碑標記 (雙向同步刪除狀態)
+              data.deleted_ids = mergeStrArray(
+                data.deleted_ids,
+                cloudData.deleted_ids
+              );
 
               // 陣列深度合併
               data.transactions = mergeArrayById(
