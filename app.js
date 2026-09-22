@@ -16,7 +16,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v21"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.1"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -733,6 +733,7 @@ const app = createApp({
       investSelectedSymbol: "",
       tags: [],
       receiptImage: null,
+      receiptImageId: null, // 新增：用於紀錄 IndexedDB 的鍵值
     });
     const isUploadingImage = ref(false);
 
@@ -742,7 +743,11 @@ const app = createApp({
       isUploadingImage.value = true;
       try {
         // 壓縮成最大 800px 且品質 60% 的輕量 JPEG
-        newTx.receiptImage = await compressImage(file, 800, 800, 0.6);
+        const base64Str = await compressImage(file, 800, 800, 0.6);
+        const imgId = "img_" + Date.now();
+        await StorageDB.setImg(imgId, base64Str); // 將實體 Base64 抽離寫入 IndexedDB
+        newTx.receiptImageId = imgId;
+        newTx.receiptImage = base64Str; // 僅保留一份供畫面上即時預覽使用
       } catch (err) {
         alert("⚠️ 圖片處理失敗，請嘗試其他照片。");
       } finally {
@@ -2539,7 +2544,8 @@ const app = createApp({
         tags: extractedTags,
         debits: [],
         credits: [],
-        receipt_image: newTx.receiptImage || null, // <-- 新增此行將 Base64 寫入交易
+        receipt_image_id: newTx.receiptImageId || null, // 改存 ID
+        receipt_image: null, // 設為 null 徹底釋放 JSON 空間
       };
 
       if (entryMode.value === "expense") {
@@ -2789,6 +2795,7 @@ const app = createApp({
       newTx.amount = null;
       newTx.desc = "";
       newTx.receiptImage = null;
+      newTx.receiptImageId = null; // 補上清空 ID
       newTx.currency = "TWD";
       newTx.shares = null;
       newTx.price = null;
@@ -3282,6 +3289,10 @@ const app = createApp({
       if (idx === -1) return;
       let tx = data.transactions[idx];
 
+      // 若有圖片 ID，同步刪除 IndexedDB 中的實體檔案釋放硬碟空間
+      if (tx && tx.receipt_image_id) {
+        StorageDB.removeImg(tx.receipt_image_id).catch(() => {});
+      }
       if (tx && tx.auto_generated && tx.asset_id) {
         let a = data.fixed_assets.find((fa) => fa && fa.id === tx.asset_id);
         if (a) a.last_depreciation_date = null;
@@ -5630,26 +5641,34 @@ app.component("modal-reset", {
 });
 
 // ==========================================
-// [新增] Base64 圖片延遲載入指令 (Lazy Loading)
+// [升級] Base64 圖片延遲載入指令 (支援 IndexedDB 異步讀取與向下相容)
 // ==========================================
 app.directive("lazy-base64", {
   mounted(el, binding) {
-    el.setAttribute("data-src", binding.value || "");
+    const tx = binding.value;
+    if (!tx) return;
     const observer = new IntersectionObserver(
-      (entries) => {
+      async (entries) => {
         if (entries[0].isIntersecting) {
-          let dataSrc = el.getAttribute("data-src");
-          if (dataSrc) el.src = dataSrc;
+          // 兼容舊版：直接渲染殘留在 JSON 中的 Base64
+          if (tx.receipt_image && tx.receipt_image.startsWith("data:image")) {
+            el.src = tx.receipt_image;
+          }
+          // 新版效能模式：從 IndexedDB 異步撈取實體圖片
+          else if (tx.receipt_image_id) {
+            try {
+              let dataSrc = await StorageDB.getImg(tx.receipt_image_id);
+              if (dataSrc) el.src = dataSrc;
+            } catch (e) {
+              console.warn("圖片載入失敗", e);
+            }
+          }
           observer.disconnect();
         }
       },
       { rootMargin: "200px" },
-    ); // 提早 200px 載入，保持滑動順暢
+    );
     observer.observe(el);
-  },
-  updated(el, binding) {
-    el.setAttribute("data-src", binding.value || "");
-    if (el.src) el.src = binding.value || ""; // 若已在畫面中，直接更新
   },
 });
 

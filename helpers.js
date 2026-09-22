@@ -544,14 +544,24 @@ const CryptoUtils = {
 // ==========================================
 // [升級] 輕量級原生 IndexedDB 封裝引擎
 // ==========================================
+// ==========================================
+// [升級] 輕量級原生 IndexedDB 封裝引擎 (支援圖片分離儲存)
+// ==========================================
 const StorageDB = {
   dbName: "LedgerPWADB",
   storeName: "keyval",
+  imgStoreName: "images", // 新增圖片專用 Store
   async init() {
     return new Promise((resolve, reject) => {
-      let req = indexedDB.open(this.dbName, 1);
+      let req = indexedDB.open(this.dbName, 2); // 升級資料庫版本至 2
       req.onupgradeneeded = (e) => {
-        e.target.result.createObjectStore(this.storeName);
+        let db = e.target.result;
+        if (!db.objectStoreNames.contains(this.storeName)) {
+          db.createObjectStore(this.storeName);
+        }
+        if (!db.objectStoreNames.contains(this.imgStoreName)) {
+          db.createObjectStore(this.imgStoreName);
+        }
       };
       req.onsuccess = (e) => resolve(e.target.result);
       req.onerror = () => reject("IndexedDB 初始化失敗");
@@ -580,6 +590,34 @@ const StorageDB = {
     return new Promise((resolve, reject) => {
       let tx = db.transaction(this.storeName, "readwrite");
       tx.objectStore(this.storeName).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+  // --- 新增：圖片專用非同步讀寫方法 ---
+  async getImg(key) {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      let tx = db.transaction(this.imgStoreName, "readonly");
+      let req = tx.objectStore(this.imgStoreName).get(key);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  },
+  async setImg(key, val) {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      let tx = db.transaction(this.imgStoreName, "readwrite");
+      tx.objectStore(this.imgStoreName).put(val, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  },
+  async removeImg(key) {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      let tx = db.transaction(this.imgStoreName, "readwrite");
+      tx.objectStore(this.imgStoreName).delete(key);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });

@@ -1860,7 +1860,7 @@
                     class="h-10 w-10 object-cover rounded-lg border dark:border-slate-600 shadow-sm"
                   />
                   <button
-                    @click="newTx.receiptImage = null"
+                    @click="newTx.receiptImage = null; newTx.receiptImageId = null"
                     class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 shadow"
                   >
                     <svg
@@ -2309,10 +2309,10 @@
                     }}
                   </div>
 
-                  <div v-if="tx && tx.receipt_image" class="mt-2">
+                  <div v-if="tx && (tx.receipt_image || tx.receipt_image_id)" class="mt-2">
                     <img
-                      v-lazy-base64="tx.receipt_image"
-                      @click="openImagePreview(tx.receipt_image)"
+                      v-lazy-base64="tx"
+                      @click="openImagePreview($event.target.src)"
                       class="h-14 w-14 object-cover rounded-lg border dark:border-slate-600 shadow-sm cursor-zoom-in"
                       title="點擊放大查看"
                     />
