@@ -5734,7 +5734,7 @@ app.config.errorHandler = function (err, vm, info) {
   if (errorMsg) errorMsg.innerText = err.message + "\n(" + info + ")";
 };
 
-// --- 註冊模組化子元件 (已徹底移除舊版 Lucide 依賴與重複程式碼) ---
+// --- 註冊模組化子元件 ---
 app.component("modal-new-book", {
   template: "#tpl-modal-new-book",
   props: ["show", "modelValue"],
@@ -5748,7 +5748,7 @@ app.component("modal-reset", {
 });
 
 // ==========================================
-// [升級] Base64 圖片延遲載入指令 (支援 IndexedDB 異步讀取與向下相容)
+// [升級] Base64 圖片延遲載入指令
 // ==========================================
 app.directive("lazy-base64", {
   mounted(el, binding) {
@@ -5757,12 +5757,9 @@ app.directive("lazy-base64", {
     const observer = new IntersectionObserver(
       async (entries) => {
         if (entries[0].isIntersecting) {
-          // 兼容舊版：直接渲染殘留在 JSON 中的 Base64
           if (tx.receipt_image && tx.receipt_image.startsWith("data:image")) {
             el.src = tx.receipt_image;
-          }
-          // 新版效能模式：從 IndexedDB 異步撈取實體圖片
-          else if (tx.receipt_image_id) {
+          } else if (tx.receipt_image_id) {
             try {
               let dataSrc = await StorageDB.getImg(tx.receipt_image_id);
               if (dataSrc) el.src = dataSrc;
