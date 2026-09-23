@@ -57,16 +57,29 @@
     <script src="./lib/vue.global.prod.min.js"></script>
     <!-- 模組化引入 (加入 syncService) -->
     <script src="./syncService.js"></script>
-    <!-- 系統初始化設定 -->
+    <!-- ================= 核心套件引入區 (全面改為本地實體檔案) ================= -->
+    <!-- Google APIs (必須由官方外部載入，受上方 CSP 嚴格保護) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+
+    <!-- 本地化第三方庫 -->
+    <script src="./lib/html5-qrcode.min.js"></script>
+    <script src="./lib/tailwindcss.min.js"></script>
+    <script src="./lib/chart.min.js"></script>
+    <script src="./lib/vue.global.prod.min.js"></script>
+    
+    <!-- 模組化引入 (加入 syncService) -->
+    <script src="./syncService.js"></script>
+
+    <!-- 系統初始化設定 (請替換為以下這段) -->
     <script>
       tailwind.config = { darkMode: "class" };
       if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.getRegistrations().then((r) => {
-          for (let i of r) i.unregister();
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./sw.js").catch(err => {
+            console.warn("Service Worker 註冊失敗:", err);
+          });
         });
-        window.addEventListener("load", () =>
-          navigator.serviceWorker.register("./sw.js?v=" + Date.now()),
-        );
       }
     </script>
   </head>
@@ -486,11 +499,14 @@
 
         <!-- 頂部導航 -->
         <header
-          class="p-4 bg-blue-700 dark:bg-blue-900 text-white flex justify-between items-center sticky top-0 z-40 shadow-md"
+          @click="changeTab('dashboard')"
+          class="p-4 bg-blue-700 dark:bg-blue-900 text-white flex justify-between items-center sticky top-0 z-40 shadow-md cursor-pointer"
+          title="返回總覽"
         >
           <div class="flex items-center gap-3">
+            <!-- 加上 .stop 防止點擊漢堡選單時觸發返回總覽 -->
             <button
-              @click="isDrawerOpen = true"
+              @click.stop="isDrawerOpen = true"
               class="p-1.5 hover:bg-white/20 rounded-lg transition"
             >
               <svg
@@ -508,8 +524,10 @@
                 <line x1="4" x2="20" y1="18" y2="18" />
               </svg>
             </button>
+            <!-- 加上 @click.stop 防止點擊選單時觸發返回總覽 -->
             <select
               v-model="currentBookId"
+              @click.stop
               @change="switchBook($event)"
               class="bg-transparent text-xl font-bold outline-none cursor-pointer text-white appearance-none pr-4"
             >
@@ -523,9 +541,14 @@
               </option>
             </select>
           </div>
+          
+          <!-- 中間自動推開的空白區域 (已預設受到 header 的點擊事件涵蓋) -->
+          <div class="flex-1 h-full"></div>
+
           <div class="flex gap-4 flex-shrink-0 items-center">
+            <!-- 加上 .stop 防止點擊同步按鈕時觸發返回總覽 -->
             <button
-              @click="syncWithGoogleDrive(true)"
+              @click.stop="syncWithGoogleDrive(true)"
               title="強制同步"
               class="relative bg-blue-800 p-2 rounded-full hover:bg-blue-600 transition"
             >
