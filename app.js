@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.11"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.12"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -5031,12 +5031,13 @@ const app = createApp({
                   .filter((t) => t)
               : [];
 
-            // 內建的科目 ID 尋找器 (已包含 Emoji 與去空白防呆)
-            const findAccId = (accName) => {
+            // 【核心升級】：未知名稱自動建立與智慧型別判斷
+            const getOrCreateAccount = (accName, isDebit) => {
               if (!accName) return null;
               let list = data.accounts || [];
               let cleanInput = accName.trim();
 
+              // 1. 先嘗試精準與模糊尋找既有帳戶
               let target = list.find((a) => {
                 if (!a) return false;
                 let rawName = a.name.trim();
@@ -5051,11 +5052,64 @@ const app = createApp({
                     rawName.replace(/[^\w\u4e00-\u9fa5]/g, "")
                 );
               });
-              return target ? target.id : null;
+
+              if (target) return target.id;
+
+              // 2. 找不到的話，執行自動建立邏輯 (Auto-Create)
+              let type = isDebit ? "Expense" : "Income";
+              let icon = isDebit ? "🏷️" : "💰";
+
+              // 透過關鍵字進行初步的帳戶類型智慧判斷
+              if (
+                /銀行|錢包|Richart|卡|帳戶|現金|郵局|Pay|Line|街口/i.test(
+                  cleanInput,
+                )
+              ) {
+                type = "Asset";
+                icon = "🏦";
+              } else if (/薪|獎金|收入|利息/i.test(cleanInput)) {
+                type = "Income";
+                icon = "💰";
+              } else if (
+                /餐|吃|喝|交通|娛樂|日用|費|買|網購|保險/i.test(cleanInput)
+              ) {
+                type = "Expense";
+                icon = "🛍️";
+              }
+
+              let newId =
+                (type === "Asset" ? "asset_" : "acc_") +
+                Date.now() +
+                "_" +
+                Math.floor(Math.random() * 1000);
+
+              let newAcc = {
+                id: newId,
+                name: cleanInput,
+                type: type,
+                currency: "TWD",
+                is_hidden: false,
+                icon: icon,
+              };
+
+              // 若是收支科目，自動掛入預設的新主類別中
+              if (type === "Expense" || type === "Income") {
+                newAcc.category = "CSV自動建立";
+                if (!data.main_categories)
+                  data.main_categories = { Expense: [], Income: [] };
+                if (!data.main_categories[type])
+                  data.main_categories[type] = [];
+                if (!data.main_categories[type].includes("CSV自動建立")) {
+                  data.main_categories[type].push("CSV自動建立");
+                }
+              }
+
+              data.accounts.push(newAcc);
+              return newId;
             };
 
-            let debitId = findAccId(debitStr);
-            let creditId = findAccId(creditStr);
+            let debitId = getOrCreateAccount(debitStr, true);
+            let creditId = getOrCreateAccount(creditStr, false);
 
             if (!debitId || !creditId) continue;
 
@@ -5082,11 +5136,15 @@ const app = createApp({
             });
             autoBackup(true, true);
             updateCharts();
-            alert("✅ 成功匯入 " + successCount + " 筆明細！");
-          } else {
+            // 重新刷新圖標，讓剛建立的新帳戶生效顯示
+            if (typeof refreshIcons === "function") refreshIcons();
             alert(
-              "⚠️ 找不到可匯入的有效明細。\n請確保 CSV 科目名稱與系統內完全相符。",
+              "✅ 成功匯入 " +
+                successCount +
+                " 筆明細！\n系統已自動為您建立原本不存在的未知帳戶與科目。",
             );
+          } else {
+            alert("⚠️ 找不到可匯入的有效明細。");
           }
         } catch (err) {
           alert("匯入失敗: " + err.message);
