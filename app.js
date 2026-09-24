@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.10"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.11"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -2995,11 +2995,8 @@ const app = createApp({
       if (settings.pinEnabled && settings.pinCode.length === 4) {
         oldDataStr = await CryptoUtils.encrypt(oldDataStr, settings.pinCode);
       }
-      // 【修正】：將 serializedData 變更為 oldDataStr
-      await StorageDB.set(
-        "ledger_backup_" + settings.currentBookId,
-        oldDataStr,
-      );
+      // 將當下記憶體中的資料寫入「舊 ID」的資料庫中
+      await StorageDB.set("ledger_backup_" + oldId, oldDataStr);
 
       currentBookId.value = newId;
       settings.currentBookId = newId;
@@ -3007,12 +3004,17 @@ const app = createApp({
 
       resetData();
 
-      const newBackup = localStorage.getItem("ledger_backup_" + newId);
-      if (newBackup) {
-        let decryptedStr = newBackup;
+      // 【修復核心】：切換帳本時，必須優先從 IndexedDB 載入，否則切回舊帳本會被錯誤清空
+      let backup = await StorageDB.get("ledger_backup_" + newId);
+      if (!backup) {
+        backup = localStorage.getItem("ledger_backup_" + newId);
+      }
+
+      if (backup) {
+        let decryptedStr = backup;
         // [資安升級 Phase 3] 載入新帳本時解密
         if (settings.pinEnabled && settings.pinCode.length === 4) {
-          decryptedStr = await CryptoUtils.decrypt(newBackup, settings.pinCode);
+          decryptedStr = await CryptoUtils.decrypt(backup, settings.pinCode);
         }
         if (decryptedStr) Object.assign(data, JSON.parse(decryptedStr));
       } else {
@@ -3060,6 +3062,8 @@ const app = createApp({
       if (!newBookName.value) return;
       let newId = "book_" + Date.now();
       settings.booksIndex.push({ id: newId, name: newBookName.value });
+      // 【修復核心】：建立帳本後立刻將 settings 儲存至本機，確保網頁重整不遺失
+      saveSettings(false);
       switchBook(newId);
       newBookName.value = "";
       showNewBookModal.value = false;
@@ -3073,18 +3077,28 @@ const app = createApp({
         !confirm("確定要永久刪除此帳本及其所有本機儲存紀錄？此操作無法復原！")
       )
         return;
+
+      // 同步刪除 IndexedDB 裡面的備份
+      if (typeof StorageDB !== "undefined" && StorageDB.remove) {
+        StorageDB.remove("ledger_backup_" + targetId);
+      }
       localStorage.removeItem("ledger_backup_" + targetId);
+
       settings.booksIndex = settings.booksIndex.filter(
         (b) => b && b.id !== targetId,
       );
+
       if (targetId === currentBookId.value) {
-        currentBookId.value = settings.booksIndex[0].id;
-        switchBook(currentBookId.value);
+        // 【修復核心】：若刪除的是「正在使用」的帳本，直接設定回預設帳本並「強制重新整理」，避免觸發 switchBook 錯把被刪除的記憶體資料寫回新帳本
+        settings.currentBookId = settings.booksIndex[0].id;
+        saveSettings(false);
+        window.location.reload(true);
       } else {
         saveSettings(false);
+        alert("✅ 帳本刪除成功");
       }
-      alert("✅ 帳本刪除成功");
     };
+
     const openRolloverModal = () => {
       let d = new Date();
       d.setMonth(d.getMonth() - 3);
