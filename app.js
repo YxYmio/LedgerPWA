@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.6"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.7"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -614,8 +614,44 @@ const app = createApp({
     const closeImagePreview = () => {
       previewImageUrl.value = "";
     };
-    // --- 全新：常見 Q&A 彈窗狀態 ---
+    // --- 全新：常見 Q&A 彈窗狀態與摺疊邏輯 ---
     const showQAModal = ref(false);
+    const activeQaIndex = ref(null);
+
+    const toggleQa = (index) => {
+      activeQaIndex.value = activeQaIndex.value === index ? null : index;
+    };
+
+    const qaList = ref([
+      {
+        q: "Q1：資料存在哪裡？安全嗎？",
+        a: "卡度記帳是純前端應用，所有資料皆<strong class='text-rose-500 dark:text-rose-400'>預設加密儲存於您的設備本機 (IndexedDB)</strong> 中。如果您開啟了 Google Drive 同步，系統才會將加密後的備份檔上傳至「您自己的」雲端硬碟。開發者無法看見您的任何資料。",
+      },
+      {
+        q: "Q2：什麼是「公款代墊」與「報銷入帳」？",
+        a: "當您幫公司或朋友先付款時，記帳請勾選「公款代墊」，這筆錢會跑到資產的「應收款項」中，不會算成您的個人開銷。當對方還錢時，在明細中對該筆紀錄執行「代墊報銷入帳」，資金就會流回您的存款帳戶且沖平應收款！",
+      },
+      {
+        q: "Q3：歷史明細如何修改、退款或分期？",
+        a: "在「明細」頁面，找到該筆紀錄，<strong class='text-blue-600 dark:text-blue-400'>手機向左滑動、電腦點擊金額旁的圓點按鈕</strong>，即可展開「編輯、退款、報銷、複製、分期檢視、刪除」等強大操作選單。",
+      },
+      {
+        q: "Q4：股票投資的「智能追溯」功能是什麼？",
+        a: "這是一項獨家功能，系統會自動對接公開資訊，比對您過去的持股變動與歷史配息紀錄，自動精算出您「應得卻漏記」的股利，並一鍵補登，讓真實含息總報酬率（ROI）更精準。",
+      },
+      {
+        q: "Q5：什麼時候該使用「會計結轉與瘦身精靈」？",
+        a: "當您的記帳明細累積超過數千筆，導致容量過大或操作變慢時，此精靈能將指定日期前的所有損益與資產負債結算為一筆「期初結轉」，並安全刪除舊明細，達到釋放空間且總資產完全不變的完美狀態。",
+      },
+      {
+        q: "Q6：忘記 PIN 碼防窺鎖怎麼辦？",
+        a: "基於資安設計，密碼僅存於您的設備且單向加密。若忘記密碼，只能在解鎖畫面點擊「強制重置」，輸入大寫「RESET」清空本機資料。重置後，若您先前有啟用 Google Drive，可重新授權連線並一鍵還原雲端備份。",
+      },
+      {
+        q: "Q7：「個人」與「家庭」的帳務歸屬有何差異？",
+        a: "這方便您將「私人花費」與「家用支出」分開。在「總覽」和「財務三大報表」的頂部都有 Scope 過濾器，切換後即可瞬間分離出純個人或純家庭的財務狀況，不會互相混淆。",
+      },
+    ]);
 
     // --- 全新：記帳提醒邏輯 (判斷今日是否已記帳) ---
     const showDailyReminder = computed(() => {
@@ -5319,6 +5355,9 @@ const app = createApp({
       showGroupSettleLedgerModal,
       showRolloverModal,
       showQAModal,
+      activeQaIndex,
+      toggleQa,
+      qaList,
       showDailyReminder,
       rolloverDate,
       hasDownloadedBackup,
