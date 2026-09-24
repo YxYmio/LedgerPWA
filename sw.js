@@ -1,4 +1,4 @@
-const CACHE_NAME = "ledger-pwa-v1.1.7"; // 升級版本號以強制更新
+const CACHE_NAME = "ledger-pwa-v1.1.8"; // 升級版本號以強制更新
 
 // 將本地化的第三方套件全數納入離線快取名單
 const urlsToCache = [

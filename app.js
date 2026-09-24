@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.7"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.8"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -688,7 +688,43 @@ const app = createApp({
       currentBookId: "default",
       booksIndex: [{ id: "default", name: "日常帳本" }],
       billingStartDay: 1,
+      theme: "system", // 新增深淺色模式設定
     });
+
+    // 佈景主題切換邏輯
+    const applyTheme = (themeVal) => {
+      const htmlEl = document.documentElement;
+      if (themeVal === "dark") {
+        htmlEl.classList.add("dark");
+      } else if (themeVal === "light") {
+        htmlEl.classList.remove("dark");
+      } else {
+        // 跟隨系統
+        if (
+          window.matchMedia &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches
+        ) {
+          htmlEl.classList.add("dark");
+        } else {
+          htmlEl.classList.remove("dark");
+        }
+      }
+    };
+
+    // 監聽主題變更，自動套用並重新渲染圖表顏色
+    watch(
+      () => settings.theme,
+      (newVal) => {
+        applyTheme(newVal);
+        if (
+          ["dashboard", "reports", "budget", "group_split"].includes(
+            activeTab.value,
+          )
+        ) {
+          setTimeout(updateCharts, 50);
+        }
+      },
+    );
 
     const currentBookId = ref("default");
     const newBookName = ref("");
@@ -4780,16 +4816,14 @@ const app = createApp({
     const loadSettings = () => {
       try {
         const s = JSON.parse(localStorage.getItem("ledger_settings") || "{}");
-
-        // 【資安防護】載入時若發現舊版殘留的 Token，強制抹除，確保 Token 只存在於當次記憶體
         delete s.googleToken;
-
         if (s && typeof s === "object") Object.assign(settings, s);
       } catch (e) {}
       if (!settings.appName) settings.appName = "Kadu｜卡度記帳";
       if (!settings.booksIndex || settings.booksIndex.length === 0)
         settings.booksIndex = [{ id: "default", name: "日常帳本" }];
       if (settings.billingStartDay === undefined) settings.billingStartDay = 1;
+      if (!settings.theme) settings.theme = "system"; // 補上防呆預設值
       currentBookId.value = settings.currentBookId || "default";
       if (!settings.pinEnabled) isUnlocked.value = true;
     };
@@ -5249,6 +5283,18 @@ const app = createApp({
 
       // 1. 先載入本機設定檔 (確認是否有開啟 PIN 碼)
       loadSettings();
+
+      // 初始化套用主題
+      applyTheme(settings.theme);
+
+      // 註冊系統深淺色模式切換監聽器
+      if (window.matchMedia) {
+        window
+          .matchMedia("(prefers-color-scheme: dark)")
+          .addEventListener("change", () => {
+            if (settings.theme === "system") applyTheme("system");
+          });
+      }
 
       // [完善功能] 執行網址列攔截，若有分享參數則自動跳出群組結算報告
       checkSharedUrl();
