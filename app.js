@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.9"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.10"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -60,6 +60,7 @@ const app = createApp({
     const isProcessingLocal = ref(false);
     const showAmounts = ref(false);
     const dashboardMonth = ref(getLocalISODate().substring(0, 7));
+    const trendRange = ref(6); // 🌟 新增：淨資產走勢的時間跨度 (預設 6 個月)
     const fxRate = ref(1);
 
     const isCalcOpen = ref(false);
@@ -5122,7 +5123,9 @@ const app = createApp({
           });
           let scopeUnrealizedGain = (totalInvMV - totalInvCost) * scopeRatio;
 
-          for (let i = 5; i >= 0; i--) {
+          // ▼ 替換此段迴圈，動態讀取 trendRange
+          let rangeMonths = trendRange.value || 6;
+          for (let i = rangeMonths - 1; i >= 0; i--) {
             let tempDate = new Date(d.getFullYear(), d.getMonth() - i, 1);
             let mStr =
               tempDate.getFullYear() +
@@ -5345,6 +5348,7 @@ const app = createApp({
       isProcessingLocal,
       showAmounts,
       dashboardMonth,
+      trendRange,
       fxRate,
       isCalcOpen,
       calcExpression,
