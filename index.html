@@ -5449,11 +5449,12 @@
                   </svg>
                   匯出 CSV
                 </button>
+
                 <label
-                  class="col-span-2 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold flex items-center justify-center gap-2 cursor-pointer text-sm shadow transition border dark:border-slate-600"
+                  class="bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:text-slate-200 p-3 rounded-xl font-bold flex flex-col items-center justify-center gap-1 cursor-pointer text-[11px] shadow transition border dark:border-slate-600"
                 >
                   <svg
-                    class="w-4 h-4"
+                    class="w-5 h-5 mb-0.5"
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
                     fill="none"
@@ -5466,12 +5467,42 @@
                     <polyline points="17 8 12 3 7 8" />
                     <line x1="12" x2="12" y1="3" y2="15" />
                   </svg>
-                  匯入 JSON 覆蓋還原
+                  匯入 JSON
                   <input
                     type="file"
                     @change="importData"
                     class="hidden"
                     accept=".json"
+                  />
+                </label>
+
+                <label
+                  class="bg-teal-50 border border-teal-200 hover:bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:border-teal-800 dark:text-teal-400 p-3 rounded-xl font-bold flex flex-col items-center justify-center gap-1 cursor-pointer text-[11px] shadow transition"
+                >
+                  <svg
+                    class="w-5 h-5 mb-0.5"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                    />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" x2="8" y1="13" y2="13" />
+                    <line x1="16" x2="8" y1="17" y2="17" />
+                    <polyline points="10 9 9 9 8 9" />
+                  </svg>
+                  匯入 CSV
+                  <input
+                    type="file"
+                    @change="importCSV"
+                    class="hidden"
+                    accept=".csv"
                   />
                 </label>
               </div>

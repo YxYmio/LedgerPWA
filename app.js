@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.5"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.6"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -4857,6 +4857,127 @@ const app = createApp({
       r.readAsText(f);
     };
 
+    const importCSV = (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = (ev) => {
+        try {
+          const text = ev.target.result;
+          const lines = text
+            .replace(/^\uFEFF/, "")
+            .split("\n")
+            .filter((l) => l.trim() !== "");
+          if (lines.length < 2) return alert("檔案無有效資料");
+
+          let successCount = 0;
+          for (let i = 1; i < lines.length; i++) {
+            const row = lines[i];
+            let curVal = "";
+            let inQuotes = false;
+            const cols = [];
+
+            for (let j = 0; j < row.length; j++) {
+              const char = row[j];
+              if (char === '"') {
+                inQuotes = !inQuotes;
+              } else if (char === "," && !inQuotes) {
+                cols.push(
+                  curVal.replace(/^"|"$/g, "").replace(/""/g, '"').trim(),
+                );
+                curVal = "";
+              } else {
+                curVal += char;
+              }
+            }
+            cols.push(curVal.replace(/^"|"$/g, "").replace(/""/g, '"').trim());
+
+            if (cols.length < 6) continue;
+
+            let dateStr = cols[0];
+            let scopeStr = cols[1];
+            let desc = cols[2];
+            let debitStr = cols[3];
+            let creditStr = cols[4];
+            let amountStr = cols[5];
+            let tagsStr = cols[6];
+
+            let amount = Number(amountStr);
+            if (isNaN(amount) || amount <= 0) continue;
+
+            let scope = scopeStr === "家庭" ? "family" : "personal";
+            let tags = tagsStr
+              ? tagsStr
+                  .split(";")
+                  .map((t) => t.trim())
+                  .filter((t) => t)
+              : [];
+
+            // 內建的科目 ID 尋找器 (已包含 Emoji 與去空白防呆)
+            const findAccId = (accName) => {
+              if (!accName) return null;
+              let list = data.accounts || [];
+              let cleanInput = accName.trim();
+
+              let target = list.find((a) => {
+                if (!a) return false;
+                let rawName = a.name.trim();
+                let iconName = a.icon ? a.icon + " " + rawName : rawName;
+                let noSpaceIconName = a.icon ? a.icon + rawName : rawName;
+
+                return (
+                  rawName === cleanInput ||
+                  iconName === cleanInput ||
+                  noSpaceIconName === cleanInput ||
+                  cleanInput.replace(/[^\w\u4e00-\u9fa5]/g, "") ===
+                    rawName.replace(/[^\w\u4e00-\u9fa5]/g, "")
+                );
+              });
+              return target ? target.id : null;
+            };
+
+            let debitId = findAccId(debitStr);
+            let creditId = findAccId(creditStr);
+
+            if (!debitId || !creditId) continue;
+
+            data.transactions.unshift({
+              id: "tx_csv_" + Date.now() + "_" + i,
+              date: dateStr,
+              scope: scope,
+              desc: desc || "CSV匯入",
+              debits: [{ account_id: debitId, amount: amount }],
+              credits: [{ account_id: creditId, amount: amount }],
+              tags: tags,
+            });
+            successCount++;
+          }
+
+          if (successCount > 0) {
+            data.transactions.sort((a, b) => {
+              let d1 = a && a.date ? a.date : "";
+              let d2 = b && b.date ? b.date : "";
+              if (d1 !== d2) return d1 < d2 ? 1 : -1;
+              let id1 = a && a.id ? a.id : "";
+              let id2 = b && b.id ? b.id : "";
+              return id2.localeCompare(id1);
+            });
+            autoBackup(true, true);
+            updateCharts();
+            alert("✅ 成功匯入 " + successCount + " 筆明細！");
+          } else {
+            alert(
+              "⚠️ 找不到可匯入的有效明細。\n請確保 CSV 科目名稱與系統內完全相符。",
+            );
+          }
+        } catch (err) {
+          alert("匯入失敗: " + err.message);
+        }
+      };
+      r.readAsText(f);
+      e.target.value = "";
+    };
+
     const updateCharts = () => {
       if (
         !["dashboard", "budget", "reports", "group_split"].includes(
@@ -5293,6 +5414,7 @@ const app = createApp({
       exportData,
       exportCSV,
       importData,
+      importCSV,
       onSymbolInput,
       onInvestSelectedSymbolChange,
       filterByAccount,
