@@ -74,7 +74,7 @@ const renderExpenseChart = (
             legend: {
               position: "right",
               labels: {
-                color: "#94a3b8",
+                color: "#475569",
                 usePointStyle: true, // 🌟 圖例改為圓點形狀
                 boxWidth: 8, // 🌟 縮小圓點尺寸
                 font: { size: 11 }, // 🌟 微調字體大小
@@ -103,7 +103,7 @@ const renderAssetChart = (instanceRef, canvasId, cTot, sTot, fTot) => {
     (cTot > 0 || sTot > 0 || fTot > 0)
   ) {
     instanceRef = new Chart(ctx, {
-      type: "pie",
+      type: "doughnut",
       data: {
         labels: ["流動資金總額", "股票現值", "固定資產"],
         datasets: [
@@ -115,10 +115,11 @@ const renderAssetChart = (instanceRef, canvasId, cTot, sTot, fTot) => {
         ],
       },
       options: {
+        cutout: "65%",
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { position: "right", labels: { color: "#94a3b8" } },
+          legend: { position: "right", labels: { color: "#475569" } },
         },
       },
     });
