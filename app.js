@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.8"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.9"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
