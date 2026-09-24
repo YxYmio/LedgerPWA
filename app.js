@@ -2995,9 +2995,10 @@ const app = createApp({
       if (settings.pinEnabled && settings.pinCode.length === 4) {
         oldDataStr = await CryptoUtils.encrypt(oldDataStr, settings.pinCode);
       }
+      // 【修正】：將 serializedData 變更為 oldDataStr
       await StorageDB.set(
         "ledger_backup_" + settings.currentBookId,
-        serializedData,
+        oldDataStr,
       );
 
       currentBookId.value = newId;
