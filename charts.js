@@ -50,24 +50,36 @@ const renderExpenseChart = (
           datasets: [
             {
               data: values,
+              // 🌟 替換為低飽和的莫蘭迪暖色系 (補齊至8色)
               backgroundColor: [
-                "#ef4444",
-                "#f97316",
-                "#eab308",
-                "#22c55e",
-                "#3b82f6",
-                "#8b5cf6",
-                "#ec4899",
+                "#E5989B", // 柔和玫瑰粉
+                "#F8AD9D", // 珊瑚橘粉
+                "#FFB4A2", // 蜜桃色
+                "#FFCDB2", // 奶油杏
+                "#B5838D", // 莫蘭迪紫紅
+                "#6D6875", // 沉穩灰紫
+                "#9B9B7A", // 灰綠
+                "#D4A373", // 焦糖杏
               ],
               borderWidth: 0,
+              hoverOffset: 4,
             },
           ],
         },
         options: {
+          cutout: "65%", // 🌟 讓甜甜圈變細一點，視覺更現代
           responsive: true,
           maintainAspectRatio: false,
           plugins: {
-            legend: { position: "right", labels: { color: "#94a3b8" } },
+            legend: {
+              position: "right",
+              labels: {
+                color: "#94a3b8",
+                usePointStyle: true, // 🌟 圖例改為圓點形狀
+                boxWidth: 8, // 🌟 縮小圓點尺寸
+                font: { size: 11 }, // 🌟 微調字體大小
+              },
+            },
           },
         },
       });
