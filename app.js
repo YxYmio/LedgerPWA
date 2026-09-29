@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.13"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.14"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -4989,6 +4989,8 @@ const app = createApp({
           if (lines.length < 2) return alert("檔案無有效資料");
 
           let successCount = 0;
+          let duplicateCount = 0; // 【新增】：用來記錄被攔截的重複明細數量
+
           for (let i = 1; i < lines.length; i++) {
             const row = lines[i];
             let curVal = "";
@@ -5031,14 +5033,13 @@ const app = createApp({
                   .filter((t) => t)
               : [];
 
-            // 【全新升級】：智慧偵測股票買賣 (透過 Regex 拆解摘要)
+            // 智慧偵測股票買賣 (透過 Regex 拆解摘要)
             let investAction = null;
             let investSymbol = "";
             let investName = "";
             let investShares = 0;
             let isInvestment = false;
 
-            // 支援格式範例：「買 006208 富邦台50 140股」或「買 006208 富邦台50」
             const stockMatch = desc.match(
               /^(買進|買|賣出|賣)\s+([A-Za-z0-9]+)\s+([^\s\(]+)(?:\s*[\(]?\s*([0-9]+)\s*股[\)]?)?/,
             );
@@ -5051,7 +5052,6 @@ const app = createApp({
               investSymbol = stockMatch[2];
               investName = stockMatch[3];
 
-              // 【優化修改】：發現沒有股數時，跳出視窗要求手動輸入
               let parsedShares = parseInt(stockMatch[4]);
               if (!parsedShares || isNaN(parsedShares) || parsedShares <= 0) {
                 let userInput = prompt(
@@ -5060,17 +5060,16 @@ const app = createApp({
                 );
                 investShares = parseInt(userInput);
 
-                // 防呆：如果使用者按取消、未輸入或輸入非數字
                 if (!investShares || isNaN(investShares) || investShares <= 0) {
                   alert(`⚠️ 未輸入有效股數，明細「${desc}」已略過匯入。`);
-                  continue; // 直接跳過這筆明細，繼續處理下一筆
+                  continue;
                 }
               } else {
                 investShares = parsedShares;
               }
             }
 
-            // 【核心升級】：未知名稱自動建立與智慧型別判斷
+            // 未知名稱自動建立與智慧型別判斷
             const getOrCreateAccount = (accName, isDebit) => {
               if (!accName) return null;
               let list = data.accounts || [];
@@ -5144,9 +5143,27 @@ const app = createApp({
             };
 
             if (isInvestment) {
-              // 🎯 股票寫入邏輯
-              let paymentAccId = getOrCreateAccount(creditStr, false); // 扣款帳戶
+              let paymentAccId = getOrCreateAccount(creditStr, false);
               if (!paymentAccId) continue;
+
+              // 【新增】：股票交易的重複防呆比對
+              let isDuplicate = (data.transactions || []).some((tx) => {
+                return (
+                  tx &&
+                  tx.date === dateStr &&
+                  tx.scope === scope &&
+                  tx.desc === desc &&
+                  tx.invest_action === investAction &&
+                  tx.invest_symbol === investSymbol &&
+                  tx.invest_shares === investShares &&
+                  tx.invest_cost_value === amount
+                );
+              });
+
+              if (isDuplicate) {
+                duplicateCount++;
+                continue; // 發現重複，安全略過此筆
+              }
 
               let inv = (data.investments || []).find(
                 (i) => i && i.symbol === investSymbol,
@@ -5167,7 +5184,7 @@ const app = createApp({
               };
 
               if (investAction === "buy") {
-                txObj.debits.push({ account_id: "1103", amount: amount }); // 1103 為系統預設證券資產科目
+                txObj.debits.push({ account_id: "1103", amount: amount });
                 txObj.credits.push({
                   account_id: paymentAccId,
                   amount: amount,
@@ -5200,17 +5217,45 @@ const app = createApp({
               data.transactions.unshift(txObj);
               successCount++;
             } else {
-              // 一般收支寫入邏輯
               let debitId = getOrCreateAccount(debitStr, true);
               let creditId = getOrCreateAccount(creditStr, false);
 
               if (!debitId || !creditId) continue;
 
+              let targetDesc = desc || "CSV匯入";
+
+              // 【新增】：一般收支交易的重複防呆比對
+              let isDuplicate = (data.transactions || []).some((tx) => {
+                if (
+                  !tx ||
+                  tx.date !== dateStr ||
+                  tx.scope !== scope ||
+                  tx.desc !== targetDesc
+                )
+                  return false;
+                let dMatch =
+                  tx.debits &&
+                  tx.debits.length > 0 &&
+                  tx.debits[0].account_id === debitId &&
+                  tx.debits[0].amount === amount;
+                let cMatch =
+                  tx.credits &&
+                  tx.credits.length > 0 &&
+                  tx.credits[0].account_id === creditId &&
+                  tx.credits[0].amount === amount;
+                return dMatch && cMatch;
+              });
+
+              if (isDuplicate) {
+                duplicateCount++;
+                continue; // 發現重複，安全略過此筆
+              }
+
               data.transactions.unshift({
                 id: "tx_csv_" + Date.now() + "_" + i,
                 date: dateStr,
                 scope: scope,
-                desc: desc || "CSV匯入",
+                desc: targetDesc,
                 debits: [{ account_id: debitId, amount: amount }],
                 credits: [{ account_id: creditId, amount: amount }],
                 tags: tags,
@@ -5219,6 +5264,7 @@ const app = createApp({
             }
           }
 
+          // 【新增】：依照成功與重複的數量給予精準的防呆反饋
           if (successCount > 0) {
             data.transactions.sort((a, b) => {
               let d1 = a && a.date ? a.date : "";
@@ -5231,10 +5277,15 @@ const app = createApp({
             autoBackup(true, true);
             updateCharts();
             if (typeof refreshIcons === "function") refreshIcons();
+
+            let msg = `✅ 成功匯入 ${successCount} 筆明細！\n系統已自動為您判斷股票交易與建立未知帳戶。`;
+            if (duplicateCount > 0) {
+              msg += `\n\n⚠️ 另外已自動攔截並略過 ${duplicateCount} 筆「已存在系統中」的重複明細。`;
+            }
+            alert(msg);
+          } else if (duplicateCount > 0) {
             alert(
-              "✅ 成功匯入 " +
-                successCount +
-                " 筆明細！\n系統已自動為您判斷股票交易與建立未知帳戶。",
+              `🛡️ 檔案內的所有有效明細 (${duplicateCount}筆) 系統中皆已存在，已自動略過以防止重複記帳。`,
             );
           } else {
             alert("⚠️ 找不到可匯入的有效明細。");
@@ -5246,7 +5297,6 @@ const app = createApp({
       r.readAsText(f);
       e.target.value = "";
     };
-
     const updateCharts = () => {
       if (
         !["dashboard", "budget", "reports", "group_split"].includes(
