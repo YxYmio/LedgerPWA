@@ -2168,12 +2168,31 @@
                 </svg>
                 明細查詢
               </h2>
-              <button
-                @click="setHistoryToCurrentMonth"
-                class="text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg hover:bg-slate-300 transition font-bold shadow-sm"
-              >
-                查看本月
-              </button>
+              
+              <!-- 【修改區塊】快速月份切換按鈕群 -->
+              <div class="flex items-center gap-1.5">
+                <button
+                  @click="shiftHistoryMonth(-1)"
+                  class="p-1.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition shadow-sm"
+                  title="上一個月"
+                >
+                  <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+                <button
+                  @click="setHistoryToCurrentMonth"
+                  class="text-xs bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 px-3 py-1.5 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition font-bold shadow-sm"
+                >
+                  本月
+                </button>
+                <button
+                  @click="shiftHistoryMonth(1)"
+                  class="p-1.5 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition shadow-sm"
+                  title="下一個月"
+                >
+                  <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+              <!-- 【修改區塊結束】 -->
             </div>
 
             <div
