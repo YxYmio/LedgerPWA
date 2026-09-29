@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.12"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.13"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -5031,13 +5031,51 @@ const app = createApp({
                   .filter((t) => t)
               : [];
 
+            // 【全新升級】：智慧偵測股票買賣 (透過 Regex 拆解摘要)
+            let investAction = null;
+            let investSymbol = "";
+            let investName = "";
+            let investShares = 0;
+            let isInvestment = false;
+
+            // 支援格式範例：「買 006208 富邦台50 140股」或「買 006208 富邦台50」
+            const stockMatch = desc.match(
+              /^(買進|買|賣出|賣)\s+([A-Za-z0-9]+)\s+([^\s\(]+)(?:\s*[\(]?\s*([0-9]+)\s*股[\)]?)?/,
+            );
+            if (stockMatch) {
+              isInvestment = true;
+              investAction =
+                stockMatch[1] === "買" || stockMatch[1] === "買進"
+                  ? "buy"
+                  : "sell";
+              investSymbol = stockMatch[2];
+              investName = stockMatch[3];
+
+              // 【優化修改】：發現沒有股數時，跳出視窗要求手動輸入
+              let parsedShares = parseInt(stockMatch[4]);
+              if (!parsedShares || isNaN(parsedShares) || parsedShares <= 0) {
+                let userInput = prompt(
+                  `系統偵測到股票交易：\n「${desc}」\n\n但摘要中未標明股數，請輸入實際成交股數：\n(若按取消或未輸入，將安全略過此筆明細)`,
+                  "",
+                );
+                investShares = parseInt(userInput);
+
+                // 防呆：如果使用者按取消、未輸入或輸入非數字
+                if (!investShares || isNaN(investShares) || investShares <= 0) {
+                  alert(`⚠️ 未輸入有效股數，明細「${desc}」已略過匯入。`);
+                  continue; // 直接跳過這筆明細，繼續處理下一筆
+                }
+              } else {
+                investShares = parsedShares;
+              }
+            }
+
             // 【核心升級】：未知名稱自動建立與智慧型別判斷
             const getOrCreateAccount = (accName, isDebit) => {
               if (!accName) return null;
               let list = data.accounts || [];
               let cleanInput = accName.trim();
 
-              // 1. 先嘗試精準與模糊尋找既有帳戶
               let target = list.find((a) => {
                 if (!a) return false;
                 let rawName = a.name.trim();
@@ -5055,11 +5093,9 @@ const app = createApp({
 
               if (target) return target.id;
 
-              // 2. 找不到的話，執行自動建立邏輯 (Auto-Create)
               let type = isDebit ? "Expense" : "Income";
               let icon = isDebit ? "🏷️" : "💰";
 
-              // 透過關鍵字進行初步的帳戶類型智慧判斷
               if (
                 /銀行|錢包|Richart|卡|帳戶|現金|郵局|Pay|Line|街口/i.test(
                   cleanInput,
@@ -5092,7 +5128,6 @@ const app = createApp({
                 icon: icon,
               };
 
-              // 若是收支科目，自動掛入預設的新主類別中
               if (type === "Expense" || type === "Income") {
                 newAcc.category = "CSV自動建立";
                 if (!data.main_categories)
@@ -5108,21 +5143,80 @@ const app = createApp({
               return newId;
             };
 
-            let debitId = getOrCreateAccount(debitStr, true);
-            let creditId = getOrCreateAccount(creditStr, false);
+            if (isInvestment) {
+              // 🎯 股票寫入邏輯
+              let paymentAccId = getOrCreateAccount(creditStr, false); // 扣款帳戶
+              if (!paymentAccId) continue;
 
-            if (!debitId || !creditId) continue;
+              let inv = (data.investments || []).find(
+                (i) => i && i.symbol === investSymbol,
+              );
 
-            data.transactions.unshift({
-              id: "tx_csv_" + Date.now() + "_" + i,
-              date: dateStr,
-              scope: scope,
-              desc: desc || "CSV匯入",
-              debits: [{ account_id: debitId, amount: amount }],
-              credits: [{ account_id: creditId, amount: amount }],
-              tags: tags,
-            });
-            successCount++;
+              let txObj = {
+                id: "tx_csv_inv_" + Date.now() + "_" + i,
+                date: dateStr,
+                scope: scope,
+                desc: desc,
+                debits: [],
+                credits: [],
+                tags: tags,
+                invest_action: investAction,
+                invest_symbol: investSymbol,
+                invest_shares: investShares,
+                invest_cost_value: amount,
+              };
+
+              if (investAction === "buy") {
+                txObj.debits.push({ account_id: "1103", amount: amount }); // 1103 為系統預設證券資產科目
+                txObj.credits.push({
+                  account_id: paymentAccId,
+                  amount: amount,
+                });
+
+                if (inv) {
+                  inv.shares += investShares;
+                  inv.total_cost += amount;
+                  if (inv.shares > 0)
+                    inv.last_price = inv.total_cost / inv.shares;
+                } else {
+                  data.investments.push({
+                    id: "inv_" + Date.now() + "_" + i,
+                    symbol: investSymbol,
+                    name: investName,
+                    shares: investShares,
+                    total_cost: amount,
+                    last_price: amount / investShares,
+                    currency: "TWD",
+                  });
+                }
+              } else if (investAction === "sell") {
+                txObj.debits.push({ account_id: paymentAccId, amount: amount });
+                txObj.credits.push({ account_id: "1103", amount: amount });
+                if (inv) {
+                  inv.shares = Math.max(0, inv.shares - investShares);
+                  inv.total_cost = Math.max(0, inv.total_cost - amount);
+                }
+              }
+              data.transactions.unshift(txObj);
+              successCount++;
+            } else {
+              // 一般收支寫入邏輯
+              let debitId = getOrCreateAccount(debitStr, true);
+              let creditId = getOrCreateAccount(creditStr, false);
+
+              if (!debitId || !creditId) continue;
+
+              data.transactions.unshift({
+                id: "tx_csv_" + Date.now() + "_" + i,
+                date: dateStr,
+                scope: scope,
+                desc: desc || "CSV匯入",
+                debits: [{ account_id: debitId, amount: amount }],
+                credits: [{ account_id: creditId, amount: amount }],
+                tags: tags,
+              });
+              successCount++;
+            }
           }
 
           if (successCount > 0) {
@@ -5136,12 +5230,11 @@ const app = createApp({
             });
             autoBackup(true, true);
             updateCharts();
-            // 重新刷新圖標，讓剛建立的新帳戶生效顯示
             if (typeof refreshIcons === "function") refreshIcons();
             alert(
               "✅ 成功匯入 " +
                 successCount +
-                " 筆明細！\n系統已自動為您建立原本不存在的未知帳戶與科目。",
+                " 筆明細！\n系統已自動為您判斷股票交易與建立未知帳戶。",
             );
           } else {
             alert("⚠️ 找不到可匯入的有效明細。");
