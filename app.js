@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.18"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.19"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -2611,9 +2611,11 @@ const app = createApp({
       isReportCalculating.value = true;
       reportReqId++;
 
+      // 【修復核心】：使用 JSON.parse(JSON.stringify()) 徹底剝離 Vue Proxy 響應式外殼
+      // 確保 Web Worker 的 Structured Clone 演算法能 100% 順利複製深層陣列物件
       let basePayload = {
-        accounts: toRaw(data.accounts),
-        transactions: toRaw(data.transactions),
+        accounts: JSON.parse(JSON.stringify(data.accounts || [])),
+        transactions: JSON.parse(JSON.stringify(data.transactions || [])),
       };
 
       if (reportView.value === "balance") {
@@ -2622,8 +2624,8 @@ const app = createApp({
           reqId: reportReqId,
           payload: {
             ...basePayload,
-            investments: toRaw(data.investments),
-            currencyRates: toRaw(data.currencyRates),
+            investments: JSON.parse(JSON.stringify(data.investments || [])),
+            currencyRates: JSON.parse(JSON.stringify(data.currencyRates || {})),
             endDate: reportEndDate.value,
           },
         });
@@ -4745,48 +4747,55 @@ const app = createApp({
       }
 
       try {
-        // [全新升級] 改用 TWSE 與 TPEx 官方 Open API，免 Proxy、無 CORS 阻擋、100% 成功率
         let priceMap = {};
 
-        // 1. 抓取上市股票 (TWSE)
-        try {
-          let twseRes = await fetchWithTimeout(
-            "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
-            {},
-            8000,
-          );
-          if (twseRes.ok) {
-            let twseData = await twseRes.json();
-            twseData.forEach((item) => {
-              if (item.Code && item.ClosingPrice) {
-                let p = parseFloat(item.ClosingPrice);
-                if (!isNaN(p) && p > 0) priceMap[item.Code] = p;
-              }
-            });
+        // 【全新升級】建立共用的高可用性 Proxy 抓取引擎，突破 CORS 阻擋
+        const fetchWithProxies = async (targetUrl) => {
+          // 1. 先嘗試直接連線 (若使用者處於無 CORS 限制的環境)
+          try {
+            let res = await fetchWithTimeout(targetUrl, {}, 5000);
+            if (res.ok) return await res.json();
+          } catch (e) {}
+
+          // 2. 若被阻擋，動用備援 Proxy 伺服器繞道抓取
+          const proxies = [
+            (u) =>
+              `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+            (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+          ];
+          for (let proxyFn of proxies) {
+            try {
+              let res = await fetchWithTimeout(proxyFn(targetUrl), {}, 6000);
+              if (res.ok) return await res.json();
+            } catch (e) {}
           }
-        } catch (e) {
-          console.warn("TWSE API 失敗", e);
+          return null;
+        };
+
+        // 1. 抓取上市股票 (TWSE)
+        let twseData = await fetchWithProxies(
+          "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL",
+        );
+        if (twseData) {
+          twseData.forEach((item) => {
+            if (item.Code && item.ClosingPrice) {
+              let p = parseFloat(item.ClosingPrice);
+              if (!isNaN(p) && p > 0) priceMap[item.Code] = p;
+            }
+          });
         }
 
         // 2. 抓取上櫃股票 (TPEx)
-        try {
-          let tpexRes = await fetchWithTimeout(
-            "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes",
-            {},
-            8000,
-          );
-          if (tpexRes.ok) {
-            let tpexData = await tpexRes.json();
-            tpexData.forEach((item) => {
-              if (item.SecuritiesCompanyCode && item.Close) {
-                let p = parseFloat(item.Close);
-                if (!isNaN(p) && p > 0)
-                  priceMap[item.SecuritiesCompanyCode] = p;
-              }
-            });
-          }
-        } catch (e) {
-          console.warn("TPEx API 失敗", e);
+        let tpexData = await fetchWithProxies(
+          "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes",
+        );
+        if (tpexData) {
+          tpexData.forEach((item) => {
+            if (item.SecuritiesCompanyCode && item.Close) {
+              let p = parseFloat(item.Close);
+              if (!isNaN(p) && p > 0) priceMap[item.SecuritiesCompanyCode] = p;
+            }
+          });
         }
 
         // 3. 一次性比對更新所有庫存
@@ -5126,7 +5135,11 @@ const app = createApp({
             }
 
             // 最底線防呆：確保系統至少有一個現金錢包，不再強硬塞回所有預設分類
-            if (!(data.accounts || []).find((a) => a && a.id === "1101")) {
+            // 【修正】同時檢查 id "1101" 與名稱 "現金錢包"，避免重複建立雙胞胎帳戶
+            let hasCashWallet = (data.accounts || []).find(
+              (a) => a && (a.id === "1101" || a.name === "現金錢包"),
+            );
+            if (!hasCashWallet) {
               data.accounts.push({
                 id: "1101",
                 name: "現金錢包",
