@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.17"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.18"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -4977,11 +4977,14 @@ const app = createApp({
         try {
           const p = JSON.parse(ev.target.result);
           if (p && typeof p === "object") {
+            // 1. 基本防呆：確認是否為有效的帳本備份檔
             if (!p.transactions && !p.accounts) {
               return alert("⚠️ 無效的帳本備份檔！");
             }
 
-            // JSON 檔案自我修復與防呆機制
+            // ==========================================
+            // 【第一道防線】JSON 檔案自我修復與孤兒帳戶防呆
+            // ==========================================
             const ensureJSONAccountExists = (accId, fallbackType) => {
               if (!accId) return null;
               let existsInP = (p.accounts || []).find(
@@ -5077,55 +5080,76 @@ const app = createApp({
             });
             p.transactions = validTransactions;
 
+            // ==========================================
+            // 【核心升級】基礎資料 (帳戶、類別、標籤) 永遠保留並合併
+            // ==========================================
+            const mergeArray = (localArr, importedArr) => {
+              let localMap = new Map();
+              (localArr || []).forEach((item) => {
+                if (item && item.id) localMap.set(item.id, item);
+              });
+              (importedArr || []).forEach((item) => {
+                if (item && item.id && !localMap.has(item.id)) {
+                  localArr.push(item);
+                }
+              });
+            };
+
+            const mergeStrArray = (localArr, importedArr) =>
+              Array.from(
+                new Set([...(localArr || []), ...(importedArr || [])]),
+              );
+
+            // 無論你後續選擇合併還是覆蓋明細，你的自訂帳戶與分類都絕對不會被刪除！
+            mergeArray(data.accounts, p.accounts);
+            mergeArray(data.fixed_assets, p.fixed_assets);
+            mergeArray(data.investments, p.investments);
+            mergeArray(data.loans, p.loans);
+            mergeArray(data.savings_goals, p.savings_goals);
+            mergeArray(data.recurring, p.recurring);
+            mergeArray(data.quick_entries, p.quick_entries);
+            mergeArray(data.project_budgets, p.project_budgets);
+            mergeArray(data.split_projects, p.split_projects);
+
+            data.quick_tags = mergeStrArray(data.quick_tags, p.quick_tags);
+            if (p.main_categories) {
+              if (!data.main_categories)
+                data.main_categories = { Expense: [], Income: [] };
+              data.main_categories.Expense = mergeStrArray(
+                data.main_categories.Expense,
+                p.main_categories.Expense,
+              );
+              data.main_categories.Income = mergeStrArray(
+                data.main_categories.Income,
+                p.main_categories.Income,
+              );
+            }
+
+            // 最底線防呆：確保系統至少有一個現金錢包，不再強硬塞回所有預設分類
+            if (!(data.accounts || []).find((a) => a && a.id === "1101")) {
+              data.accounts.push({
+                id: "1101",
+                name: "現金錢包",
+                type: "Asset",
+                is_hidden: false,
+                icon: "👛",
+                currency: "TWD",
+              });
+            }
+
+            // ==========================================
+            // 【第二道防線】明細匯入模式選擇 (雙軌安全確認)
+            // ==========================================
             const doMerge = confirm(
-              "📂 發現有效帳本備份檔！\n\n您想要【智慧合併】嗎？\n(保留現有資料，僅補入檔案中的新明細與新帳戶)\n\n👉 點擊「確定」執行智慧合併\n👉 點擊「取消」進入完全覆蓋選項",
+              "📂 發現有效帳本備份檔！\n\n您的「自訂帳戶與分類」已安全保留。\n針對「交易明細」，您想要【合併新增】還是【完全覆蓋】？\n\n👉 點擊「確定」智慧合併：保留現有明細，僅補入新明細 (防重複)\n👉 點擊「取消」進入完全覆蓋選項",
             );
 
             let successCount = 0;
             let duplicateCount = 0;
 
             if (doMerge) {
-              // --- 智慧合併模式 ---
-              const mergeArray = (localArr, importedArr) => {
-                let localMap = new Map();
-                (localArr || []).forEach((item) => {
-                  if (item && item.id) localMap.set(item.id, item);
-                });
-                (importedArr || []).forEach((item) => {
-                  if (item && item.id && !localMap.has(item.id)) {
-                    localArr.push(item);
-                  }
-                });
-              };
-
-              mergeArray(data.accounts, p.accounts);
-              mergeArray(data.fixed_assets, p.fixed_assets);
-              mergeArray(data.investments, p.investments);
-              mergeArray(data.loans, p.loans);
-              mergeArray(data.savings_goals, p.savings_goals);
-              mergeArray(data.recurring, p.recurring);
-              mergeArray(data.quick_entries, p.quick_entries);
-              mergeArray(data.project_budgets, p.project_budgets);
-              mergeArray(data.split_projects, p.split_projects);
-              mergeArray(data.split_records, p.split_records);
-
-              const mergeStrArray = (localArr, importedArr) =>
-                Array.from(
-                  new Set([...(localArr || []), ...(importedArr || [])]),
-                );
-              data.quick_tags = mergeStrArray(data.quick_tags, p.quick_tags);
-              if (p.main_categories) {
-                if (!data.main_categories)
-                  data.main_categories = { Expense: [], Income: [] };
-                data.main_categories.Expense = mergeStrArray(
-                  data.main_categories.Expense,
-                  p.main_categories.Expense,
-                );
-                data.main_categories.Income = mergeStrArray(
-                  data.main_categories.Income,
-                  p.main_categories.Income,
-                );
-              }
+              // --- 智慧合併明細 ---
+              mergeArray(data.split_records, p.split_records); // 分帳紀錄也採合併
 
               const localTxs = data.transactions || [];
               (p.transactions || []).forEach((tx) => {
@@ -5177,116 +5201,23 @@ const app = createApp({
                   successCount++;
                 }
               });
-
               data.transactions = localTxs;
             } else {
-              // --- 覆蓋模式 ---
+              // --- 完全覆蓋明細 ---
               const doOverwrite = confirm(
-                "⚠️ 您選擇了不合併。\n\n請問您是否要【完全覆蓋】當前帳本？\n\n🚨 警告：點擊「確定」將清空目前所有資料並替換為檔案內容！\n👉 若您只想放棄匯入，請點擊「取消」。",
+                "⚠️ 嚴重警告：這將會清空當前帳本的「所有歷史明細」，替換為檔案內的紀錄！\n(您的自訂帳戶與分類設定不會被刪除)\n\n確定要繼續嗎？",
               );
 
               if (doOverwrite) {
-                resetData();
-                Object.assign(data, p);
-                successCount = (p.transactions || []).length;
+                data.transactions = p.transactions || [];
+                data.split_records = p.split_records || []; // 分帳明細一併覆蓋
+                successCount = data.transactions.length;
               } else {
-                return alert("已安全取消匯入作業，您的資料未受影響。");
+                return alert("已安全取消匯入作業，您的歷史明細未受影響。");
               }
             }
 
-            // ==========================================
-            // 【全新機制】預設護城河：無論合併或覆蓋，強制把遺失的系統預設科目補回來
-            // ==========================================
-            if (typeof DEFAULT_CATEGORIES !== "undefined") {
-              if (!data.main_categories)
-                data.main_categories = { Expense: [], Income: [] };
-
-              // 補齊主類別
-              let defExpCats = DEFAULT_CATEGORIES.Expense.map(
-                (c) => c.category,
-              );
-              let defIncCats = DEFAULT_CATEGORIES.Income.map((c) => c.category);
-              data.main_categories.Expense = Array.from(
-                new Set([
-                  ...defExpCats,
-                  ...(data.main_categories.Expense || []),
-                ]),
-              );
-              data.main_categories.Income = Array.from(
-                new Set([
-                  ...defIncCats,
-                  ...(data.main_categories.Income || []),
-                ]),
-              );
-
-              // 補齊子科目 (帳戶)
-              DEFAULT_CATEGORIES.Expense.forEach((mainCat) => {
-                (mainCat.sub || []).forEach((subName) => {
-                  let exists = (data.accounts || []).find(
-                    (a) => a && a.name === subName && a.type === "Expense",
-                  );
-                  if (!exists) {
-                    data.accounts.push({
-                      id:
-                        "acc_def_" +
-                        Date.now() +
-                        "_" +
-                        Math.random().toString(36).substr(2, 5),
-                      name: subName,
-                      type: "Expense",
-                      category: mainCat.category,
-                      currency: "TWD",
-                      is_hidden: false,
-                      icon:
-                        typeof EMOJI_DICTIONARY !== "undefined" &&
-                        EMOJI_DICTIONARY[subName]
-                          ? EMOJI_DICTIONARY[subName]
-                          : "🏷️",
-                    });
-                  }
-                });
-              });
-
-              DEFAULT_CATEGORIES.Income.forEach((mainCat) => {
-                (mainCat.sub || []).forEach((subName) => {
-                  let exists = (data.accounts || []).find(
-                    (a) => a && a.name === subName && a.type === "Income",
-                  );
-                  if (!exists) {
-                    data.accounts.push({
-                      id:
-                        "acc_def_" +
-                        Date.now() +
-                        "_" +
-                        Math.random().toString(36).substr(2, 5),
-                      name: subName,
-                      type: "Income",
-                      category: mainCat.category,
-                      currency: "TWD",
-                      is_hidden: false,
-                      icon:
-                        typeof EMOJI_DICTIONARY !== "undefined" &&
-                        EMOJI_DICTIONARY[subName]
-                          ? EMOJI_DICTIONARY[subName]
-                          : "💰",
-                    });
-                  }
-                });
-              });
-
-              // 補齊基礎現金帳戶 (防呆)
-              if (!(data.accounts || []).find((a) => a && a.id === "1101")) {
-                data.accounts.push({
-                  id: "1101",
-                  name: "現金錢包",
-                  type: "Asset",
-                  is_hidden: false,
-                  icon: "👛",
-                  currency: "TWD",
-                });
-              }
-            }
-
+            // 重新依照日期遞減排序
             data.transactions.sort((a, b) => {
               let d1 = a && a.date ? a.date : "";
               let d2 = b && b.date ? b.date : "";
@@ -5304,7 +5235,7 @@ const app = createApp({
               let msg = doMerge
                 ? `✅ 成功合併匯入 ${successCount} 筆新明細！`
                 : `✅ 成功覆蓋並匯入 ${successCount} 筆明細！`;
-              msg += `\n(系統已自動防護並補齊必要的預設分類與科目)`;
+              msg += `\n(您原有的自訂帳戶與科目皆已安全保留)`;
               if (duplicateCount > 0)
                 msg += `\n\n⚠️ 已自動攔截並略過 ${duplicateCount} 筆「已存在系統中」的重複明細。`;
               alert(msg);
