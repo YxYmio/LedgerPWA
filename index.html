@@ -69,13 +69,37 @@
     <script src="./lib/vue.global.prod.min.js"></script>
     
 
-    <!-- 系統初始化設定 (請替換為以下這段) -->
+    <!-- 系統初始化設定 (支援新版本自動提示與無縫更新) -->
     <script>
       tailwind.config = { darkMode: "class" };
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
-          navigator.serviceWorker.register("./sw.js").catch(err => {
+          navigator.serviceWorker.register("./sw.js").then(reg => {
+            // 監聽是否在背景發現新版本的 Service Worker
+            reg.addEventListener("updatefound", () => {
+              const newWorker = reg.installing;
+              newWorker.addEventListener("statechange", () => {
+                // 當新版本下載安裝完成，且確認已有舊版在運作時 (排除首次啟動安裝)
+                if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                  // 彈出原生的防呆確認視窗，避免打斷使用者正在輸入的帳務
+                  if (confirm("✨ 系統已在背景下載最新版本！\n\n為避免資料衝突，是否立即重新載入以套用更新？\n(請確認您的記帳資料已送出儲存)")) {
+                    // 發送訊息給等待中的新版 Service Worker，允許它接管控制權
+                    newWorker.postMessage({ type: "SKIP_WAITING" });
+                  }
+                }
+              });
+            });
+          }).catch(err => {
             console.warn("Service Worker 註冊失敗:", err);
+          });
+
+          // 當新版本正式接管控制權時，自動幫使用者重新整理畫面
+          let refreshing = false;
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if (!refreshing) {
+              refreshing = true;
+              window.location.reload();
+            }
           });
         });
       }

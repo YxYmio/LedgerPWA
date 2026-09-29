@@ -1,4 +1,4 @@
-const CACHE_NAME = "ledger-pwa-v1.1.15"; // 升級版本號以強制更新
+const CACHE_NAME = "ledger-pwa-v1.1.16"; // 升級版本號以強制更新
 
 // 將本地化的第三方套件全數納入離線快取名單
 const urlsToCache = [
@@ -19,13 +19,21 @@ const urlsToCache = [
 
 // 1. 安裝階段：將靜態資源寫入快取
 self.addEventListener("install", (event) => {
-  self.skipWaiting();
+  // 移除原本這裡的 self.skipWaiting(); 讓它乖乖等待前端發送更新確認指令
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       console.log("Service Worker: 快取本地檔案中 (包含 lib 套件)");
       return cache.addAll(urlsToCache);
     }),
   );
+});
+
+// [新增] 監聽來自前端介面的更新指令
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    // 收到使用者確認後，強制新版本立即接管
+    self.skipWaiting();
+  }
 });
 
 // 2. 啟用階段：自動清理舊版本快取

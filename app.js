@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.15"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.16"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -5007,7 +5007,7 @@ const app = createApp({
                     : "🏦";
 
               let newAcc = {
-                id: accId, // 沿用原本遺失的 ID，讓明細能正確連動
+                id: accId,
                 name: fallbackName,
                 type: fallbackType,
                 currency: "TWD",
@@ -5052,7 +5052,7 @@ const app = createApp({
                     console.warn(
                       `⚠️ 未輸入有效股數，明細「${tx.desc}」已略過。`,
                     );
-                    return; // 使用者取消或輸入無效，略過此筆
+                    return;
                   }
                   tx.invest_shares = s;
                 }
@@ -5066,7 +5066,7 @@ const app = createApp({
                     ensureJSONAccountExists(d.account_id, "Expense");
                 });
               } else {
-                isInvalid = true; // 嚴重毀損：無借方
+                isInvalid = true;
               }
 
               if (tx.credits && tx.credits.length > 0) {
@@ -5075,7 +5075,7 @@ const app = createApp({
                     ensureJSONAccountExists(c.account_id, "Income");
                 });
               } else {
-                isInvalid = true; // 嚴重毀損：無貸方
+                isInvalid = true;
               }
 
               // 如果資料結構完整，則推入有效的陣列中
@@ -5086,40 +5086,17 @@ const app = createApp({
             p.transactions = validTransactions;
 
             // ==========================================
-            // 【第二道防線】雙軌模式選擇與防重複引擎
+            // 【第二道防線】改良版 UX：雙層安全確認，防誤觸清空
             // ==========================================
-            const isMergeMode = confirm(
-              "📂 發現有效帳本備份檔！\n\n您想要【合併新增】還是【完全覆蓋】？\n\n[確定] 👉 智慧合併：保留現有資料，僅補入新明細與新帳戶 (防重複)\n[取消] 👉 完全覆蓋：清空當前帳本的所有資料，替換為檔案內容",
+            const doMerge = confirm(
+              "📂 發現有效帳本備份檔！\n\n您想要【智慧合併】嗎？\n(保留現有資料，僅補入檔案中的新明細與新帳戶)\n\n👉 點擊「確定」執行智慧合併\n👉 點擊「取消」進入其他選項",
             );
 
-            if (!isMergeMode) {
-              // 傳統覆蓋模式
-              if (
-                confirm(
-                  "⚠️ 嚴重警告：這將會清空當前帳本的所有資料！\n確定要繼續嗎？",
-                )
-              ) {
-                resetData();
-                Object.assign(data, p);
-                if (typeof setupDefaultData === "function") {
-                  setupDefaultData(
-                    data,
-                    typeof DEFAULT_CATEGORIES !== "undefined"
-                      ? DEFAULT_CATEGORIES
-                      : {},
-                  );
-                }
-                autoBackup(true, true);
-                updateCharts();
-                if (typeof refreshIcons === "function") refreshIcons();
-                alert("✅ 成功完全覆蓋匯入！");
-              }
-            } else {
-              // 智慧合併模式
+            if (doMerge) {
+              // --- 智慧合併模式 ---
               let successCount = 0;
               let duplicateCount = 0;
 
-              // 輔助函式：合併基礎資料陣列
               const mergeArray = (localArr, importedArr) => {
                 let localMap = new Map();
                 (localArr || []).forEach((item) => {
@@ -5161,7 +5138,6 @@ const app = createApp({
                 );
               }
 
-              // 合併交易明細 (雙重防重複驗證)
               const localTxs = data.transactions || [];
               (p.transactions || []).forEach((tx) => {
                 if (!tx) return;
@@ -5215,7 +5191,6 @@ const app = createApp({
 
               data.transactions = localTxs;
 
-              // 重新依照日期遞減排序
               data.transactions.sort((a, b) => {
                 let d1 = a && a.date ? a.date : "";
                 let d2 = b && b.date ? b.date : "";
@@ -5241,6 +5216,31 @@ const app = createApp({
                 );
               } else {
                 alert("⚠️ 找不到可新增的有效明細。");
+              }
+            } else {
+              // --- 取消合併，進入防呆選項 ---
+              const doOverwrite = confirm(
+                "⚠️ 您選擇了不合併。\n\n請問您是否要【完全覆蓋】當前帳本？\n\n🚨 警告：點擊「確定」將清空目前所有資料並替換為檔案內容！\n👉 若您只想放棄匯入，請點擊「取消」。",
+              );
+
+              if (doOverwrite) {
+                // 傳統覆蓋模式
+                resetData();
+                Object.assign(data, p);
+                if (typeof setupDefaultData === "function") {
+                  setupDefaultData(
+                    data,
+                    typeof DEFAULT_CATEGORIES !== "undefined"
+                      ? DEFAULT_CATEGORIES
+                      : {},
+                  );
+                }
+                autoBackup(true, true);
+                updateCharts();
+                if (typeof refreshIcons === "function") refreshIcons();
+                alert("✅ 成功完全覆蓋匯入！");
+              } else {
+                alert("已安全取消匯入作業，您的資料未受影響。");
               }
             }
           }
