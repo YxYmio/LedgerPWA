@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.16"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.17"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -4977,17 +4977,13 @@ const app = createApp({
         try {
           const p = JSON.parse(ev.target.result);
           if (p && typeof p === "object") {
-            // 1. 基本防呆：確認是否為有效的帳本備份檔
             if (!p.transactions && !p.accounts) {
               return alert("⚠️ 無效的帳本備份檔！");
             }
 
-            // ==========================================
-            // 【第一道防線】JSON 檔案自我修復與防呆機制
-            // ==========================================
+            // JSON 檔案自我修復與防呆機制
             const ensureJSONAccountExists = (accId, fallbackType) => {
               if (!accId) return null;
-              // 檢查 JSON 檔案或本機內是否已有此帳戶 ID
               let existsInP = (p.accounts || []).find(
                 (a) => a && a.id === accId,
               );
@@ -4996,7 +4992,6 @@ const app = createApp({
               );
               if (existsInP || existsInLocal) return accId;
 
-              // 若完全找不到，強制建立一個救援帳戶，確保明細不會變孤兒導致白屏
               let fallbackName =
                 "未知帳戶_" + accId.substring(accId.length - 4);
               let icon =
@@ -5034,7 +5029,6 @@ const app = createApp({
             (p.transactions || []).forEach((tx) => {
               if (!tx) return;
 
-              // 防呆 A：股票「無股數」攔截與修復
               if (
                 tx.invest_action &&
                 ["buy", "sell", "init", "stock_dividend"].includes(
@@ -5058,7 +5052,6 @@ const app = createApp({
                 }
               }
 
-              // 防呆 B：帳務明細「未知帳戶」自動救援
               let isInvalid = false;
               if (tx.debits && tx.debits.length > 0) {
                 tx.debits.forEach((d) => {
@@ -5078,25 +5071,21 @@ const app = createApp({
                 isInvalid = true;
               }
 
-              // 如果資料結構完整，則推入有效的陣列中
               if (!isInvalid) {
                 validTransactions.push(tx);
               }
             });
             p.transactions = validTransactions;
 
-            // ==========================================
-            // 【第二道防線】改良版 UX：雙層安全確認，防誤觸清空
-            // ==========================================
             const doMerge = confirm(
-              "📂 發現有效帳本備份檔！\n\n您想要【智慧合併】嗎？\n(保留現有資料，僅補入檔案中的新明細與新帳戶)\n\n👉 點擊「確定」執行智慧合併\n👉 點擊「取消」進入其他選項",
+              "📂 發現有效帳本備份檔！\n\n您想要【智慧合併】嗎？\n(保留現有資料，僅補入檔案中的新明細與新帳戶)\n\n👉 點擊「確定」執行智慧合併\n👉 點擊「取消」進入完全覆蓋選項",
             );
+
+            let successCount = 0;
+            let duplicateCount = 0;
 
             if (doMerge) {
               // --- 智慧合併模式 ---
-              let successCount = 0;
-              let duplicateCount = 0;
-
               const mergeArray = (localArr, importedArr) => {
                 let localMap = new Map();
                 (localArr || []).forEach((item) => {
@@ -5190,58 +5179,141 @@ const app = createApp({
               });
 
               data.transactions = localTxs;
-
-              data.transactions.sort((a, b) => {
-                let d1 = a && a.date ? a.date : "";
-                let d2 = b && b.date ? b.date : "";
-                if (d1 !== d2) return d1 < d2 ? 1 : -1;
-                let id1 = a && a.id ? a.id : "";
-                let id2 = b && b.id ? b.id : "";
-                return id2.localeCompare(id1);
-              });
-
-              autoBackup(true, true);
-              updateCharts();
-              if (typeof refreshIcons === "function") refreshIcons();
-
-              if (successCount > 0) {
-                let msg = `✅ 成功合併匯入 ${successCount} 筆新明細！\n(缺失的帳戶與分類已自動建立補齊)`;
-                if (duplicateCount > 0) {
-                  msg += `\n\n⚠️ 已自動攔截並略過 ${duplicateCount} 筆「已存在系統中」的重複明細。`;
-                }
-                alert(msg);
-              } else if (duplicateCount > 0) {
-                alert(
-                  `🛡️ 檔案內的所有明細 (${duplicateCount}筆) 系統中皆已存在，已自動略過以防止重複記帳。`,
-                );
-              } else {
-                alert("⚠️ 找不到可新增的有效明細。");
-              }
             } else {
-              // --- 取消合併，進入防呆選項 ---
+              // --- 覆蓋模式 ---
               const doOverwrite = confirm(
                 "⚠️ 您選擇了不合併。\n\n請問您是否要【完全覆蓋】當前帳本？\n\n🚨 警告：點擊「確定」將清空目前所有資料並替換為檔案內容！\n👉 若您只想放棄匯入，請點擊「取消」。",
               );
 
               if (doOverwrite) {
-                // 傳統覆蓋模式
                 resetData();
                 Object.assign(data, p);
-                if (typeof setupDefaultData === "function") {
-                  setupDefaultData(
-                    data,
-                    typeof DEFAULT_CATEGORIES !== "undefined"
-                      ? DEFAULT_CATEGORIES
-                      : {},
-                  );
-                }
-                autoBackup(true, true);
-                updateCharts();
-                if (typeof refreshIcons === "function") refreshIcons();
-                alert("✅ 成功完全覆蓋匯入！");
+                successCount = (p.transactions || []).length;
               } else {
-                alert("已安全取消匯入作業，您的資料未受影響。");
+                return alert("已安全取消匯入作業，您的資料未受影響。");
               }
+            }
+
+            // ==========================================
+            // 【全新機制】預設護城河：無論合併或覆蓋，強制把遺失的系統預設科目補回來
+            // ==========================================
+            if (typeof DEFAULT_CATEGORIES !== "undefined") {
+              if (!data.main_categories)
+                data.main_categories = { Expense: [], Income: [] };
+
+              // 補齊主類別
+              let defExpCats = DEFAULT_CATEGORIES.Expense.map(
+                (c) => c.category,
+              );
+              let defIncCats = DEFAULT_CATEGORIES.Income.map((c) => c.category);
+              data.main_categories.Expense = Array.from(
+                new Set([
+                  ...defExpCats,
+                  ...(data.main_categories.Expense || []),
+                ]),
+              );
+              data.main_categories.Income = Array.from(
+                new Set([
+                  ...defIncCats,
+                  ...(data.main_categories.Income || []),
+                ]),
+              );
+
+              // 補齊子科目 (帳戶)
+              DEFAULT_CATEGORIES.Expense.forEach((mainCat) => {
+                (mainCat.sub || []).forEach((subName) => {
+                  let exists = (data.accounts || []).find(
+                    (a) => a && a.name === subName && a.type === "Expense",
+                  );
+                  if (!exists) {
+                    data.accounts.push({
+                      id:
+                        "acc_def_" +
+                        Date.now() +
+                        "_" +
+                        Math.random().toString(36).substr(2, 5),
+                      name: subName,
+                      type: "Expense",
+                      category: mainCat.category,
+                      currency: "TWD",
+                      is_hidden: false,
+                      icon:
+                        typeof EMOJI_DICTIONARY !== "undefined" &&
+                        EMOJI_DICTIONARY[subName]
+                          ? EMOJI_DICTIONARY[subName]
+                          : "🏷️",
+                    });
+                  }
+                });
+              });
+
+              DEFAULT_CATEGORIES.Income.forEach((mainCat) => {
+                (mainCat.sub || []).forEach((subName) => {
+                  let exists = (data.accounts || []).find(
+                    (a) => a && a.name === subName && a.type === "Income",
+                  );
+                  if (!exists) {
+                    data.accounts.push({
+                      id:
+                        "acc_def_" +
+                        Date.now() +
+                        "_" +
+                        Math.random().toString(36).substr(2, 5),
+                      name: subName,
+                      type: "Income",
+                      category: mainCat.category,
+                      currency: "TWD",
+                      is_hidden: false,
+                      icon:
+                        typeof EMOJI_DICTIONARY !== "undefined" &&
+                        EMOJI_DICTIONARY[subName]
+                          ? EMOJI_DICTIONARY[subName]
+                          : "💰",
+                    });
+                  }
+                });
+              });
+
+              // 補齊基礎現金帳戶 (防呆)
+              if (!(data.accounts || []).find((a) => a && a.id === "1101")) {
+                data.accounts.push({
+                  id: "1101",
+                  name: "現金錢包",
+                  type: "Asset",
+                  is_hidden: false,
+                  icon: "👛",
+                  currency: "TWD",
+                });
+              }
+            }
+
+            data.transactions.sort((a, b) => {
+              let d1 = a && a.date ? a.date : "";
+              let d2 = b && b.date ? b.date : "";
+              if (d1 !== d2) return d1 < d2 ? 1 : -1;
+              let id1 = a && a.id ? a.id : "";
+              let id2 = b && b.id ? b.id : "";
+              return id2.localeCompare(id1);
+            });
+
+            autoBackup(true, true);
+            updateCharts();
+            if (typeof refreshIcons === "function") refreshIcons();
+
+            if (successCount > 0) {
+              let msg = doMerge
+                ? `✅ 成功合併匯入 ${successCount} 筆新明細！`
+                : `✅ 成功覆蓋並匯入 ${successCount} 筆明細！`;
+              msg += `\n(系統已自動防護並補齊必要的預設分類與科目)`;
+              if (duplicateCount > 0)
+                msg += `\n\n⚠️ 已自動攔截並略過 ${duplicateCount} 筆「已存在系統中」的重複明細。`;
+              alert(msg);
+            } else if (duplicateCount > 0) {
+              alert(
+                `🛡️ 檔案內的所有明細 (${duplicateCount}筆) 系統中皆已存在，已自動略過以防止重複記帳。`,
+              );
+            } else {
+              alert("⚠️ 找不到可新增的有效明細。");
             }
           }
         } catch (err) {
