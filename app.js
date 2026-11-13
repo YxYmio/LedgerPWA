@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.20"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.21"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -37,7 +37,7 @@ const app = createApp({
     const resetPin = () => {
       if (
         confirm(
-          "⚠️ 忘記密碼？\n為保護隱私，重置將會「清空本機所有資料與設定」！\n若您有綁定 Google Drive，重啟後可重新授權並一鍵還原。\n\n確定要強制重置嗎？",
+          "⚠️ 忘記密碼？\n為保護隱私，重置將會「清空本機所有資料與設定」！\n\n💡 救援方式：\n若您先前有開啟「Google Drive 雲端同步」，重置後只要重新輸入 Client ID 並授權登入，即可一鍵將資料下載還原。\n\n確定要強制重置並清空本機資料嗎？",
         )
       ) {
         let check = prompt("請輸入大寫「RESET」以確認執行：");
@@ -45,7 +45,7 @@ const app = createApp({
           localStorage.clear();
           sessionStorage.clear();
 
-          // 【修復核心】：忘記密碼需連同 IndexedDB 的底層資料庫整顆拔除
+          // 忘記密碼需連同 IndexedDB 的底層資料庫整顆拔除
           const req = indexedDB.deleteDatabase("LedgerPWADB");
           req.onsuccess = () => window.location.reload();
           req.onerror = () => window.location.reload();
@@ -722,6 +722,7 @@ const app = createApp({
       fileId: "",
       pinEnabled: false,
       pinCode: "0000",
+      pinHint: "",
       notificationsEnabled: false,
       currentBookId: "default",
       booksIndex: [{ id: "default", name: "日常帳本" }],
