@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.22"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.23"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -1722,6 +1722,27 @@ const app = createApp({
 
     const executeDeleteAccountFromModal = () => {
       let id = editingAccount.id;
+
+      // 【新增】系統核心帳戶防刪保護
+      const systemReservedIds = [
+        "1101",
+        "1103",
+        "1104",
+        "1201",
+        "1201-DEP",
+        "3101",
+        "4201",
+        "4202",
+        "5102",
+        "5103",
+      ];
+      if (systemReservedIds.includes(id)) {
+        alert(
+          "⚠️ 此為系統核心保留帳戶（用於公款代墊、投資或折舊等進階功能），無法刪除！\n\n💡 若不想在畫面上看到它，請至「設定 > 分類與標籤」中將其停用/隱藏。",
+        );
+        return;
+      }
+
       let isUsed = false;
       data.transactions.forEach((tx) => {
         if (tx.debits)
@@ -1744,6 +1765,7 @@ const app = createApp({
         data.accounts = data.accounts.filter((a) => a && a.id !== id);
         showEditAccountModal.value = false;
         autoBackup(true, true);
+        if (typeof refreshIcons === "function") refreshIcons();
       }
     };
 
@@ -4320,6 +4342,25 @@ const app = createApp({
       }
     };
     const deleteAccount = (id) => {
+      // 【新增】系統核心帳戶防刪保護
+      const systemReservedIds = [
+        "1101",
+        "1103",
+        "1104",
+        "1201",
+        "1201-DEP",
+        "3101",
+        "4201",
+        "4202",
+        "5102",
+        "5103",
+      ];
+      if (systemReservedIds.includes(id)) {
+        return alert(
+          "⚠️ 此為系統核心保留科目，無法刪除！\n若不想使用，請點選左側「眼睛」圖示將其隱藏。",
+        );
+      }
+
       let isUsed = false;
       data.transactions.forEach((tx) => {
         if (tx.debits)
@@ -4335,6 +4376,7 @@ const app = createApp({
       if (confirm("確定刪除?")) {
         data.accounts = data.accounts.filter((a) => a && a.id !== id);
         autoBackup(true, true);
+        if (typeof refreshIcons === "function") refreshIcons();
       }
     };
 

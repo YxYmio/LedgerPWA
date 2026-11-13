@@ -1954,9 +1954,13 @@ localStorage.clear();
                       v-model="newTx.currency"
                       class="w-20 shrink-0 border p-2 rounded-lg dark:bg-slate-800 dark:border-slate-600 outline-none text-xs font-bold bg-slate-100 text-slate-600 dark:text-slate-300 shadow-inner"
                     >
-                      <option value="TWD">TWD</option>
-                      <option value="USD">USD</option>
-                      <option value="JPY">JPY</option>
+                      <option 
+                        v-for="(rate, cur) in data.currencyRates" 
+                        :key="cur" 
+                        :value="cur"
+                      >
+                        {{ cur }}
+                      </option>
                     </select>
                     <!-- 輸入框 (允許無限壓縮) -->
                     <input
@@ -5503,29 +5507,7 @@ localStorage.clear();
                 </div>
               </div>
 
-              <div
-                class="flex items-center justify-between border p-3.5 rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 mb-4 shadow-sm"
-                :class="settings.pinEnabled ? 'border-blue-300' : ''"
-              >
-                <div class="flex flex-col">
-                  <span
-                    class="font-bold text-sm text-slate-700 dark:text-slate-300"
-                    >App PIN 碼防窺鎖</span
-                  >
-                  <span
-                    v-if="settings.pinEnabled"
-                    class="text-[10px] text-blue-500 font-bold mt-0.5"
-                    >鎖定功能已啟動</span
-                  >
-                </div>
-                <input
-                  type="checkbox"
-                  v-model="settings.pinEnabled"
-                  @change="() => { if(settings.pinEnabled && settings.pinCode.length !== 4) { alert('請先輸入 4 位數字 PIN 碼！'); settings.pinEnabled = false; } else { saveSettings(false); } }"
-                  class="w-5 h-5 accent-blue-600 cursor-pointer"
-                />
-              </div>
-              <!-- 本機推播提醒設定 (Phase 4) -->
+                            <!-- 本機推播提醒設定 (Phase 4) -->
               <div
                 class="flex items-center justify-between border p-3.5 rounded-xl dark:border-slate-700 bg-white dark:bg-slate-800 mb-4 shadow-sm"
                 :class="settings.notificationsEnabled ? 'border-emerald-300' : ''"
@@ -6356,13 +6338,17 @@ localStorage.clear();
                 </div>
                 <div class="w-24">
                   <div class="text-xs text-slate-500 mb-1 font-bold">幣別</div>
-                  <select
+                 <select
                     v-model="newAssetAcc.currency"
                     class="w-full border p-2.5 rounded-lg dark:bg-slate-700 dark:border-slate-600 outline-none bg-slate-50 dark:text-white font-bold"
                   >
-                    <option value="TWD">TWD</option>
-                    <option value="USD">USD</option>
-                    <option value="JPY">JPY</option>
+                    <option 
+                      v-for="(rate, cur) in data.currencyRates" 
+                      :key="cur" 
+                      :value="cur"
+                    >
+                      {{ cur }}
+                    </option>
                   </select>
                 </div>
               </div>
