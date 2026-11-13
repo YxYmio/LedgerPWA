@@ -1214,7 +1214,7 @@ localStorage.clear();
                   </button>
                 </div>
 
-                <!-- 分類選擇 -->
+                <!-- 分類選擇 (已修復手機版連動與分組顯示) -->
                 <div v-if="!newTx.isReimbursement" class="flex gap-2">
                   <select
                     v-model="newTx.mainCategory"
@@ -1235,21 +1235,22 @@ localStorage.clear();
                     class="border p-2.5 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white"
                   >
                     <option value="" disabled>直接選擇子類別</option>
-                    <optgroup
-                      v-for="cat in expenseCategories"
-                      :key="cat"
-                      :label="cat"
-                      v-show="!newTx.mainCategory || newTx.mainCategory === cat"
-                    >
-                      <option
-                        v-for="acc in getSubAccounts('Expense', cat)"
-                        :key="acc && acc.id ? acc.id : ''"
-                        :value="acc && acc.id ? acc.id : ''"
+                    <!-- [關鍵修復] 改用 template + v-if，解決手機版無法隱藏選項的 Bug -->
+                    <template v-for="cat in expenseCategories" :key="cat">
+                      <optgroup
+                        :label="cat"
+                        v-if="!newTx.mainCategory || newTx.mainCategory === cat"
                       >
-                        {{ acc && acc.icon ? acc.icon : '🏷️' }} {{ acc &&
-                        acc.name ? acc.name : '' }}
-                      </option>
-                    </optgroup>
+                        <option
+                          v-for="acc in getSubAccounts('Expense', cat)"
+                          :key="acc && acc.id ? acc.id : ''"
+                          :value="acc && acc.id ? acc.id : ''"
+                        >
+                          {{ acc && acc.icon ? acc.icon : '🏷️' }} {{ acc &&
+                          acc.name ? acc.name : '' }}
+                        </option>
+                      </optgroup>
+                    </template>
                   </select>
                 </div>
                 <!-- 公款代墊遮罩 -->
@@ -1388,7 +1389,7 @@ localStorage.clear();
                     @change="newTx.subAccount = ''"
                     class="border p-2.5 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white"
                   >
-                    <option value="" disabled>主類別</option>
+                    <option value="">全部顯示</option>
                     <option
                       v-for="cat in incomeCategories"
                       :key="cat"
@@ -1401,16 +1402,23 @@ localStorage.clear();
                     v-model="newTx.subAccount"
                     class="border p-2.5 rounded-lg flex-1 dark:bg-slate-700 dark:border-slate-600 outline-none text-sm bg-slate-50 dark:text-white"
                   >
-                    <option value="" disabled>子類別</option>
-                    <!-- [修改] 移除危險的箭頭函式，改用 computed 綁定 -->
-                    <option
-                      v-for="acc in filteredIncomeSubAccounts"
-                      :key="acc && acc.id ? acc.id : ''"
-                      :value="acc && acc.id ? acc.id : ''"
-                    >
-                      {{ acc && acc.icon ? acc.icon : '🏷️' }} {{ acc && acc.name
-                      ? acc.name : '' }}
-                    </option>
+                    <option value="" disabled>直接選擇子類別</option>
+                    <!-- [關鍵修復] 套用與支出相同的 optgroup 分組與防呆邏輯 -->
+                    <template v-for="cat in incomeCategories" :key="cat">
+                      <optgroup
+                        :label="cat"
+                        v-if="!newTx.mainCategory || newTx.mainCategory === cat"
+                      >
+                        <option
+                          v-for="acc in getSubAccounts('Income', cat)"
+                          :key="acc && acc.id ? acc.id : ''"
+                          :value="acc && acc.id ? acc.id : ''"
+                        >
+                          {{ acc && acc.icon ? acc.icon : '🏷️' }} {{ acc && acc.name
+                          ? acc.name : '' }}
+                        </option>
+                      </optgroup>
+                    </template>
                   </select>
                 </div>
                 <select
