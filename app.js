@@ -44,7 +44,12 @@ const app = createApp({
         if (check === "RESET") {
           localStorage.clear();
           sessionStorage.clear();
-          window.location.reload(true);
+
+          // 【修復核心】：忘記密碼需連同 IndexedDB 的底層資料庫整顆拔除
+          const req = indexedDB.deleteDatabase("LedgerPWADB");
+          req.onsuccess = () => window.location.reload();
+          req.onerror = () => window.location.reload();
+          req.onblocked = () => window.location.reload();
         } else {
           alert("輸入錯誤，重置取消。");
         }
@@ -4706,10 +4711,16 @@ const app = createApp({
           );
         } catch (e) {}
       }
-      localStorage.removeItem("ledger_backup_" + currentBookId.value);
-      window.location.reload(true);
-    };
 
+      // 【修復核心】：必須同步清除 IndexedDB 內的實體備份，否則重整後資料又會被撈回來
+      if (typeof StorageDB !== "undefined" && StorageDB.remove) {
+        StorageDB.remove("ledger_backup_" + currentBookId.value);
+      }
+      localStorage.removeItem("ledger_backup_" + currentBookId.value);
+
+      // 去除 true 參數，避免手機版瀏覽器報錯或忽略重整
+      window.location.reload();
+    };
     const updateStockPrices = async (isSilent = false) => {
       let updatedCount = 0;
       let twdInvestments = (data.investments || []).filter(

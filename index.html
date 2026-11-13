@@ -115,9 +115,12 @@
       <h2>系統啟動中</h2>
       <button
         onclick="
-          localStorage.clear();
+localStorage.clear();
           sessionStorage.clear();
-          window.location.reload(true);
+          var req = indexedDB.deleteDatabase('LedgerPWADB');
+          req.onsuccess = function() { window.location.reload(); };
+          req.onerror = function() { window.location.reload(); };
+          req.onblocked = function() { window.location.reload(); };
         "
         class="btn-reset"
       >
