@@ -17,7 +17,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     let hasShownStorageWarning = false; // 容量預警防干擾變數
     const isAppReady = ref(false);
-    const swVersion = ref("v1.1.21"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
+    const swVersion = ref("v1.1.22"); // 新增：此處與 sw.js 中的 CACHE_NAME 保持一致
     const deferredPrompt = ref(null);
     const showInstallBanner = ref(false);
 
@@ -88,6 +88,7 @@ const app = createApp({
     // ------------------------------------------------------------------------
     // 3. 彈窗控制狀態 (Modals)
     // ------------------------------------------------------------------------
+    const isPinSettingOpen = ref(false); // [新增] 控制 PIN 碼設定區塊是否展開
     const showGoogleClientIdTutorialModal = ref(false);
     const showAddAccountModal = ref(false);
     const showInitialStockModal = ref(false);
@@ -5951,6 +5952,7 @@ const app = createApp({
       showProjectBudgetModal,
       isActionSheetOpen,
       activeActionTx,
+      isPinSettingOpen,
       openActionSheet,
       closeActionSheet,
       showGroupSplitProjectModal,
